@@ -1,18 +1,19 @@
-# Memoquill M1.2 delivery checkpoint
+# Memoquill M2 execution checkpoint
 
-Task report: [qualified M1.2 delivery candidate](task-reports/2026-10-28-203307Z-m1-2-durable-workspace.md).
-
-- **Updated:** 2026-10-28 20:36:21 UTC. Dated pre-merge snapshot; PR #2 is published. User authorizes PR plus merge after completed checks, with current main. No M2 or release. Root LICENSE unchanged; Scryntic repository read only.
-- **Task:** KER-98; [execution ledger](planning/m1-2-execution.md), [runtime](architecture/workspace-runtime.md), [qualification](quality/workspace-qualification.md). G1–G6 technical implementation/qualification are complete. Source integration is tracked by [PR #2](https://github.com/n3d7/Memoquill/pull/2); consult its live state before taking delivery actions.
-- **Source:** branch feat/ker-98-durable-workspace, app source at6dc9afd86b40be3f52667f16f653fabf84484e54; c45c67a2d5c6ce7e4f948917aed70c0528de495f includes origin/main3f76adb3bf34ab3ae9a9d235f0d85d860a25810a. Final harness/docs changes are the pending delivery commit. User-added AGENTS sections and exact local RTK.md were preserved/adapted.
-- **Implemented:** private regular-file owner/lock, safe SQLite schema2/migrations/snapshots, WAL/FULL before migrations, typed bounded single-writer service, idempotent preferences/receipts, internal immutable assets/recovery, async native/UI prefs. Temporary material and name-only picker retained. No importer/domain/history/MCP runtime/cloud/account system.
-- **Validation:** npm run check20 UI +62 Rust,3 private helper tests launched by parents, optimized glib regression; CRAP max9.3, Dryer no candidates>=0.8; Rust131/131 and UI38/38 selected mutations killed. Full process/power-loss/hardware guarantees are not asserted.
-- **Native:** current RPM SHA256 fa3b11960d69e5578edde0d56281c204c464a15dd608eceeed6a380c1a7dc984; X11 42+7, native Wayland43+7, both normal-exit0 and restored Dark/200%. Wayland restart has its own protocol proof. Screenshot env leak was corrected and native Close action replaces unsupported Alt+F4 only in nested Weston. Positive restored screenshot inspected. Raw evidence `.qualification/m12/`.
-- **Review:** independent reviewer closed the backend/close-action finding in 5678b344326a53e2ede812e8d8b74e0df11fd79b; no confirmed Critical/Important in its bounded final delta. Final harness Semgrep and Python syntax checks passed; 74 local document links resolve and the final docs secret scan has zero matches.
-- **Security:** Semgrep three current_exe matches in test-only helpers,0 errors; final changed Python harness scan separate. Trivy secrets0; existing glib version match +3 Low one-shot healthcheck notices; cargo audit0 vulnerabilities plus proc-macro-error maintenance warning. DP5.2.0 completed616-component Memoquill/0.1.0-m1.2 BOM, but findings403 prevents full finding visibility. No key copied/printed, no blanket suppression, SonarQube excluded.
-- **Alert#1:** dismissed/inaccurate under explicit user authority after verifying remote-main glib backport7e91f1a9420fd3e6c58b7913bbbf201888304ea9, exact two-line upstream fix and optimized regression. Reopen if source/pin changes; upstream advisory remains valid.
-- **Manual gate:** KER-97 stays In Review; physical GNOME/human Orca acceptance is unconfirmed. This does not claim all M1/release acceptance or authorize domain expansion. SECURITY.md is the unchanged user template from main. License work remains paused.
-- **Publication rule:** refresh origin/main and inspect actual PR/head/checks before merging; then fast-forward local main and verify equality. A future continuation must check the linked PR and actual Git/Linear state rather than infer publication from this dated checkpoint. If source is already merged, no further implementation is authorized.
-- **Delivery checkpoint:** PR #2 is OPEN; CodeQL is running. KER-98 is In Review with the PR linked. No merge is claimed by this dated snapshot. The PR merge commit and subsequent Linear receipt are authoritative for final publication, not this pre-merge commit.
-- **Resume rule:** inspect PR #2 first. If merged, verify local main against origin/main and stop; do not repeat M1.2 or begin M2. If open, verify exact head/current base/terminal checks, perform the authorized merge, refresh local main and record actual receipts. Never close KER-97 on that basis.
-- **Reporting:** Russian chat; English artifacts. Final response includes actually used skills/MCP/tools/plugins. Existing jobs are terminal; preserve raw evidence. No extra work starts automatically.
+- Updated: 2026-10-28 21:26 UTC.
+- Authorized: implement KER-99; separate commit after each completed substep on feat/ker-99-authoring; create PR without merge. Do not wait for GitHub CI between substeps.
+- Baseline: main8405103cae7bcafdeec15caebf2516bfcf0a035e; M1.2 source integrated/KER-98 Done.
+- Current work: KER-109 complete; KER-110/KER-111 In Progress. KER-99 In Progress.
+- Desktop probe: approved read-only host loginctl reports active local i3/X11; GNOME/Orca packages absent, no matching process visible. Sandboxed bus probe denied, host read succeeded.
+- User delegated gate judgment after the probe. ADR-02 records development-only deferral on existing X11/Wayland/IME/Orca-presentation automation, retaining physical GNOME/human Orca as required acceptance and KER-97 In Review.
+- No manual pass, release acceptance or host configuration change is claimed; an observed unresolved core accessibility failure triggers bounded fallback.
+- Contracts: [M2 baseline](planning/m2-contracts.md), ownership/shared placements, document budgets/schema, Unicode anchors, receipts/conflicts and four subject fixture/test seams.
+- Execution ledger: [M2](planning/m2-execution.md). Preparation and research remain historical evidence and are not current authorization.
+- Branch: feat/ker-99-authoring; no merge. Commit KER-109 docs first; then separate KER-110/KER-111 commits after actual verification.
+- Initial tree for this execution already contained prior preparation/HANDOFF docs; retain them. No unrelated user changes.
+- Actual skills: project workflow/routing/reporting, global skill-catalog/codebase-design; ub-mode selected as coding owner.
+- MCP: Serena already active/manual read; Codebase Memory Tier2 search/snippets/trace/coverage; Linear reads and scoped lifecycle updates.
+- Source coverage: generation2026-10-28T21:23:58Z (refresh after edits); exact relied-on files match metadata; SQL001 line12 parse_partial read directly during preparation.
+- Tools: RTK, Python, apply_patch; read-only host loginctl. No new research, native run, scanner or application test yet.
+- Next: pure domain/canonical-document behavior tests and implementation; then typed persistence, editor, attachments, navigation and integrated qualification.
+- Reports: prior [preparation report](task-reports/2026-10-28-211603Z-m2-preparation.md); current actions/results recorded in execution ledger.
