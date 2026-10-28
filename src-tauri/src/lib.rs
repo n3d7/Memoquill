@@ -1,4 +1,5 @@
 pub mod draft;
+pub mod workspace;
 
 #[tauri::command]
 fn check_draft(draft: draft::Draft) -> Result<draft::DraftSummary, String> {

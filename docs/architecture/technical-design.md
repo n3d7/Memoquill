@@ -2,7 +2,7 @@
 
 ## Recommendation and decision status
 
-Use **Rust, TypeScript, React, Tauri 2, and SQLite** as a local modular monolith. Tauri 2 is the deliberately selected stable family, not a claim that no newer previews exist. Pin exact compatible releases during M1. The present assignment creates no package manifest or application code. [Technical alternatives and inspected versions](../research/technical-options.md) provide the comparison; [ADRs](decisions.md) define reconsideration conditions.
+Use **Rust, TypeScript, React, Tauri 2, and SQLite** as a local modular monolith. Tauri 2 is the deliberately selected stable family, not a claim that no newer previews exist. Pin exact compatible releases during M1. M1.1 now provides a published qualification fixture; the durable layer described here remains unimplemented. [M1.2 preparation](../planning/m1-2-workspace-preparation.md) refines that next step without starting it. [Technical alternatives and inspected versions](../research/technical-options.md) provide the comparison; [ADRs](decisions.md) define reconsideration conditions.
 
 Tauri avoids a separate backend service and reuses Linux WebKitGTK; Rust suits validated domain/IO logic and the FSRS dependency; SQLite fits transactions, local ownership, and FTS5. TypeScript/React provide a mature interface ecosystem. These are practical judgments, not measured Memoquill footprint/performance results. A mandatory **M1 packaged Fedora/Orca/AT-SPI feasibility gate** tests the actual webview, editor, focus, and math/code workflows. If it fails without a bounded fix, revisit Electron or a native shell before domain expansion. Tauri 3 alpha is not a Foundation dependency.
 

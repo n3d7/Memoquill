@@ -6,6 +6,8 @@ Seven milestones deliver the smallest coherent Memoquill experience, rather than
 
 Current execution: M1.1 has a local RPM and passing bounded Fedora X11/Wayland/IME/Orca automation; see the [candidate baseline and remaining manual acceptance](../quality/fedora-desktop-baseline.md). It is ready for review, not a release or all of M1. M1.2 remains unstarted; no dependency or subsequent implementation authority changes.
 
+M1.2 [technical preparation](m1-2-workspace-preparation.md) is complete. This identifies the proposed contracts, durability protocol, test boundaries and first increments; the current user instruction is to stop before implementing them. KER-98 remains Backlog and the M1.1 acceptance dependency remains unchanged.
+
 | Order | Milestone | Dependencies | Verifiable capability / exit |
 | --- | --- | --- | --- |
 | M1 | Desktop foundation and durable application services | None | Packaged Fedora feasibility for Tauri/Orca/editor/math/IME; typed Rust/UI/service boundary; workspace/migration/asset/operation foundations, single-instance writer and safe failure. Decision gate before domain expansion. |

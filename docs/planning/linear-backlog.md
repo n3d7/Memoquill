@@ -113,7 +113,13 @@ Supporting documentation
 - `docs/architecture/ai-mcp-integration.md`
 - `docs/quality/verification-strategy.md`
 
-These Foundation documents are currently local/uncommitted. This is a future implementation ticket in Memoquill only; creating it does not start implementation or authorize commits/push/publication.
+Foundation documents and the M1.1 source candidate are published in Memoquill main through PR #1. KER-98 remains planned. Its preparation notes are local/uncommitted; the current user instruction authorises preparation and then stopping, not implementation or another publication.
+
+#### Preparation status — 2026-10-28
+
+KER-98 preparation is complete, with no implementation. Its Backlog state, High priority, M1 milestone and KER-97 dependency remain unchanged; KER-97 is still In Review. Remote preparation notes clarify the patched SQLite engine/runtime check, bounded single writer, migration snapshots, asset publication ordering, operation receipts and failure testing.
+
+The detailed [M1.2 preparation](m1-2-workspace-preparation.md) contains the proposed first slice and G0–G6 sequence. These local notes do not start the ticket, close manual M1.1 acceptance or authorise code/dependency/PR changes.
 
 ### M2 — Deliver custom subjects, material authoring, and navigation
 

@@ -15,6 +15,7 @@ Foundation documentation and the M1.1 source candidate are published through [PR
 
 - [Actual Fedora desktop qualification](quality/fedora-desktop-baseline.md) and [M1.1 implementation/action log](planning/m1-desktop-qualification.md).
 - [M1.1 review report](task-reports/2026-10-28-103031Z-m1-desktop-qualification.md), [source/artifact evidence](quality/m1-desktop-evidence.json), and [native reproduction](../tests/qualification/README.md).
+- [M1.2 preparation and execution sequence](planning/m1-2-workspace-preparation.md) and [preparation report](task-reports/2026-10-28-130321Z-m1-2-preparation.md): planning only; await the user's start instruction.
 
 - [Learning science and evidence register](research/learning-science.md).
 - [Activity portfolio and additional evidence](research/learning-activities.md), with [audit of the supplied Consensus review](research/consensus-review-audit.md).
