@@ -1,5 +1,7 @@
 # Linear backlog mapping
 
+M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](../quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
+
 Roadmap authority: [roadmap.md](roadmap.md). Dedicated project: [Memoquill — Foundation V1](https://linear.app/kerigan/project/memoquill-foundation-v1-05143f79bda3), `P-KER-3`, Kerigan team (`KER`). Project, seven milestones and twelve issues were successfully created and their returned IDs/URLs recorded below; no unrelated project/issue was modified. KER-97 remains In Review with manual acceptance open. The later user request authorized KER-98, now In Progress with [implementation/qualification](m1-2-execution.md) and a final PR and merge after completed qualification. Other issues remain outside this execution. PR #1 published the Foundation/M1.1 baseline; local M1.2 work is not yet published.
 
 Seven meaningful milestones contain twelve substantial issues. Platform feasibility/durability, ingestion/recovery, session/scheduling, and MCP transport/authoring/authority risks are split where independent acceptance prevents an unmanageable combined ticket. MCP includes rich authoring and explicitly delegated reversible autonomy, not only read/propose. No time estimates or target dates are invented.

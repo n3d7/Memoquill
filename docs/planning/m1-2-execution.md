@@ -52,3 +52,7 @@ Authority: the user authorised implementation after preparation. The latest inst
 - Final source candidate: all62 Rust +20 UI checks, optimized glib, CRAP max9.3, Dryer>=0.8 clean, Rust131/131 and UI38/38 selected mutations killed. Evidence and limitations are consolidated in docs/quality/workspace-qualification.md. No physical GNOME/human listening, binary release, M2, license change or Scryntic write is claimed.
 - Linear issue read-back confirms KER-98 In Progress with unchanged High/M1/dependencies. Optional advertised get_agent_context failed with server Tool not found; ordinary issue retrieval works. This does not change acceptance criteria or block source delivery.
 - origin/main3f76adb (user SECURITY.md template) is included in c45c67a; it was fetched again before publication. Final PR/merge must pin the exact reviewed head, verify remote checks/current base and then fast-forward local main. GitHub/Linear remain authoritative for terminal publication status, separate from local candidate evidence.
+
+## Published PR checkpoint — 2026-10-28 20:36:21 UTC
+
+[PR #2](https://github.com/n3d7/Memoquill/pull/2) is open from the qualified branch; runtime/harness review closed at 5678b344326a53e2ede812e8d8b74e0df11fd79b. Final metadata links change documentation only. KER-98 is In Review; CodeQL is running at this snapshot. Consult the PR and final Linear receipt for actual merge/head/check state; no merge is pre-claimed here. KER-97 remains In Review.
