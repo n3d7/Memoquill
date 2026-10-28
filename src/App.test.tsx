@@ -5,13 +5,20 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import axe from 'axe-core';
 import { App } from './App';
+import workspace from '../tests/fixtures/workspace-status.json';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
-beforeEach(() => vi.resetAllMocks());
+const draftInvoke = vi.fn();
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(invoke).mockImplementation(async (command, args) =>
+    command === 'check_draft' ? draftInvoke(args) : { ...workspace,
+      preferences: { ...workspace.preferences, preferences: { theme: 'system', textScale: 100 } } });
+});
 
 test('validates edited material through the typed service and preserves Unicode', async () => {
-  vi.mocked(invoke).mockResolvedValue({ title: '世界', proseCharacters: 6, codeLines: 1 });
+  draftInvoke.mockResolvedValue({ title: '世界', proseCharacters: 6, codeLines: 1 });
   render(<App />);
   fireEvent.change(screen.getByRole('textbox', { name: 'Title' }), { target: { value: '世界' } });
   await userEvent.click(screen.getByRole('button', { name: 'Check draft' }));
@@ -27,7 +34,7 @@ test('validates edited material through the typed service and preserves Unicode'
 });
 
 test('reports service failure without clearing edits', async () => {
-  vi.mocked(invoke).mockRejectedValue('Unsupported draft schema.');
+  draftInvoke.mockRejectedValue('Unsupported draft schema.');
   render(<App />);
   await userEvent.click(screen.getByRole('button', { name: 'Check draft' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported draft schema.');
@@ -36,15 +43,16 @@ test('reports service failure without clearing edits', async () => {
 });
 
 test('unexpected failures show a safe message instead of raw object data', async () => {
-  vi.mocked(invoke).mockRejectedValue({ privateDetail: 'do-not-display' });
+  draftInvoke.mockRejectedValue({ privateDetail: 'do-not-display' });
   render(<App />);
   await userEvent.click(screen.getByRole('button', { name: 'Check draft' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Your edits are still here');
   expect(screen.queryByText('do-not-display')).not.toBeInTheDocument();
 });
 
-test('appearance and text size can change without resetting notes', () => {
+test('appearance and text size can change without resetting notes', async () => {
   const { container } = render(<App />);
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Appearance' })).toBeEnabled());
   fireEvent.change(screen.getByRole('combobox', { name: 'Appearance' }), { target: { value: 'dark' } });
   expect(container.querySelector('.app')).toHaveAttribute('data-theme', 'dark');
   fireEvent.change(screen.getByRole('combobox', { name: 'Text size' }), { target: { value: '200' } });
@@ -89,7 +97,7 @@ test('selecting a source discloses only its name and does not import or execute 
   await userEvent.click(screen.getByRole('button', { name: 'Choose a source file' }));
   expect(screen.getByRole('status')).toHaveTextContent('Selected lesson.py');
   expect(screen.queryByText('/private/folder/lesson.py')).not.toBeInTheDocument();
-  expect(invoke).not.toHaveBeenCalled();
+  expect(vi.mocked(invoke).mock.calls.every(([command]) => command === 'workspace_status')).toBe(true);
 });
 
 test('supports readable math and passive code without active links', async () => {

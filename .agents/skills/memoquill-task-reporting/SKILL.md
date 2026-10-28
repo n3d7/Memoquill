@@ -20,6 +20,7 @@ Write a factual, proportional record before finishing substantial work or handin
 - State unmet criteria, uncertainties, blockers, and one concrete continuation step. Use “none” when nothing remains; do not invent follow-up work.
 - When relevant, record branch/HEAD and distinguish local edits, commits, push, PR/CI, tracker writes, and release state. Never infer one from another.
 - Link the report in the final response. If saving is blocked, explain the limitation and give essential facts directly.
+- Record an actual-use inventory of skills, MCP integrations, tools and plugins, including failed/unavailable attempts when material. Distinguish reading a skill from executing its workflow, and discovery from use. Include the concise inventory in the final response as required by `AGENTS.md`.
 
 ## Current checkpoint
 

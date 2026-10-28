@@ -1,0 +1,11 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 2,
+  "preferences": {
+    "workspaceId": "4d9606cd-1b54-4fbe-8d21-414bc20d792a",
+    "revision": 3,
+    "preferences": {"theme": "dark", "textScale": 125}
+  },
+  "recovery": {"interruptedOperations": 0, "stagingFiles": 0, "orphanAssets": 0, "missingAssets": 0, "corruptAssets": 0, "unsafePaths": 0},
+  "sqliteVersion": "3.54.1"
+}

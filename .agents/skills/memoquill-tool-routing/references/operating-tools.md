@@ -11,3 +11,30 @@ Before authorized codebase delegation, gather graph/search/coverage evidence. Pa
 Retry only for a clear correctable failure. Do not install services, change system configuration, expose endpoints, run credential setup, or broaden policies to repair an unrelated task. Preserve completed work and describe blockers precisely.
 
 Keep credentials, personal learning data, sensitive payloads, and private source out of unauthorized external calls. Public retrieval, local source reads, and external mutations have distinct boundaries.
+
+## Async work, surfaces and recovery
+
+A shell session ID, crawl ID, scan ID or PR dispatch is not completion. Resume
+the actual session/job and inspect terminal output. Check ownership before
+interrupting processes, bound wait calls to preserve user communication and
+clean up owned test/indexing children. Persist useful non-secret evidence before
+a context handover; do not launch duplicate jobs because output is delayed.
+
+Use purpose-built connected tools before browser automation when sufficient.
+For CUA, the first call/reset uses exactly one documented entry call and reads
+its returned API/state. Prefer current page/snapshot evidence for locators and
+actions. Browser evaluation is not permission to execute arbitrary host code;
+forms/uploads/messages retain their actual task authority. Persistent JS/REPL
+bindings, browser tabs and remote operations have separate reset lifecycles.
+
+Compressed output can omit material details. Retrieve its original through the
+available Headroom retrieval tool/hash when exact evidence depends on it; an
+excerpt is not a complete scan or source file. Keep outputs bounded instead of
+dumping whole registries. Tool inventories may differ between sessions/agents.
+
+When a capability is missing, check the exact live name/schema and existing
+approved fallback once. Use `mcpdo` for connection diagnostics and the installed
+`plugin-management` skill only for a material integration gap. Installing or
+configuring a server needs the separate precheck/authorization path. Do not
+change `.codex/config.toml`, hooks, bindings, credentials or permissions merely
+to refresh these reference documents.

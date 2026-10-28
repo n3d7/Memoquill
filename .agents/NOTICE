@@ -4,7 +4,21 @@ Copyright 2026 n3d7
 AGENTS.md and the project-local Memoquill task workflow, task reporting and
 tool routing skills are adapted from Scryntic guidance by n3d7.
 Source: https://github.com/n3d7/Scryntic
-The local source working copy was inspected on 2026-10-27.
+The local source working copy was inspected on 2026-10-27 and 2026-10-28.
+
+2026-10-28 adaptation extends practical search/runtime, Context7/Firecrawl,
+document/MCP diagnostics, verification and handoff guidance. Source repository
+HEAD was 3cec28f17e0c2ec2924ff0223fab1e0115142c8b; operational files may be local.
+SHA-256 of the additionally inspected source files (paths relative to Scryntic):
+  AGENTS.md c06668271945edcd1527ecc88c41087e89fd95096ec769c6925c44f6d76c8b3a
+  .agents/skills/scryntic-task-workflow/SKILL.md 6aa3286554f7a627e0fac47142266f3c42c38d0fc1d2030576b005b67e2c59ba
+  .agents/skills/scryntic-task-reporting/SKILL.md be28b7bd9f882ceed60dab819ad72002fb19729b2803d9f5654ac8992d75d576
+  .agents/skills/scryntic-tool-routing/SKILL.md ea4094da5a31be4868aac30983d50c938bf07db8c41a24cfbb362b29600398ed
+  .agents/skills/scryntic-tool-routing/references/local-tools.md 74218fa33cadf028d17cb6e3aa1fa6012c131c1780eaf682854f815ea1eba831
+  .agents/skills/scryntic-tool-routing/references/recipes.md 4e09d8032fe205b5866a93f6c08f3873a522285ba2056ae5d747cfb5eab609bc
+  .agents/skills/scryntic-tool-routing/references/apps-and-plugins.md 10e15f80e0d1e2fad1c8a5309e7bc9714961f95d260430cb478d7b2709db2b22
+  .agents/skills/scryntic-tool-routing/references/orchestration.md a87098b783624785c56053a7405d1371f5414a132f0da09e9a8204ad7e2dea4d
+  .agents/skills/scryntic-tool-routing/references/maintenance.md ee3dc4cc8a6daab985ee0b726e7f94deb254ae323938dd7e341e87058444fc20
 
 Changes replace Scryntic-specific product, research, phase and integration
 assumptions with Memoquill's subject-agnostic, offline learning requirements.

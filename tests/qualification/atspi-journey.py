@@ -75,7 +75,7 @@ def selected_source():
     return any('Selected memoquill-example.md' in text(node) for node in nodes() if 'live:polite' in node.getAttributes())
 
 def feedback():
-    return next(node for node in nodes() if 'live:polite' in node.getAttributes())
+    return next(node for node in nodes() if node.name == 'Material operation status')
 
 def open_enabled():
     return any(node.name == 'Open' and node.getRoleName() in ('button', 'push button') and node.getState().contains(pyatspi.STATE_ENABLED) for node in nodes())
@@ -111,12 +111,63 @@ def focus(role, name):
 
 def capture(name):
     import gi
-    os.environ['GDK_BACKEND'] = 'x11'  # The parent surface also contains nested Weston.
-    gi.require_version('Gdk', '3.0')
-    from gi.repository import Gdk
-    window = Gdk.get_default_root_window()
-    image = Gdk.pixbuf_get_from_window(window, 0, 0, window.get_width(), window.get_height())
-    image.savev(f'/evidence/{name}-{mode}.png', 'png', [], [])
+    previous = os.environ.get('GDK_BACKEND')
+    os.environ['GDK_BACKEND'] = 'x11'  # Capture the parent surface containing Weston.
+    try:
+        gi.require_version('Gdk', '3.0')
+        from gi.repository import Gdk
+        window = Gdk.get_default_root_window()
+        image = Gdk.pixbuf_get_from_window(window, 0, 0, window.get_width(), window.get_height())
+        image.savev(f'/evidence/{name}-{mode}.png', 'png', [], [])
+    finally:
+        if previous is None:
+            os.environ.pop('GDK_BACKEND', None)
+        else:
+            os.environ['GDK_BACKEND'] = previous
+
+def storage_restart():
+    """Persist preferences through real UI; restart normally in this private profile."""
+    import fcntl
+    focus('button', 'Save reading preferences')
+    key('space')
+    wait_for(lambda: 'Reading preferences saved' in text(find('dialog', 'Operation result')), 'native preference save acknowledged')
+    key('Escape')
+    wait_for(lambda: find('button', 'Save reading preferences').getState().contains(pyatspi.STATE_FOCUSED), 'save result restores its trigger')
+    data_root = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
+    workspace = data_root / 'io.github.n3d7.memoquill/workspace'
+    if mode == 'wayland':
+        # Nested Weston has no Alt+F4 close binding. Activate GTK's real close control.
+        if not find('button', 'Close').queryAction().doAction(0):
+            raise AssertionError('Native window-close action was not accepted')
+    else:
+        key('alt+F4')
+    def released():
+        with (workspace / 'workspace.lock').open('rb') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return True
+            except BlockingIOError:
+                return False
+    wait_for(released, 'normal window close drains storage and releases owner lock')
+    with Path(f'/evidence/restart-{mode}.log').open('w') as output:
+        child_env = {**os.environ, 'GDK_BACKEND': mode, 'WAYLAND_DEBUG': '1'}
+        child = subprocess.Popen(['memoquill'], env=child_env, stdout=output, stderr=subprocess.STDOUT)
+        try:
+            if mode == 'wayland':
+                wait_for(lambda: 'wl_display' in Path('/evidence/restart-wayland.log').read_text(), 'restarted app uses native Wayland protocol')
+            wait_for(lambda: any(node.name == 'Dark' and node.getState().contains(pyatspi.STATE_SELECTED) for node in nodes(find('combo box', 'Appearance'))), 'saved appearance restored after native restart')
+            wait_for(lambda: any(node.name == '200%' and node.getState().contains(pyatspi.STATE_SELECTED) for node in nodes(find('combo box', 'Text size'))), 'saved text scale restored after native restart')
+            wait_for(lambda: text(find('entry', 'Title')) == 'Learning material fixture', 'material fixture remains explicitly ephemeral')
+            focus('button', 'Read workspace status'); key('space')
+            wait_for(lambda: 'Reading preferences are saved locally' in text(find('dialog', 'Operation result')), 'native workspace status is available on request')
+            capture('storage-restored')
+            key('Escape')
+        finally:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill(); child.wait()
 
 try:
     if mode == 'wayland':
@@ -238,6 +289,8 @@ try:
     select_engine('xkb:us::eng')
 
     capture('screenshot')
+    if os.environ.get('MEMOQUILL_STORAGE_AUDIT') == '1':
+        storage_restart()
     time.sleep(2)
 finally:
     Path(f'/evidence/journey-{mode}.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))

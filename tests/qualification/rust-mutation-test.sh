@@ -12,8 +12,8 @@ root = Path(sys.argv[1])
 worker = Path.cwd()
 if worker != root:
     worker.relative_to(root / 'target' / 'mutation-workers')
-    for relative in ['src-tauri/Cargo.toml', 'src-tauri/src/lib.rs']:
-        path = worker / relative
+    source_files = list((worker / 'src-tauri/src').rglob('*.rs'))
+    for path in [worker / 'src-tauri/Cargo.toml', *source_files]:
         if path.is_symlink():
             content = path.read_bytes()
             path.unlink()

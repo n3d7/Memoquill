@@ -4,7 +4,7 @@ Work in progress
 
 Memoquill is a planned open-source, subject-agnostic learning application for organizing sources, studying, practicing, and retaining knowledge. Foundation V1 targets offline Linux desktop use, especially Fedora; AI is optional.
 
-Foundation implementation has started with M1.1, a Fedora desktop qualification shell. It demonstrates offline reading/editing, mathematical rendering, passive code, typed Rust calls and native accessibility integration. It does not yet save learning content or progress; the complete learning application remains planned.
+Foundation implementation includes the Fedora desktop qualification shell and the M1.2 durable workspace. It demonstrates offline reading/editing, mathematical rendering, passive code, typed Rust calls, native accessibility integration and explicitly saved local reading preferences. Learning content and progress are not yet persistent; the complete learning application remains planned. See the [workspace runtime](docs/architecture/workspace-runtime.md) and [current execution evidence](docs/planning/m1-2-execution.md).
 
 - [Documentation index](docs/README.md)
 - [Foundation V1 scope](docs/product/foundation-v1.md)

@@ -21,4 +21,13 @@ Choose the smallest toolset that supplies the requested evidence or action. Read
 3. Inspect required fields, pagination/limits, destination, cost, side effects, actual returned content, and errors. Batch independent reads; sequence dependent calls, approvals, and mutations.
 4. Reuse verified results. A missing tool in one surface, empty search, successful dispatch, or HTTP 200 proves only its narrow result. Report limitations instead of inventing availability or completion.
 
-The dated Scryntic machine-wide catalog and provider-specific infrastructure recipes were not carried over. They contain workstation/project assumptions; discover the current session's capabilities instead. This skill does not install or reconfigure tools.
+## Additional practical routes
+
+| Need | Read only this reference |
+| --- | --- |
+| Semgrep, Trivy, Dependency-Track, code metrics, Fedora desktop qualification | [Verification routes](references/verification.md) |
+| MarkItDown/Docling, PDF artifacts, MCP Inspector/mcpdo | [Documents and MCP diagnostics](references/documents-and-mcp.md) |
+
+Use the installed `skill-catalog` with `--project /home/void/Project/Memoquill` for focused skill selection; load the selected skill before execution. Keep one workflow owner per phase and use specialists only for distinct supporting work. Known-tool routine work needs no catalog scan.
+
+The references transfer useful Scryntic operating knowledge, not its dated machine-wide registry, unrelated project identifiers or server-administration authority. Workstation paths describe the configured operator environment and may be stale on another machine. Rediscover live contracts before use. This router does not install/reconfigure services or authorize cloud uploads. Record actual successful and failed usage separately from discovered capabilities.

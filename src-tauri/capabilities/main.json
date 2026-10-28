@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Only main-window ephemeral draft checks and an explicit native file picker. No file reading, execution, network or arbitrary window commands.",
+  "description": "Main-window typed workspace/preferences/receipt operations, ephemeral draft checks and an explicit name-only picker. No arbitrary SQL, file reading, execution, network or window commands.",
   "windows": ["main"],
-  "permissions": ["allow-check-draft", "dialog:allow-open"]
+  "permissions": ["allow-check-draft", "allow-workspace-status", "allow-save-reading-preferences", "allow-operation-receipt", "allow-reopen-workspace", "dialog:allow-open"]
 }

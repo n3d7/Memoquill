@@ -20,10 +20,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-dialog = "=2.8.3"
+rusqlite = { version = "=0.41.0", default-features = false, features = ["bundled", "backup", "limits"] }
+rustix = { version = "=1.1.6", features = ["fs"] }
+sha2 = "=0.10.9"
+tokio = { version = "=1.54.1", features = ["sync"] }
+uuid = { version = "=1.29.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
 tauri = { version = "=2.12.5", features = ["test"] }
 glib = "=0.18.5"
+tempfile = "=3.27.0"
 
 # Temporary upstream fix for RUSTSEC-2024-0429. See ADR-08 and provenance.
 # Review showed only the two-line upstream fix versus the published 0.18.5 src.
