@@ -53,7 +53,7 @@ fn process_owner_releases_after_kill_without_unlinking_lock() {
         .spawn()
         .unwrap();
     let start = Instant::now();
-    while !root.join("child-ready").exists() && start.elapsed() < Duration::from_secs(4) {
+    while awaiting_child_ready(&root, start) {
         std::thread::sleep(Duration::from_millis(10));
     }
     let ready = root.join("child-ready").exists();
@@ -87,4 +87,8 @@ fn public_root_and_symlink_lock_do_not_change_outside_files() {
     symlink(&outside, private.join("workspace.lock")).unwrap();
     assert!(Owner::acquire(&private).is_err());
     assert_eq!(std::fs::read(outside).unwrap(), b"preserve");
+}
+
+fn awaiting_child_ready(root: &std::path::Path, start: std::time::Instant) -> bool {
+    !root.join("child-ready").exists() && start.elapsed() < std::time::Duration::from_secs(4)
 }

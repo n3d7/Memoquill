@@ -15,45 +15,12 @@ impl Database {
         request: &SavePreferences,
     ) -> Result<PreferencesSnapshot> {
         self.authorize_workspace(context, &request.workspace_id)?;
-        if request.contract_version != 1
-            || request.expected_revision < 0
-            || request.expected_revision >= MAX_REVISION
-        {
-            return Err(AppError::new(ErrorCode::InvalidRequest));
-        }
+        validate_preferences_request(request)?;
         let hash = request_hash("preferences", request)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if let Some(receipt) = exact_receipt(&tx, &self.id, &request.operation_id, &hash)? {
-            return preferences_outcome(receipt, &self.id);
-        }
-        let revision: i64 = tx.query_row(
-            "SELECT revision FROM preferences WHERE workspace_id=?1",
-            [self.id.as_str()],
-            |r| r.get(0),
-        )?;
-        if revision != request.expected_revision {
-            return Err(AppError::new(ErrorCode::RevisionConflict));
-        }
-        let snapshot = PreferencesSnapshot {
-            workspace_id: self.id.clone(),
-            revision: revision + 1,
-            preferences: request.preferences.clone(),
-        };
-        tx.execute(
-            "UPDATE preferences SET revision=?1,data=?2 WHERE workspace_id=?3",
-            params![
-                snapshot.revision,
-                json(&snapshot.preferences)?,
-                self.id.as_str()
-            ],
-        )?;
-        let receipt = applied(
-            request.operation_id.clone(),
-            OperationOutcome::Preferences(snapshot.clone()),
-        );
-        insert_applied(&tx, &self.id, &receipt, &hash, "preferences")?;
+        let snapshot = change_preferences(&tx, &self.id, request, &hash)?;
         durable_commit(tx)?;
         Ok(snapshot)
     }
@@ -81,6 +48,50 @@ impl Database {
         }
         Ok(())
     }
+}
+
+fn validate_preferences_request(request: &SavePreferences) -> Result<()> {
+    if request.contract_version != 1 || !(0..MAX_REVISION).contains(&request.expected_revision) {
+        return Err(AppError::new(ErrorCode::InvalidRequest));
+    }
+    Ok(())
+}
+fn change_preferences(
+    tx: &Transaction<'_>,
+    workspace: &WorkspaceId,
+    request: &SavePreferences,
+    hash: &str,
+) -> Result<PreferencesSnapshot> {
+    if let Some(receipt) = exact_receipt(tx, workspace, &request.operation_id, hash)? {
+        return preferences_outcome(receipt, workspace);
+    }
+    let revision: i64 = tx.query_row(
+        "SELECT revision FROM preferences WHERE workspace_id=?1",
+        [workspace.as_str()],
+        |r| r.get(0),
+    )?;
+    if revision != request.expected_revision {
+        return Err(AppError::new(ErrorCode::RevisionConflict));
+    }
+    let snapshot = PreferencesSnapshot {
+        workspace_id: workspace.clone(),
+        revision: revision + 1,
+        preferences: request.preferences.clone(),
+    };
+    tx.execute(
+        "UPDATE preferences SET revision=?1,data=?2 WHERE workspace_id=?3",
+        params![
+            snapshot.revision,
+            json(&snapshot.preferences)?,
+            workspace.as_str()
+        ],
+    )?;
+    let receipt = applied(
+        request.operation_id.clone(),
+        OperationOutcome::Preferences(snapshot.clone()),
+    );
+    insert_applied(tx, workspace, &receipt, hash, "preferences")?;
+    Ok(snapshot)
 }
 
 pub(super) fn request_hash(kind: &str, value: &impl Serialize) -> Result<String> {
@@ -126,6 +137,9 @@ fn decode(id: &OperationId, row: OperationRecord) -> Result<OperationReceipt> {
             result: ReceiptResult::Pending,
         });
     }
+    terminal_receipt(id, row)
+}
+fn terminal_receipt(id: &OperationId, row: OperationRecord) -> Result<OperationReceipt> {
     let value = row
         .result
         .ok_or(AppError::new(ErrorCode::RecoveryRequired))?;
@@ -286,5 +300,78 @@ mod tests {
             ErrorCode::PermissionDenied
         );
         assert_eq!(db.preferences().unwrap().revision, 1);
+    }
+    #[test]
+    fn v1_fingerprint_remains_compatible_with_persisted_receipts() {
+        let request:SavePreferences=serde_json::from_value(serde_json::json!({"contractVersion":1,
+            "workspaceId":"4d9606cd-1b54-4fbe-8d21-414bc20d792a","operationId":"9bac6ad2-596d-498b-bc2f-48585055fa84",
+            "expectedRevision":3,"preferences":{"theme":"dark","textScale":125}})).unwrap();
+        assert_eq!(
+            request_hash("preferences", &request).unwrap(),
+            "1afe3d4174e59b997c4dcbb261d76d4b8436e9b3b6a846a3a0685a136ec3e018"
+        );
+    }
+    #[test]
+    fn pending_and_corrupt_receipt_states_cannot_impersonate_applied_operations() {
+        let id = OperationId::generate();
+        let other = OperationId::generate();
+        let row = |state: &str, result: Option<String>| OperationRecord {
+            hash: "hash".into(),
+            state: state.into(),
+            result,
+        };
+        assert_eq!(
+            decode(&id, row("prepared", None)).unwrap().result,
+            ReceiptResult::Pending
+        );
+        assert!(decode(&id, row("applied", None)).is_err());
+        assert!(
+            decode(
+                &id,
+                row(
+                    "prepared",
+                    Some(
+                        json(&applied(
+                            id.clone(),
+                            OperationOutcome::Asset(AssetInfo {
+                                digest: AssetDigest::try_from("a".repeat(64)).unwrap(),
+                                byte_length: 0
+                            })
+                        ))
+                        .unwrap()
+                    )
+                )
+            )
+            .is_err()
+        );
+        let receipt = OperationReceipt {
+            operation_id: other,
+            result: ReceiptResult::Interrupted(ErrorCode::StorageFull),
+        };
+        assert!(decode(&id, row("interrupted", Some(json(&receipt).unwrap()))).is_err());
+        let receipt = OperationReceipt {
+            operation_id: id.clone(),
+            result: ReceiptResult::Interrupted(ErrorCode::StorageFull),
+        };
+        assert!(decode(&id, row("applied", Some(json(&receipt).unwrap()))).is_err());
+        assert!(decode(&id, row("applied", Some("invalid JSON".into()))).is_err());
+    }
+    #[test]
+    fn applied_preference_receipts_require_the_right_workspace_and_positive_revision() {
+        let workspace = WorkspaceId::generate();
+        for (id, revision) in [(WorkspaceId::generate(), 1), (workspace.clone(), 0)] {
+            let receipt = applied(
+                OperationId::generate(),
+                OperationOutcome::Preferences(PreferencesSnapshot {
+                    workspace_id: id,
+                    revision,
+                    preferences: ReadingPreferences::default(),
+                }),
+            );
+            assert_eq!(
+                preferences_outcome(receipt, &workspace).unwrap_err().code,
+                ErrorCode::RecoveryRequired
+            );
+        }
     }
 }

@@ -47,12 +47,7 @@ fn check_draft(draft: draft::Draft) -> Result<draft::DraftSummary, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
-            let root = app.path().app_local_data_dir()?.join("workspace");
-            app.manage(ApplicationService::start(root)?);
-            app.manage(Shutdown(AtomicU8::new(0)));
-            Ok(())
-        })
+        .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
             check_draft,
             workspace_status,
@@ -65,17 +60,32 @@ pub fn run() {
         .run(handle_event);
 }
 
+fn initialize_workspace(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let service = start_workspace(app)?;
+    app.manage(service);
+    app.manage(Shutdown(AtomicU8::new(0)));
+    Ok(())
+}
+fn start_workspace(app: &tauri::App) -> Result<ApplicationService, Box<dyn std::error::Error>> {
+    let root = app.path().app_local_data_dir()?.join("workspace");
+    ApplicationService::start(root).map_err(Into::into)
+}
 struct Shutdown(AtomicU8);
 fn handle_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
-    let tauri::RunEvent::ExitRequested { api, .. } = event else {
-        return;
-    };
-    let shutdown = app.state::<Shutdown>();
-    if shutdown.0.load(Ordering::Acquire) == 2 {
+    if let tauri::RunEvent::ExitRequested { api, .. } = event {
+        prevent_until_drained(app, api);
+    }
+}
+fn prevent_until_drained(app: &tauri::AppHandle, api: tauri::ExitRequestApi) {
+    if app.state::<Shutdown>().0.load(Ordering::Acquire) == 2 {
         return;
     }
     api.prevent_exit();
-    if shutdown
+    start_draining(app);
+}
+fn start_draining(app: &tauri::AppHandle) {
+    if app
+        .state::<Shutdown>()
         .0
         .compare_exchange(0, 1, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
@@ -128,22 +138,138 @@ mod tests {
         let webview = tauri::WebviewWindowBuilder::new(&app, label, Default::default())
             .build()
             .unwrap();
-        let response = get_ipc_response(
+        let response = ipc(
             &webview,
+            command,
+            origin,
+            serde_json::json!({"draft":serde_json::from_str::<serde_json::Value>(include_str!("../../tests/fixtures/draft.json")).unwrap()}),
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+        response
+    }
+
+    fn ipc(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        command: &str,
+        origin: &str,
+        body: serde_json::Value,
+    ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
+        get_ipc_response(
+            webview,
             InvokeRequest {
                 cmd: command.into(),
                 callback: CallbackFn(0),
                 error: CallbackFn(1),
                 url: origin.parse().unwrap(),
-                body: InvokeBody::Json(
-                    serde_json::json!({"draft": serde_json::from_str::<serde_json::Value>(include_str!("../../tests/fixtures/draft.json")).unwrap()}),
-                ),
+                body: InvokeBody::Json(body),
                 headers: Default::default(),
                 invoke_key: INVOKE_KEY.into(),
             },
+        )
+    }
+    #[test]
+    fn native_preference_save_and_receipt_round_trip_preserves_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let initial =
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                save_reading_preferences,
+                operation_receipt
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let secondary = tauri::WebviewWindowBuilder::new(&app, "secondary", Default::default())
+            .build()
+            .unwrap();
+        let request = SavePreferences {
+            contract_version: 1,
+            workspace_id: initial.preferences.workspace_id,
+            operation_id: OperationId::generate(),
+            expected_revision: 0,
+            preferences: workspace::ReadingPreferences {
+                theme: workspace::Theme::Dark,
+                text_scale: workspace::TextScale::try_from(150).unwrap(),
+            },
+        };
+        let body = serde_json::json!({"request":request});
+        let result = ipc(
+            &main,
+            "save_reading_preferences",
+            "tauri://localhost",
+            body.clone(),
+        )
+        .unwrap()
+        .deserialize::<PreferencesSnapshot>()
+        .unwrap();
+        assert_eq!(result.revision, 1);
+        assert_eq!(result.preferences, request.preferences);
+        let receipt_body = serde_json::json!({"operationId":request.operation_id});
+        let receipt = ipc(
+            &main,
+            "operation_receipt",
+            "tauri://localhost",
+            receipt_body.clone(),
+        )
+        .unwrap()
+        .deserialize::<Option<OperationReceipt>>()
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            receipt.result,
+            workspace::ReceiptResult::Applied(workspace::OperationOutcome::Preferences(result))
+        );
+        assert!(
+            ipc(
+                &secondary,
+                "save_reading_preferences",
+                "tauri://localhost",
+                body.clone()
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "save_reading_preferences",
+                "https://example.com",
+                body.clone()
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &secondary,
+                "operation_receipt",
+                "tauri://localhost",
+                receipt_body
+            )
+            .is_err()
+        );
+        let mut forged = body;
+        forged["request"]["principal"] = serde_json::json!("local-ui");
+        assert!(
+            ipc(
+                &main,
+                "save_reading_preferences",
+                "tauri://localhost",
+                forged
+            )
+            .is_err()
+        );
+        assert_eq!(
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui()))
+                .unwrap()
+                .preferences
+                .revision,
+            1
         );
         tauri::async_runtime::block_on(service.shutdown()).unwrap();
-        response
     }
 
     #[test]

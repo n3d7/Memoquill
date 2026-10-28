@@ -65,9 +65,18 @@ Cargo pins [the reviewed backport](https://github.com/andrew-wommack-ministries/
 
 Version scanners still report 0.18.5: this exact advisory has source/regression mitigation, not a disappearance or broad waiver. RustSec also reports proc-macro-error as unmaintained. Licensing work/selection remain paused; prior artifacts are preserved and root LICENSE is unchanged.
 
+On 2026-10-28 the user authorized dismissal if the alert did not apply. Live
+GitHub main manifest/lock read-back confirmed the same immutable backport; a
+fresh comparison of all `src/` files found exactly the two-line upstream fix,
+and the release iterator regression passed again. [Dependabot alert #1](https://github.com/n3d7/Memoquill/security/dependabot/1)
+was dismissed as `inaccurate` at 15:51:15 UTC, referring to this version-only
+match against patched sources. The upstream advisory remains valid. Reopen if
+the source/pin changes; no broad scanner exception was added. Evidence is in
+the M1.2 security logs/receipt; this did not change the project license.
+
 ## Gate disposition and manual review
 
-Retain Tauri 2 for this **bounded candidate** with passing X11/Wayland/IME/Orca automation. Hold KER-97 at review rather than Done; do not start KER-98 in this assignment. Before closing manual acceptance, inspect the RPM/source and run on an intended Fedora GNOME session:
+Retain Tauri 2 for this **bounded candidate** with passing X11/Wayland/IME/Orca automation. Hold KER-97 at review rather than Done. The original M1.1 assignment did not start KER-98; the later explicit M1.2 request authorizes its shell-independent storage slice under the [recorded gate disposition](../planning/m1-2-execution.md), without claiming manual acceptance. Before closing manual acceptance, inspect the RPM/source and run on an intended Fedora GNOME session:
 
 - Offline clean-profile launch; independently read/edit, check valid/invalid drafts, dismiss results and continue editing.
 - Listen with Orca to results, **Read last result**, code and formula source; verify audio/usability rather than only presentation requests.

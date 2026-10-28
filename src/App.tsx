@@ -86,7 +86,7 @@ export function App() {
         <button ref={pickerFocus.trigger} disabled={busy} onClick={chooseFile}>Choose a source file</button>
         <button disabled={busy} onClick={event => result.show(error ?? status, event.currentTarget)}>Read last result</button>
       </div>
-      <p id="operation-status" role="status" aria-live="polite" aria-atomic="true">{busy ? 'Working…' : status}</p>
+      <p id="operation-status" role="status" aria-label="Material operation status" aria-live="polite" aria-atomic="true">{busy ? 'Working…' : status}</p>
       {error && <p role="alert">{error}</p>}
     </main>
     {preview && <Preview draft={draft} onClose={() => { setPreview(false); previewTrigger.current?.focus(); }} />}

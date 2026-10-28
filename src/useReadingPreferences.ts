@@ -29,6 +29,20 @@ function readyMessage(status: WorkspaceStatus): string {
     ? `Workspace ready. ${retained} unreferenced files were preserved for later recovery. Only reading preferences are saved.`
     : 'Workspace ready. Reading preferences are saved locally; material edits are temporary.';
 }
+async function sendPreferences(request: SavePreferences, retry: boolean): Promise<PreferencesSnapshot> {
+  if (retry) await reopenWorkspace();
+  return saveReadingPreferences(request);
+}
+function useInitialWorkspace(accept: (status: WorkspaceStatus) => void,
+  fail: (reason: unknown) => void, finish: () => void) {
+  useEffect(() => {
+    let active = true;
+    workspaceStatus().then(status => { if (active) accept(status); })
+      .catch(reason => { if (active) fail(reason); })
+      .finally(() => { if (active) finish(); });
+    return () => { active = false; };
+  }, []); // Startup only: callbacks use stable state setters, never current edits.
+}
 export function useReadingPreferences() {
   const [snapshot, setSnapshot] = useState<PreferencesSnapshot | null>(null);
   const [preferences, setPreferences] = useState<ReadingPreferences>({ theme: 'system', textScale: 100 });
@@ -42,13 +56,7 @@ export function useReadingPreferences() {
     setSnapshot(status.preferences);setPreferences(status.preferences.preferences);
     setRecovery(needsRecovery(status));setPending(null);setMessage(readyMessage(status));
   }
-  useEffect(() => {
-    let active = true;
-    workspaceStatus().then(status => { if (active) accept(status); })
-      .catch(reason => { if (active) setMessage(storageMessage(reason)); })
-      .finally(() => { if (active) setWorking(false); });
-    return () => { active = false; };
-  }, []);
+  useInitialWorkspace(accept, reason => setMessage(storageMessage(reason)), () => setWorking(false));
   useEffect(() => { document.documentElement.style.fontSize = `${preferences.textScale}%`; }, [preferences.textScale]);
 
   async function reload(): Promise<string> {
@@ -63,8 +71,7 @@ export function useReadingPreferences() {
       operationId: crypto.randomUUID(), expectedRevision: snapshot.revision, preferences } satisfies SavePreferences;
     setPending(request);setWorking(true);
     try {
-      if (pending) await reopenWorkspace();
-      const result = await saveReadingPreferences(request);
+      const result = await sendPreferences(request, pending !== null);
       setSnapshot(result);setPreferences(result.preferences);setPending(null);
       const text = 'Reading preferences saved. Material edits are still temporary.';
       setMessage(text);return text;

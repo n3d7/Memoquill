@@ -54,6 +54,11 @@ app_pid=$!
 printf '%s\n' "$app_pid" > "/evidence/app-pid-$mode"
 python3 /input/atspi-probe.py "$mode"
 python3 /input/atspi-journey.py "$mode"
+if [[ "${MEMOQUILL_STORAGE_AUDIT:-0}" == 1 ]]; then
+  # The journey closed the original window normally before its controlled restart.
+  wait "$app_pid"
+  printf '0\n' > "/evidence/normal-exit-$mode.txt"
+fi
 kill -TERM "$orca_pid"
 wait "$orca_pid"
 python3 /input/atspi-speech.py "$mode"

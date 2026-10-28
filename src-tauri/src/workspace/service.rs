@@ -39,25 +39,26 @@ impl ApplicationService {
         Ok(Self { sender })
     }
     pub async fn status(&self, context: RequestContext) -> Result<WorkspaceStatus> {
-        context.authorize()?;
-        self.request(Request::Status, false).await
+        self.request(context, Request::Status, false).await
     }
     pub async fn save_preferences(
         &self,
         context: RequestContext,
         request: SavePreferences,
     ) -> Result<PreferencesSnapshot> {
-        context.authorize()?;
-        self.request(|reply| Request::Save(context, request, reply), true)
-            .await
+        self.request(
+            context,
+            |reply| Request::Save(context, request, reply),
+            true,
+        )
+        .await
     }
     pub async fn operation_receipt(
         &self,
         context: RequestContext,
         id: OperationId,
     ) -> Result<Option<OperationReceipt>> {
-        context.authorize()?;
-        self.request(|reply| Request::Receipt(context, id, reply), false)
+        self.request(context, |reply| Request::Receipt(context, id, reply), false)
             .await
     }
     /// Rust-service seam for future ingestion. This is deliberately not a native IPC command.
@@ -68,16 +69,15 @@ impl ApplicationService {
         reader: Box<dyn Read + Send>,
         limit: u64,
     ) -> Result<AssetInfo> {
-        context.authorize()?;
         self.request(
+            context,
             |reply| Request::Asset(context, request, reader, limit, reply),
             true,
         )
         .await
     }
     pub async fn reopen(&self, context: RequestContext) -> Result<WorkspaceStatus> {
-        context.authorize()?;
-        self.request(Request::Reopen, false).await
+        self.request(context, Request::Reopen, false).await
     }
     pub async fn shutdown(&self) -> Result<()> {
         let (reply, response) = oneshot::channel();
@@ -91,10 +91,12 @@ impl ApplicationService {
     }
     async fn request<T>(
         &self,
+        context: RequestContext,
         build: impl FnOnce(Reply<T>) -> Request,
         mutation: bool,
     ) -> Result<T> {
         let (reply, response) = oneshot::channel();
+        context.authorize()?;
         self.sender.try_send(build(reply)).map_err(queue_error)?;
         response.await.map_err(|_| {
             AppError::new(if mutation {
@@ -390,5 +392,111 @@ mod tests {
             );
             reopened.shutdown().await.unwrap();
         });
+    }
+    #[test]
+    fn accepted_mutation_with_a_disappearing_worker_has_an_unconfirmed_outcome() {
+        tauri::async_runtime::block_on(async {
+            for kind in ["preferences", "asset"] {
+                let (sender, mut receiver) = mpsc::channel(1);
+                let service = ApplicationService { sender };
+                let accepted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let observed = accepted.clone();
+                let worker = std::thread::spawn(move || {
+                    let message = receiver.blocking_recv();
+                    observed.store(message.is_some(), std::sync::atomic::Ordering::Release);
+                    drop(message);
+                });
+                let workspace_id = WorkspaceId::generate();
+                let operation_id = OperationId::generate();
+                let error = if kind == "preferences" {
+                    service
+                        .save_preferences(
+                            RequestContext::local_ui(),
+                            SavePreferences {
+                                contract_version: 1,
+                                workspace_id,
+                                operation_id,
+                                expected_revision: 0,
+                                preferences: ReadingPreferences::default(),
+                            },
+                        )
+                        .await
+                        .unwrap_err()
+                } else {
+                    service
+                        .register_asset(
+                            RequestContext::local_ui(),
+                            RegisterAsset {
+                                contract_version: 1,
+                                workspace_id,
+                                operation_id,
+                            },
+                            Box::new(std::io::Cursor::new(b"source")),
+                            1024,
+                        )
+                        .await
+                        .unwrap_err()
+                };
+                assert_eq!(error.code, ErrorCode::OutcomeUnconfirmed);
+                worker.join().unwrap();
+                assert!(accepted.load(std::sync::atomic::Ordering::Acquire));
+            }
+        });
+    }
+    #[test]
+    fn uncertain_commit_closes_the_owner_until_reopen_and_preserves_its_receipt() {
+        use super::super::{
+            database::Database,
+            faults::{self, Phase},
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let database = Database::open(&root).unwrap();
+        let request = RegisterAsset {
+            contract_version: 1,
+            workspace_id: database.id.clone(),
+            operation_id: OperationId::generate(),
+        };
+        let mut store = Store {
+            root: root.clone(),
+            database: Ok(database),
+        };
+        let result = faults::using(
+            |point| {
+                if point == Phase::AfterCommit {
+                    Err(AppError::new(ErrorCode::StorageFailure))
+                } else {
+                    Ok(())
+                }
+            },
+            || {
+                store.access(|db| {
+                    db.register_asset(
+                        RequestContext::local_ui(),
+                        &request,
+                        &mut std::io::Cursor::new(b"source"),
+                        1024,
+                    )
+                })
+            },
+        );
+        assert_eq!(result.unwrap_err().code, ErrorCode::OutcomeUnconfirmed);
+        drop(Owner::acquire(&root).unwrap());
+        assert_eq!(
+            store.access(status).unwrap_err().code,
+            ErrorCode::OutcomeUnconfirmed
+        );
+        let (reply, response) = oneshot::channel();
+        store.handle(Request::Reopen(reply));
+        let reopened = tauri::async_runtime::block_on(response).unwrap().unwrap();
+        assert_eq!(reopened.contract_version, 1);
+        let receipt = store
+            .access(|db| db.operation_receipt(RequestContext::local_ui(), &request.operation_id))
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            receipt.result,
+            ReceiptResult::Applied(OperationOutcome::Asset(_))
+        ));
     }
 }

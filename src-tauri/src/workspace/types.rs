@@ -261,4 +261,17 @@ mod tests {
             assert_eq!(TextScale::try_from(value).unwrap().get(), value);
         }
     }
+    #[test]
+    fn digest_requires_both_exact_length_and_lowercase_hexadecimal() {
+        for value in [
+            "".to_owned(),
+            "a".to_owned(),
+            "g".repeat(64),
+            "A".repeat(64),
+            "a".repeat(65),
+        ] {
+            assert!(AssetDigest::try_from(value).is_err());
+        }
+        assert!(AssetDigest::try_from("a".repeat(64)).is_ok());
+    }
 }

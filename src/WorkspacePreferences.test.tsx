@@ -71,3 +71,33 @@ test('startup failure is recoverable without clearing the material or exposing n
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark'));
   expect(screen.queryByText('/secret')).not.toBeInTheDocument();
 });
+
+test('a damaged workspace stays readable and disables saving without resetting the material', async () => {
+  vi.mocked(invoke).mockResolvedValue({ ...initial, recovery: { ...initial.recovery, missingAssets: 1 } });
+  render(<App />);
+  expect(await screen.findByText(/workspace needs recovery/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Save reading preferences' })).toBeDisabled();
+  expect(screen.getByRole('textbox', { name: 'Title' })).toBeEnabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Read workspace status' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('Sources and records were preserved');
+});
+
+test('reload failure keeps existing preferences and reports only a safe message', async () => {
+  vi.mocked(invoke).mockResolvedValueOnce(initial).mockRejectedValue({ details: '/private/native-details' });
+  render(<App />);
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark'));
+  await userEvent.click(screen.getByRole('button', { name: 'Reload saved preferences' }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent('workspace action failed');
+  expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark');
+  expect(screen.queryByText('/private/native-details')).not.toBeInTheDocument();
+});
+
+test('unsupported workspace contract is rejected and orphan files are disclosed after explicit retry', async () => {
+  vi.mocked(invoke).mockResolvedValueOnce({ ...initial, contractVersion: 99 })
+    .mockResolvedValue({ ...initial, recovery: { ...initial.recovery, stagingFiles: 2 } });
+  render(<App />);
+  expect(await screen.findByText(/workspace action failed/i)).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Retry workspace' }));
+  expect(await screen.findByRole('dialog')).toHaveTextContent('2 unreferenced files were preserved');
+  expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark');
+});

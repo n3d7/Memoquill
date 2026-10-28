@@ -58,6 +58,7 @@ pub(super) fn apply(
         tx.pragma_update(None, "user_version", migration.version)?;
         previous = migration.version;
     }
+    super::faults::check(super::faults::Phase::MigrationBeforeCommit)?;
     tx.commit()?;
     Ok(())
 }

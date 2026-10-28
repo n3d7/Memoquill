@@ -26,9 +26,7 @@ impl Database {
         limit: u64,
     ) -> Result<AssetInfo> {
         self.authorize_workspace(context, &request.workspace_id)?;
-        if request.contract_version != 1 || limit == 0 || limit > i64::MAX as u64 {
-            return Err(AppError::new(ErrorCode::InvalidRequest));
-        }
+        validate_request(request, limit)?;
         let staged = stage(self.owner.root(), reader, limit)?;
         let hash = operations::request_hash("asset", &(request, &staged.info))?;
         if let Some(receipt) =
@@ -71,11 +69,17 @@ impl Database {
     }
 }
 
+fn validate_request(request: &RegisterAsset, limit: u64) -> Result<()> {
+    if request.contract_version != 1 || !(1..=i64::MAX as u64).contains(&limit) {
+        return Err(AppError::new(ErrorCode::InvalidRequest));
+    }
+    Ok(())
+}
 fn stage(root: &Path, reader: &mut dyn Read, limit: u64) -> Result<Staged> {
     let path = root
         .join("staging")
         .join(format!("{}.part", OperationId::generate().as_str()));
-    let mut file = owner::private_file(&path, true)?;
+    let mut file = owner::create_private_file(&path)?;
     let info = copy_hash(reader, &mut file, limit)?;
     faults::check(Phase::FileSync)?;
     file.sync_all()?;
@@ -112,12 +116,7 @@ pub(super) fn asset_path(root: &Path, digest: &AssetDigest) -> PathBuf {
         .join(&value[2..])
 }
 fn publish(root: &Path, staged: &Staged) -> Result<()> {
-    let destination = asset_path(root, &staged.info.digest);
-    let parent = destination
-        .parent()
-        .ok_or(AppError::new(ErrorCode::InvalidRequest))?;
-    owner::create_private_tree(parent)?;
-    owner::private_directory(parent)?;
+    let destination = publication_destination(root, &staged.info.digest)?;
     if std::fs::symlink_metadata(&destination).is_ok() {
         verify(root, &staged.info)?;
         remove_staged(&staged.path)?;
@@ -125,11 +124,25 @@ fn publish(root: &Path, staged: &Staged) -> Result<()> {
         faults::check(Phase::Publish)?;
         owner::publish_no_replace(&staged.path, &destination)?;
     }
+    sync_publication(root, &destination)
+}
+fn publication_destination(root: &Path, digest: &AssetDigest) -> Result<PathBuf> {
+    let destination = asset_path(root, digest);
+    let parent = destination
+        .parent()
+        .ok_or(AppError::new(ErrorCode::InvalidRequest))?;
+    owner::create_private_tree(parent)?;
+    owner::private_directory(parent)?;
+    Ok(destination)
+}
+fn sync_publication(root: &Path, destination: &Path) -> Result<()> {
+    let parent = destination
+        .parent()
+        .ok_or(AppError::new(ErrorCode::InvalidRequest))?;
     faults::check(Phase::DirectorySync)?;
     owner::sync_directory(parent)?;
     owner::sync_directory(&root.join("assets/sha256"))?;
-    owner::sync_directory(&root.join("staging"))?;
-    Ok(())
+    owner::sync_directory(&root.join("staging"))
 }
 pub(super) fn verify(root: &Path, info: &AssetInfo) -> Result<()> {
     let path = asset_path(root, &info.digest);
@@ -137,8 +150,10 @@ pub(super) fn verify(root: &Path, info: &AssetInfo) -> Result<()> {
         path.parent()
             .ok_or(AppError::new(ErrorCode::RecoveryRequired))?,
     )?;
-    let flags =
-        rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC;
+    let flags = rustix::fs::OFlags::RDONLY
+        | rustix::fs::OFlags::NOFOLLOW
+        | rustix::fs::OFlags::CLOEXEC
+        | rustix::fs::OFlags::NONBLOCK;
     let fd = rustix::fs::open(&path, flags, rustix::fs::Mode::empty())
         .map_err(|_| AppError::new(ErrorCode::RecoveryRequired))?;
     let mut file = File::from(fd);
@@ -637,5 +652,112 @@ mod tests {
                 1
             );
         }
+    }
+    #[test]
+    #[ignore = "private FIFO probe launched by special_assets_do_not_block_recovery"]
+    fn fifo_child() {
+        let root = PathBuf::from(std::env::var_os("MEMOQUILL_TEST_FIFO_ROOT").unwrap());
+        let mut db = Database::open(&root).unwrap();
+        let req = request(&db);
+        let info = db
+            .register_asset(RequestContext::local_ui(), &req, &mut Cursor::new(b""), 1)
+            .unwrap();
+        let path = asset_path(&root, &info.digest);
+        std::fs::remove_file(&path).unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            &path,
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        assert_eq!(
+            verify(&root, &info).unwrap_err().code,
+            ErrorCode::RecoveryRequired
+        );
+        drop(db);
+        let reopened = Database::open(&root).unwrap();
+        assert_eq!(reopened.recovery_report().corrupt_assets, 1);
+        assert_eq!(reopened.recovery_report().unsafe_paths, 1);
+        drop(reopened);
+        let database = root.join("memoquill.sqlite3");
+        std::fs::remove_file(&database).unwrap();
+        rustix::fs::mkfifoat(
+            rustix::fs::CWD,
+            &database,
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        assert_eq!(
+            Database::open(&root).err().unwrap().code,
+            ErrorCode::RecoveryRequired
+        );
+        std::fs::write(root.join("fifo-rejected"), b"done").unwrap();
+    }
+    #[test]
+    fn special_assets_do_not_block_recovery() {
+        use std::{
+            process::{Command, Stdio},
+            time::{Duration, Instant},
+        };
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let mut child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "workspace::assets::tests::fifo_child",
+            ])
+            .env("MEMOQUILL_TEST_FIFO_ROOT", &root)
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        let start = Instant::now();
+        let mut status = None;
+        while start.elapsed() < Duration::from_secs(2) {
+            status = child.try_wait().unwrap();
+            if status.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if status.is_none() {
+            let _ = child.kill();
+        }
+        let exit = child.wait().unwrap();
+        assert!(
+            status.is_some(),
+            "Recovery blocked on a FIFO instead of rejecting it"
+        );
+        assert!(exit.success());
+        assert!(root.join("fifo-rejected").is_file());
+    }
+    #[test]
+    fn invalid_asset_contracts_and_limits_do_not_admit_or_stage_sources() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let mut db = Database::open(&root).unwrap();
+        let mut req = request(&db);
+        for (version, limit) in [(2, 1024), (1, 0), (1, i64::MAX as u64 + 1)] {
+            req.contract_version = version;
+            assert_eq!(
+                db.register_asset(
+                    RequestContext::local_ui(),
+                    &req,
+                    &mut Cursor::new(b"x"),
+                    limit
+                )
+                .unwrap_err()
+                .code,
+                ErrorCode::InvalidRequest
+            );
+        }
+        assert_eq!(std::fs::read_dir(root.join("staging")).unwrap().count(), 0);
+        assert_eq!(
+            db.connection
+                .query_row("SELECT count(*) FROM operations", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
 }

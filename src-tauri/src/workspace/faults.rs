@@ -7,6 +7,7 @@ pub(super) enum Phase {
     Publish,
     DirectorySync,
     BeforeCommit,
+    MigrationBeforeCommit,
     AfterCommit,
 }
 

@@ -30,26 +30,9 @@ impl Database {
     }
     pub(super) fn open(root: &Path) -> Result<Self> {
         let owner = Owner::acquire(root)?;
-        runtime_policy()?;
-        let path = root.join("memoquill.sqlite3");
-        if std::fs::symlink_metadata(&path).is_err() {
-            prepare_directories(root)?;
-            let staged = root
-                .join("staging")
-                .join(format!("init-{}.sqlite3", WorkspaceId::generate().as_str()));
-            bootstrap(&staged, SCHEMA_VERSION)?;
-            owner::publish_no_replace(&staged, &path)?;
-            owner::sync_directory(&root.join("staging"))?;
-            owner::sync_directory(root)?;
-        }
-        let (from, id) = preflight(&path)?;
-        prepare_directories(root)?;
-        let mut connection = open_connection(&path, false)?;
-        if from < SCHEMA_VERSION {
-            snapshot(&connection, root, from)?;
-            migrations::apply(&mut connection, from, migrations::MIGRATIONS)?;
-        }
-        runtime_configuration(&connection)?;
+        runtime_policy(rusqlite::version_number())?;
+        initialise_if_missing(root)?;
+        let (connection, id) = open_current(root)?;
         let mut db = Self {
             connection,
             owner,
@@ -79,11 +62,48 @@ impl Database {
     }
 }
 
-pub(super) fn open_connection(path: &Path, readonly: bool) -> Result<Connection> {
-    let access = if readonly {
-        OpenFlags::SQLITE_OPEN_READ_ONLY
-    } else {
-        OpenFlags::SQLITE_OPEN_READ_WRITE
+fn initialise_if_missing(root: &Path) -> Result<()> {
+    let path = root.join("memoquill.sqlite3");
+    match std::fs::symlink_metadata(&path) {
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            publish_initial_database(root, &path)
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+fn publish_initial_database(root: &Path, path: &Path) -> Result<()> {
+    prepare_directories(root)?;
+    let staged = root
+        .join("staging")
+        .join(format!("init-{}.sqlite3", WorkspaceId::generate().as_str()));
+    bootstrap(&staged, SCHEMA_VERSION)?;
+    owner::publish_no_replace(&staged, path)?;
+    owner::sync_directory(&root.join("staging"))?;
+    owner::sync_directory(root)
+}
+fn open_current(root: &Path) -> Result<(Connection, WorkspaceId)> {
+    let path = root.join("memoquill.sqlite3");
+    let (from, id) = preflight(&path)?;
+    prepare_directories(root)?;
+    let mut connection = open_connection(&path, Access::ReadWrite)?;
+    runtime_configuration(&connection)?;
+    if from < SCHEMA_VERSION {
+        snapshot(&connection, root, from)?;
+        migrations::apply(&mut connection, from, migrations::MIGRATIONS)?;
+    }
+    Ok((connection, id))
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Access {
+    ReadOnly,
+    ReadWrite,
+}
+pub(super) fn open_connection(path: &Path, access: Access) -> Result<Connection> {
+    let access = match access {
+        Access::ReadOnly => OpenFlags::SQLITE_OPEN_READ_ONLY,
+        Access::ReadWrite => OpenFlags::SQLITE_OPEN_READ_WRITE,
     };
     let connection = Connection::open_with_flags(
         path,
@@ -93,8 +113,8 @@ pub(super) fn open_connection(path: &Path, readonly: bool) -> Result<Connection>
     Ok(connection)
 }
 
-fn runtime_policy() -> Result<()> {
-    if rusqlite::version_number() < 3_051_003 {
+fn runtime_policy(version: i32) -> Result<()> {
+    if version < 3_051_003 {
         return Err(AppError::new(ErrorCode::UnsupportedSchema));
     }
     Ok(())
@@ -127,12 +147,9 @@ fn prepare_directories(root: &Path) -> Result<()> {
     Ok(())
 }
 fn preflight(path: &Path) -> Result<(i64, WorkspaceId)> {
-    let connection = open_connection(path, true)?;
-    let app: i32 = connection.query_row("PRAGMA application_id", [], |r| r.get(0))?;
-    let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-    if app != APPLICATION_ID || !(1..=SCHEMA_VERSION).contains(&version) {
-        return Err(AppError::new(ErrorCode::UnsupportedSchema));
-    }
+    validate_database_file(path)?;
+    let connection = open_connection(path, Access::ReadOnly)?;
+    let version = validated_schema(&connection)?;
     migrations::validate(&connection, version)
         .map_err(|_| AppError::new(ErrorCode::RecoveryRequired))?;
     let id: String =
@@ -142,10 +159,24 @@ fn preflight(path: &Path) -> Result<(i64, WorkspaceId)> {
     let id = WorkspaceId::try_from(id).map_err(|_| AppError::new(ErrorCode::RecoveryRequired))?;
     Ok((version, id))
 }
+fn validate_database_file(path: &Path) -> Result<()> {
+    if !std::fs::symlink_metadata(path)?.is_file() {
+        return Err(AppError::new(ErrorCode::RecoveryRequired));
+    }
+    Ok(())
+}
+fn validated_schema(connection: &Connection) -> Result<i64> {
+    let app: i32 = connection.query_row("PRAGMA application_id", [], |r| r.get(0))?;
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    if app != APPLICATION_ID || !(1..=SCHEMA_VERSION).contains(&version) {
+        return Err(AppError::new(ErrorCode::UnsupportedSchema));
+    }
+    Ok(version)
+}
 
 pub(super) fn bootstrap(path: &Path, through: i64) -> Result<()> {
-    drop(owner::private_file(path, true)?);
-    let mut connection = open_connection(path, false)?;
+    drop(owner::create_private_file(path)?);
+    let mut connection = open_connection(path, Access::ReadWrite)?;
     connection.pragma_update(None, "journal_mode", "DELETE")?;
     connection.pragma_update(None, "synchronous", "EXTRA")?;
     migrations::apply(
@@ -153,6 +184,10 @@ pub(super) fn bootstrap(path: &Path, through: i64) -> Result<()> {
         0,
         &migrations::MIGRATIONS[..through as usize],
     )?;
+    seed_workspace(&mut connection)?;
+    close_and_sync(connection, path)
+}
+fn seed_workspace(connection: &mut Connection) -> Result<()> {
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let id = WorkspaceId::generate();
     tx.execute(
@@ -169,7 +204,6 @@ pub(super) fn bootstrap(path: &Path, through: i64) -> Result<()> {
     )?;
     tx.pragma_update(None, "application_id", APPLICATION_ID)?;
     tx.commit()?;
-    close_and_sync(connection, path)?;
     Ok(())
 }
 
@@ -179,8 +213,8 @@ pub(super) fn snapshot(source: &Connection, root: &Path, from: i64) -> Result<Pa
         "before-{from}-{}.sqlite3",
         WorkspaceId::generate().as_str()
     ));
-    drop(owner::private_file(&path, true)?);
-    let mut destination = open_connection(&path, false)?;
+    drop(owner::create_private_file(&path)?);
+    let mut destination = open_connection(&path, Access::ReadWrite)?;
     destination.pragma_update(None, "synchronous", "EXTRA")?;
     bounded_backup(source, &mut destination)?;
     destination.pragma_update(None, "journal_mode", "DELETE")?;
@@ -193,7 +227,7 @@ fn bounded_backup(source: &Connection, destination: &mut Connection) -> Result<(
     let backup = Backup::new(source, destination)?;
     let start = Instant::now();
     loop {
-        if start.elapsed() > Duration::from_secs(30) {
+        if backup_expired(start.elapsed()) {
             return Err(AppError::new(ErrorCode::Busy));
         }
         match backup.step(128)? {
@@ -202,6 +236,9 @@ fn bounded_backup(source: &Connection, destination: &mut Connection) -> Result<(
             _ => std::thread::sleep(Duration::from_millis(10)),
         }
     }
+}
+fn backup_expired(elapsed: Duration) -> bool {
+    elapsed >= Duration::from_secs(30)
 }
 pub(super) fn integrity(connection: &Connection) -> Result<()> {
     let value: String = connection.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
@@ -230,7 +267,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("workspace");
         let db = Database::open(&root).unwrap();
-        let readonly = open_connection(&root.join("memoquill.sqlite3"), true).unwrap();
+        let readonly = open_connection(&root.join("memoquill.sqlite3"), Access::ReadOnly).unwrap();
         for connection in [&db.connection, &readonly] {
             assert!(
                 connection
@@ -345,7 +382,7 @@ mod tests {
         prepare_directories(&root).unwrap();
         let path = root.join("memoquill.sqlite3");
         bootstrap(&path, 1).unwrap();
-        let connection = open_connection(&path, false).unwrap();
+        let connection = open_connection(&path, Access::ReadWrite).unwrap();
         connection
             .execute(
                 "UPDATE preferences SET revision=7,data=?1",
@@ -368,7 +405,7 @@ mod tests {
             .collect::<std::io::Result<Vec<_>>>()
             .unwrap();
         assert_eq!(files.len(), 1);
-        let copy = open_connection(&files[0].path(), true).unwrap();
+        let copy = open_connection(&files[0].path(), Access::ReadOnly).unwrap();
         integrity(&copy).unwrap();
         assert_eq!(
             copy.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
@@ -391,7 +428,8 @@ mod tests {
     #[test]
     fn broken_migration_rolls_back_ddl_data_and_version() {
         let (_temp, root) = legacy_root();
-        let mut connection = open_connection(&root.join("memoquill.sqlite3"), false).unwrap();
+        let mut connection =
+            open_connection(&root.join("memoquill.sqlite3"), Access::ReadWrite).unwrap();
         let broken = [migrations::Migration {
             version: 2,
             sql: "CREATE TABLE should_rollback(id INTEGER); UPDATE preferences SET revision=99; THIS IS INVALID SQL;",
@@ -463,7 +501,7 @@ mod tests {
         drop(tx);
         assert_eq!(db.preferences().unwrap().revision, 0);
         integrity(&db.connection).unwrap();
-        let other = open_connection(&root.join("memoquill.sqlite3"), false).unwrap();
+        let other = open_connection(&root.join("memoquill.sqlite3"), Access::ReadWrite).unwrap();
         other.execute_batch("BEGIN IMMEDIATE").unwrap();
         db.connection.busy_timeout(Duration::ZERO).unwrap();
         let error = db
@@ -527,5 +565,94 @@ mod tests {
             error.sqlite_error_code(),
             Some(rusqlite::ErrorCode::ConstraintViolation)
         );
+    }
+    #[test]
+    fn runtime_and_backup_budget_boundaries_are_explicit() {
+        assert!(runtime_policy(3_051_002).is_err());
+        assert!(runtime_policy(3_051_003).is_ok());
+        assert!(runtime_policy(3_054_001).is_ok());
+        assert!(!backup_expired(
+            Duration::from_secs(30) - Duration::from_nanos(1)
+        ));
+        assert!(backup_expired(Duration::from_secs(30)));
+    }
+    #[test]
+    fn reopening_current_schema_does_not_create_upgrade_snapshots() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        drop(Database::open(&root).unwrap());
+        drop(Database::open(&root).unwrap());
+        assert_eq!(
+            std::fs::read_dir(root.join("migration-backups"))
+                .unwrap()
+                .count(),
+            0
+        );
+    }
+    #[test]
+    fn all_policy_controls_are_observable_and_independent() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let db = Database::open(&root).unwrap();
+        assert_eq!(
+            db.connection
+                .query_row("PRAGMA trusted_schema", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert!(
+            db.connection
+                .execute_batch(r#"CREATE TABLE bad_literal(x DEFAULT ("unknown_literal"))"#)
+                .is_err()
+        );
+        let memory = Connection::open_in_memory().unwrap();
+        base_policy(&memory).unwrap();
+        assert_eq!(
+            runtime_configuration(&memory).unwrap_err().code,
+            ErrorCode::StorageFailure
+        );
+        db.connection
+            .pragma_update(None, "foreign_keys", false)
+            .unwrap();
+        assert_eq!(
+            runtime_configuration(&db.connection).unwrap_err().code,
+            ErrorCode::StorageFailure
+        );
+        db.connection
+            .execute(
+                "INSERT INTO preferences(workspace_id,revision,data) VALUES ('orphan',0,'{}')",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            integrity(&db.connection).unwrap_err().code,
+            ErrorCode::RecoveryRequired
+        );
+        db.connection
+            .pragma_update(None, "user_version", 0)
+            .unwrap();
+        assert_eq!(
+            preflight(&root.join("memoquill.sqlite3")).unwrap_err().code,
+            ErrorCode::UnsupportedSchema
+        );
+    }
+    #[test]
+    fn an_existing_workspace_uses_wal_before_migration_changes() {
+        use super::super::faults::{self, Phase};
+        let (_temp, root) = legacy_root();
+        let probe = root.join("memoquill.sqlite3");
+        let observed = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = observed.clone();
+        let db=faults::using(move|phase|{
+            if phase==Phase::MigrationBeforeCommit {
+                let reader=open_connection(&probe,Access::ReadOnly)?;
+                let mode:String=reader.query_row("PRAGMA journal_mode",[],|r|r.get(0))?;
+                assert_eq!(mode,"wal","Existing data must use the selected crash-recovery journal before migrations write");
+                counter.fetch_add(1,std::sync::atomic::Ordering::Relaxed);
+            }
+            Ok(())
+        },||Database::open(&root)).unwrap();
+        assert_eq!(observed.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert_eq!(db.preferences().unwrap().revision, 7);
     }
 }

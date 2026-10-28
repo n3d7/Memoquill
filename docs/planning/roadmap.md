@@ -1,12 +1,12 @@
 # Foundation V1 implementation roadmap
 
-This document is the source of architectural implementation order. The backlog mapping carries exact issue definitions and actual Linear identifiers. No milestone has been implemented or started by this research/planning assignment. Implementation requires a subsequent explicit instruction.
+This document is the source of architectural implementation order. The backlog mapping carries exact issue definitions and actual Linear identifiers. The original research/planning assignment did not start implementation; subsequent explicit requests authorized M1.1 and M1.2. Later milestones still require their own execution authority.
 
 Seven milestones deliver the smallest coherent Memoquill experience, rather than a runnable shell. No calendar estimates or artificial urgency are asserted. High priority reflects dependency/data/security impact; a blocked high-priority issue does not authorize bypassing its predecessors.
 
-Current execution: M1.1 has a local RPM and passing bounded Fedora X11/Wayland/IME/Orca automation; see the [candidate baseline and remaining manual acceptance](../quality/fedora-desktop-baseline.md). It is ready for review, not a release or all of M1. M1.2 remains unstarted; no dependency or subsequent implementation authority changes.
+Current execution: M1.1 has a published source baseline and bounded Fedora X11/Wayland/IME/Orca automation; [physical desktop/human acceptance](../quality/fedora-desktop-baseline.md) remains open. M1.2 implements the durable workspace and saved reading preferences; [G6 qualification and PR](m1-2-execution.md) are in progress. Neither a local candidate nor the planned PR is a release; M2 has not started.
 
-M1.2 [technical preparation](m1-2-workspace-preparation.md) is complete. This identifies the proposed contracts, durability protocol, test boundaries and first increments; the current user instruction is to stop before implementing them. KER-98 remains Backlog and the M1.1 acceptance dependency remains unchanged.
+M1.2 [technical preparation](m1-2-workspace-preparation.md) is a historical design checkpoint, superseded by explicit implementation/PR-without-merge authority. KER-98 is In Progress. The execution ledger records the G0 disposition: implement the shell-independent storage slice while preserving KER-97 In Review and its manual gate; do not silently rewrite dependencies or claim predecessor acceptance.
 
 | Order | Milestone | Dependencies | Verifiable capability / exit |
 | --- | --- | --- | --- |

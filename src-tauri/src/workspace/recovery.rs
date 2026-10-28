@@ -18,6 +18,10 @@ pub(super) fn reconcile(connection: &mut Connection, root: &Path) -> Result<Reco
         .map(|info| info.digest.as_str().to_owned())
         .collect();
     inspect_asset_tree(root, &known, &mut report)?;
+    inspect_staging(root, &mut report)?;
+    Ok(report)
+}
+fn inspect_staging(root: &Path, report: &mut RecoveryReport) -> Result<()> {
     for entry in fs::read_dir(root.join("staging"))? {
         let entry = entry?;
         if entry.file_type()?.is_file() {
@@ -26,7 +30,7 @@ pub(super) fn reconcile(connection: &mut Connection, root: &Path) -> Result<Reco
             report.unsafe_paths += 1;
         }
     }
-    Ok(report)
+    Ok(())
 }
 
 fn interrupt_prepared(connection: &mut Connection) -> Result<u64> {
@@ -134,4 +138,58 @@ fn hex_name(value: &str, length: usize) -> bool {
         && value
             .bytes()
             .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::database::Database;
+    use super::*;
+    use std::{io::Cursor, os::unix::fs::symlink};
+    #[test]
+    fn audit_reports_missing_shards_staging_orphans_and_unsafe_entries_without_removing_them() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let mut db = Database::open(&root).unwrap();
+        let request = RegisterAsset {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+        };
+        let info = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &request,
+                &mut Cursor::new(b"original"),
+                1024,
+            )
+            .unwrap();
+        let path = assets::asset_path(&root, &info.digest);
+        fs::remove_file(&path).unwrap();
+        fs::remove_dir(path.parent().unwrap()).unwrap();
+        let outside = temp.path().join("outside");
+        fs::write(&outside, b"preserve").unwrap();
+        fs::write(root.join("staging/leftover.part"), b"partial").unwrap();
+        symlink(&outside, root.join("staging/alias")).unwrap();
+        let assets = root.join("assets/sha256");
+        owner::create_private_tree(&assets.join("gg")).unwrap();
+        fs::write(assets.join("gg").join("a".repeat(62)), b"untrusted").unwrap();
+        fs::write(assets.join("unexpected"), b"untrusted").unwrap();
+        owner::create_private_tree(&assets.join("aa")).unwrap();
+        fs::write(assets.join("aa/bad-tail"), b"untrusted").unwrap();
+        fs::write(assets.join("aa").join("c".repeat(62)), b"orphan").unwrap();
+        symlink(&outside, assets.join("aa").join("b".repeat(62))).unwrap();
+        drop(db);
+        let reopened = Database::open(&root).unwrap();
+        let report = reopened.recovery_report();
+        assert_eq!(report.missing_assets, 1);
+        assert_eq!(report.corrupt_assets, 0);
+        assert_eq!(report.staging_files, 1);
+        assert_eq!(report.orphan_assets, 1);
+        assert_eq!(report.unsafe_paths, 5);
+        assert_eq!(fs::read(outside).unwrap(), b"preserve");
+        assert_eq!(
+            fs::read(root.join("staging/leftover.part")).unwrap(),
+            b"partial"
+        );
+    }
 }
