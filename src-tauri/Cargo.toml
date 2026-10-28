@@ -1,0 +1,31 @@
+[package]
+name = "memoquill"
+version = "0.1.0"
+description = "Subject-agnostic, local-first learning — desktop qualification shell"
+authors = ["n3d7"]
+license = "MIT"
+repository = "https://github.com/n3d7/Memoquill"
+edition = "2024"
+rust-version = "1.98.1"
+
+[lib]
+name = "memoquill"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "=2.12.5", features = [] }
+tauri-plugin-dialog = "=2.8.3"
+
+[dev-dependencies]
+tauri = { version = "=2.12.5", features = ["test"] }
+glib = "=0.18.5"
+
+# Temporary upstream fix for RUSTSEC-2024-0429. See ADR-08 and provenance.
+# Review showed only the two-line upstream fix versus the published 0.18.5 src.
+[patch.crates-io]
+glib = { git = "https://github.com/andrew-wommack-ministries/glib-rustsec-2024-0429-backport", rev = "7e91f1a9420fd3e6c58b7913bbbf201888304ea9" }

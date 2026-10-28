@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Memoquill",
+  "version": "0.1.0",
+  "identifier": "io.github.n3d7.memoquill",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [{ "label": "main", "title": "Memoquill — Desktop qualification", "width": 1120, "height": 900, "minWidth": 360, "minHeight": 480 }],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'",
+      "capabilities": ["main"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["rpm"],
+    "category": "Education",
+    "shortDescription": "Local-first learning — desktop qualification fixture",
+    "longDescription": "Memoquill M1.1 qualifies an offline reading and editing shell. This early fixture does not yet store learning content or progress.",
+    "copyright": "Copyright 2026 n3d7",
+    "license": "MIT",
+    "icon": ["icons/128x128.png"],
+    "resources": { "../LICENSE": "licenses/Memoquill-MIT.txt", "../docs/licenses/": "licenses/third-party/" },
+    "linux": { "rpm": { "release": "1", "depends": ["webkit2gtk4.1", "gtk3"] } }
+  }
+}

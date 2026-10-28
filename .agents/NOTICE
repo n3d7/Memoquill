@@ -1,0 +1,15 @@
+Memoquill operational guidance
+Copyright 2026 n3d7
+
+AGENTS.md and the project-local Memoquill task workflow, task reporting and
+tool routing skills are adapted from Scryntic guidance by n3d7.
+Source: https://github.com/n3d7/Scryntic
+The local source working copy was inspected on 2026-10-27.
+
+Changes replace Scryntic-specific product, research, phase and integration
+assumptions with Memoquill's subject-agnostic, offline learning requirements.
+Unrelated financial and experiment governance was not carried over.
+
+These adapted guidance files retain Apache-2.0 attribution and terms.
+The full text is in LICENSES/Apache-2.0.txt. This notice does not change
+Memoquill's application license or select a future project license.

@@ -1,0 +1,3 @@
+# Preserve upstream notice bytes; their original whitespace is intentional.
+/docs/licenses/** -text -whitespace
+/.agents/LICENSES/*.txt -text -whitespace

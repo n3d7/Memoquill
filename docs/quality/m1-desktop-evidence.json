@@ -1,0 +1,266 @@
+{
+  "recorded_at": "2026-10-28T10:33:05.465447+00:00",
+  "status": "Automated candidate passed; manual acceptance and user review pending",
+  "issue": "KER-97",
+  "base_commit": "57d9e06e9e966622800f159ae0faa017a8c05ca1",
+  "rpm": {
+    "path": "src-tauri/target/release/bundle/rpm/Memoquill-0.1.0-1.x86_64.rpm",
+    "bytes": 3438200,
+    "sha256": "2964625472bf9455302b19039f15a4bcba8243ac7a066e5e7856c236fc41ec8f"
+  },
+  "installed_image_id": "a4b923a6552615560e5964ccc5752d0f28b2214430d6fb32f3a83ad772c2a08c",
+  "native": {
+    "x11": {
+      "interaction_checks": [
+        "native keyboard editing",
+        "packaged typed IPC and explicit result",
+        "result dialog initial focus",
+        "result dialog reverse Tab containment",
+        "result Escape returns to check trigger",
+        "Rust validation error is readable in the result dialog",
+        "error result receives focus",
+        "error dismissal returns focus",
+        "keyboard returns from result to title editing",
+        "editing after an error preserves native keyboard routing",
+        "modal initial focus",
+        "native MathML accessible role plus visible source",
+        "native modal focus containment",
+        "Escape restores preview trigger focus",
+        "formula source is accessible as editable text",
+        "code content is accessible without execution",
+        "native file picker opens",
+        "native file picker cancellation",
+        "native picker restores focus",
+        "explicit result contains No file selected. Your edits are unchanged.",
+        "requested result receives focus",
+        "result dismissal returns to its actual trigger",
+        "native picker reopens",
+        "native file location validates",
+        "enabled native Open receives focus",
+        "native file selection returns the chosen name",
+        "selection restores picker focus",
+        "explicit result contains Selected memoquill-example.md. Contents were not read or executed.",
+        "requested result receives focus",
+        "result dismissal returns to its actual trigger",
+        "dark theme selected through native keyboard",
+        "200% text selected through native keyboard",
+        "real IBus libpinyin composition commits Unicode",
+        "native editor selection and deletion",
+        "IBus composition commits in ProseMirror contenteditable"
+      ],
+      "speech_checks": [
+        {
+          "check": "requested structural result",
+          "passed": true
+        },
+        {
+          "check": "result dialog context",
+          "passed": true
+        },
+        {
+          "check": "Rust validation error",
+          "passed": true
+        },
+        {
+          "check": "picker cancellation feedback on requested reading",
+          "passed": true
+        },
+        {
+          "check": "readable formula source",
+          "passed": true
+        },
+        {
+          "check": "passive code content",
+          "passed": true
+        },
+        {
+          "check": "selected file name and safety disclosure",
+          "passed": true
+        }
+      ]
+    },
+    "wayland": {
+      "interaction_checks": [
+        "native Wayland protocol connection",
+        "native keyboard editing",
+        "packaged typed IPC and explicit result",
+        "result dialog initial focus",
+        "result dialog reverse Tab containment",
+        "result Escape returns to check trigger",
+        "Rust validation error is readable in the result dialog",
+        "error result receives focus",
+        "error dismissal returns focus",
+        "keyboard returns from result to title editing",
+        "editing after an error preserves native keyboard routing",
+        "modal initial focus",
+        "native MathML accessible role plus visible source",
+        "native modal focus containment",
+        "Escape restores preview trigger focus",
+        "formula source is accessible as editable text",
+        "code content is accessible without execution",
+        "native file picker opens",
+        "native file picker cancellation",
+        "native picker restores focus",
+        "explicit result contains No file selected. Your edits are unchanged.",
+        "requested result receives focus",
+        "result dismissal returns to its actual trigger",
+        "native picker reopens",
+        "native file location validates",
+        "native file selection returns the chosen name",
+        "selection restores picker focus",
+        "explicit result contains Selected memoquill-example.md. Contents were not read or executed.",
+        "requested result receives focus",
+        "result dismissal returns to its actual trigger",
+        "dark theme selected through native keyboard",
+        "200% text selected through native keyboard",
+        "real IBus libpinyin composition commits Unicode",
+        "native editor selection and deletion",
+        "IBus composition commits in ProseMirror contenteditable"
+      ],
+      "speech_checks": [
+        {
+          "check": "requested structural result",
+          "passed": true
+        },
+        {
+          "check": "result dialog context",
+          "passed": true
+        },
+        {
+          "check": "Rust validation error",
+          "passed": true
+        },
+        {
+          "check": "picker cancellation feedback on requested reading",
+          "passed": true
+        },
+        {
+          "check": "readable formula source",
+          "passed": true
+        },
+        {
+          "check": "passive code content",
+          "passed": true
+        },
+        {
+          "check": "selected file name and safety disclosure",
+          "passed": true
+        }
+      ]
+    }
+  },
+  "network": {
+    "backend": "x11",
+    "traced_calls": [
+      "socket",
+      "connect",
+      "sendto",
+      "sendmsg",
+      "sendmmsg"
+    ],
+    "internet_socket_or_outbound_address_calls": 0
+  },
+  "semgrep": {
+    "version": "1.182.1",
+    "scanned_files": 26,
+    "findings": 0,
+    "errors": 0,
+    "final_changed_file_delta": {
+      "path": "tests/qualification/atspi-journey.py",
+      "findings": 0,
+      "errors": 0
+    }
+  },
+  "dependency_track": {
+    "project_uuid": "10cfbf28-3f43-4d64-b52f-e674e7b8b5d5",
+    "version": "0.1.0-m1.1",
+    "status": "COMPLETED",
+    "components": 608,
+    "detailed_findings": "403 with existing key",
+    "receipt_sha256": "373176fc0dcd3ff8a39801d05cd968d9cb764b64e4e728bb327eb1a4bbad227a"
+  },
+  "source_fingerprint_algorithm": "SHA-256 of sorted relative_path:sha256 LF records (manifest below)",
+  "source_fingerprint_sha256": "868aea688dfcea22dfebf02b680e34e121d963974c6938373ca82e9ce9184e4c",
+  "source_manifest": {
+    "index.html": "1e694aaac0c0fa8bfc4bf6e7ea85d7783252e962cda515263f61a9702aaf22d3",
+    "package-lock.json": "c281d147041e7e53ed51cb3fcc059b185d804062852e88b09bc2030f2a0b0703",
+    "package.json": "da7f7438a7037aff86e49657b3f44ca6ea282d8bd2ad9f807632d17bfb3fbe1a",
+    "rust-toolchain.toml": "7553618f800829444096beea3dce84c3d07585efda504c19adb6787369bbd9e8",
+    "src/App.test.tsx": "8d4243b714346bf00c0c5b9a7bd09554a828bcf207b3f4f6c5a316bdc4189cea",
+    "src/App.tsx": "c0130ba70fe7c22d335eab20f193a8d5279e7a7fd2773ddde2b3cf3d836fcf35",
+    "src/Dialog.tsx": "59b6b419423bb9deec5155536aebe5c9a786539bbefb05ba00d471d31c566665",
+    "src/MathPreview.test.tsx": "8c4ecd1a21df9db01517938355e917c45b7e2e76d13f31561b1667bdb60b4a54",
+    "src/MathPreview.tsx": "100d9c25871ef711578c3ecfe1084f7945cf58e27c7c9f1c5922787da2a2c629",
+    "src/Preview.tsx": "995a43ea23306e2cd34ed421961ca0a815ab092459be70acaa74c456c2f69e8b",
+    "src/ProseEditor.test.tsx": "ac405a293651a2baee3e100186877b8943d12b3185dfeb9a3ec5679018bbbc3d",
+    "src/ProseEditor.tsx": "d739dfd6b35d796a2085fd71a71ccacffc5caba7b5b211afb1e68443afa2e3db",
+    "src/bridge.ts": "dfa7e2f0ede5eb0cc0414c4dec011b16b30b07941f8fcd82bfd8cccf32b2be2f",
+    "src/main.tsx": "a2e676f215f8d8d377ca2a950c08e7d16cd73401cd7d0ee904be1ef1ffb632f2",
+    "src/styles.css": "dfa167c96e805d8e40d17c0db6851cfce76347af9f9fc33f000670fae91c8f07",
+    "src/test-setup.ts": "8ce427153ae9fbb840eb9e1a9eb07a61882d2c12ae812cf3c29ff54d0232aa9a",
+    "src/usePickerFocus.ts": "ee2d04bcecf1e996dcaa1959b84f7cc9bf21a70563fd688ed242c18906b2824b",
+    "src/useResultDialog.tsx": "473577f3b6c3ddb6a7c9d4387a1a351a53eba9e1d947580456e969a2c5ee1e2d",
+    "src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+    "src-tauri/Cargo.lock": "0d5e3617785fe608f6930af387ed3b34c4dbb423a6455a26e1c168cb2cce949c",
+    "src-tauri/Cargo.toml": "c72160551c573b512b3058c44d59faa19c04465b42fd849674d07750a0c2fde5",
+    "src-tauri/build.rs": "3be5c05dc36dac4593c4e2df1dcc00eeca1a2974eab0b31ab5f3c5c2ac487e1c",
+    "src-tauri/capabilities/main.json": "e5488e9a0f95a08da9c5fe98d0d5dc851a4d92e2aee98207e1346a7aaa393b92",
+    "src-tauri/icons/128x128.png": "3f734ff310f8d86108f99cb80007268b4e27953d8ce0f599cf7d2a8dc5aeeece",
+    "src-tauri/icons/icon.svg": "9807eb771e40de32f986398c938aa3155220c55382190e9949f0c57ae024d71c",
+    "src-tauri/src/draft.rs": "ff177e5289893b9f682c8a3e772ea1c0700a83c5614b97b33945f500a6348cf5",
+    "src-tauri/src/lib.rs": "bbaa04228631ffa92b9ae98171d80596c5961a984b09b797706fe877fcbed065",
+    "src-tauri/src/main.rs": "8fd1adec3f6a3dfbf9b6350ec1aa78d26fb58686c0712550ee61c0ae4aef00fe",
+    "src-tauri/tauri.conf.json": "baeb49b6fea6237f46cd32248b2ac3f63ce32ecf073f74a863b2c4847830d605",
+    "tests/qualification/Containerfile": "77eb824a49b0ec5316314245ba09af444e46e814ecb9a7f4e02471f5089deb82",
+    "tests/qualification/Desktop.Containerfile": "c0983f4b53e5434d94daf49cd87ba3bed5e60055fb35be1a40be84786f353a6a",
+    "tests/qualification/Installed.Containerfile": "d78c8c616b37267573171c2a58c7205ff02b4161643b701555b366d582c23dab",
+    "tests/qualification/atspi-events.py": "b7e9ad29d321ed2cb5535d4be1d383630579eb5b93387ef43d01f92fb45c985e",
+    "tests/qualification/atspi-journey.py": "8e39d7e0699f0ca40a40c3756bcaf70af70d5e938c1d1988c23cca21f4ecf0a6",
+    "tests/qualification/atspi-probe.py": "4845d722d25940c2ceb45265cb892210cb34a079db709fe37e9d2b30f290385a",
+    "tests/qualification/atspi-speech.py": "8502ce81d64c34e0e94dbc6ef9c6f3af2e024af48adef9ebd5ccea0847a47872",
+    "tests/qualification/ibus_control.py": "901189c17f552b9de4ac6025b6fbda65f193454e2f128a2aff208327f4151be1",
+    "tests/qualification/native-probe.sh": "e0b35644d8da55c92f55a57ce738dc218370b6b9f3cbbd9429d231c09a3f00d2",
+    "tests/qualification/rust-mutation-test.sh": "76e702adfea1c95c21da266b79047f4f5254a94f109850068bb9528a47c213f2",
+    "tests/qualification/with-test-env.sh": "33f4cc7b723fbde2321a02dbdd1e5f66cbad022b3639a6825478c2bf77b72cf5",
+    "tsconfig.json": "39c28913c281610a1df7b002c4e3b2aa0d5f2f664101159cff6965d18fae8436",
+    "vite.config.ts": "85d7b4af2a63aadd66c160e32f77727528164c5f98e3d7761daef43f3a05ba10"
+  },
+  "limits": [
+    "Nested/software-rendered desktops; outer container label/seccomp exceptions",
+    "No human listening or physical GNOME/hardware qualification",
+    "Speech requests do not prove audible quality or automatic polite announcements",
+    "Trivy glib finding remains version-visible; exact source mitigation documented",
+    "No M1.2 implementation, commits, push, PR, merge or release"
+  ],
+  "tracker_readback": {
+    "issue": "KER-97",
+    "status": "In Review",
+    "next_issue": "KER-98",
+    "next_status": "Backlog",
+    "project_milestone_priority_dependency_preserved": true
+  },
+  "graph_verification": {
+    "generation": "2026-10-28T10:34:52Z",
+    "evidence_paths": 42,
+    "metadata_matches": 34,
+    "direct_fallback_paths": [
+      "package-lock.json",
+      "src-tauri/Cargo.lock",
+      "src-tauri/icons/128x128.png",
+      "src-tauri/icons/icon.svg",
+      "tests/qualification/Containerfile",
+      "tests/qualification/Desktop.Containerfile",
+      "tests/qualification/Installed.Containerfile",
+      "tsconfig.json"
+    ],
+    "caveat": "Best-effort coverage; no recorded gap does not prove completeness. Non-code/config/assets verified directly."
+  },
+  "local_security_report_sha256": {
+    "semgrep.json": "5bfa6377f11b73403b821469c5525ab9599a413a22a235a43b89103ab208814c",
+    "semgrep-native-final.json": "182575ee3b539b08ba478bd1cc63532616acc7b72ca1f3b120d250881f50e981",
+    "trivy-final.json": "a134898a2331b99514b3dcc5392aa05fe43f18f1b32b20dd4a3e173e986ecba5",
+    "secrets-final.json": "14f9bdde9515aea761ddfe199f443ad0572d2fa9808a495a90898c2a085272fe",
+    "secrets-native-final.json": "c2dbfad5fcafd95b8c41b1206781bef241ae63c8ea68df169aab97b79889b2be",
+    "dtrack-final.json": "373176fc0dcd3ff8a39801d05cd968d9cb764b64e4e728bb327eb1a4bbad227a"
+  }
+}
