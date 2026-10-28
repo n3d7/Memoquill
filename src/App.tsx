@@ -6,6 +6,8 @@ import { ProseEditor } from './ProseEditor';
 import { Preview } from './Preview';
 import { usePickerFocus } from './usePickerFocus';
 import { useResultDialog } from './useResultDialog';
+import { useReadingPreferences } from './useReadingPreferences';
+import { ReadingPreferencesPanel } from './ReadingPreferencesPanel';
 
 const initialNotes = 'Explain a relationship in your own words.\nRecall café 世界 — then compare your answer with the source.\nFor a practical procedure, describe the ordered steps and check your performance separately.';
 
@@ -20,8 +22,7 @@ export function App() {
   const [formula, setFormula] = useState('E=\\hbar\\omega');
   const [code, setCode] = useState('def double(x):\n    return x * 2');
   const [preview, setPreview] = useState(false);
-  const [theme, setTheme] = useState('system');
-  const [scale, setScale] = useState('100');
+  const reading = useReadingPreferences();
   const [status, setStatus] = useState('Ready. No files have been read.');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,18 +63,13 @@ export function App() {
     });
   }
 
-  return <div className="app" data-theme={theme}>
+  return <div className="app" data-theme={reading.preferences.theme}>
     <a className="skip-link" href="#main">Skip to material</a>
-    <header><p className="eyebrow">Desktop qualification · M1.1</p><h1>Memoquill</h1>
+    <header><p className="eyebrow">Durable workspace · M1.2</p><h1>Memoquill</h1>
       <p>Read, edit and check a small learning material fixture.</p>
-      <p className="notice">Changes are kept only until this window closes. This fixture has no storage or learning history.</p>
+      <p className="notice">Material changes are kept only until this window closes. Reading preferences can be saved locally. This fixture has no learning history.</p>
     </header>
-    <fieldset className="appearance"><legend>Reading preferences</legend>
-      <label>Appearance<select value={theme} onChange={event => setTheme(event.target.value)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-      <label>Text size<select value={scale} onChange={event => { setScale(event.target.value); document.documentElement.style.fontSize = `${event.target.value}%`; }}>
-        {['100', '125', '150', '200'].map(value => <option key={value} value={value}>{value}%</option>)}
-      </select></label>
-    </fieldset>
+    <ReadingPreferencesPanel reading={reading} />
     <main id="main" tabIndex={-1}>
       <h2>Learning material</h2>
       <label htmlFor="title">Title</label><input id="title" value={title} onChange={event => setTitle(event.target.value)} />

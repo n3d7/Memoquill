@@ -14,9 +14,9 @@ Authority: the user authorised implementation and a final PR **without merge** a
 - [x] G0 — source/tool/dependency preflight and entry disposition
 - [x] G1 — typed contracts, private root and retained process lock
 - [x] G2 — SQLite roles, safe bootstrap, checked migrations/snapshots
-- [ ] G3 — settings, revisions and operation receipts/idempotency
-- [ ] G4 — asset durability/reconciliation and failure/crash tests
-- [ ] G5 — bounded storage owner, thin async UI and safe feedback
+- [x] G3 — settings, revisions and operation receipts/idempotency
+- [x] G4 — asset durability/reconciliation and failure/crash tests
+- [x] G5 — bounded storage owner, thin async UI and safe feedback
 - [ ] G6 — qualification, independent review and PR (no merge)
 
 ## Actions and evidence
@@ -29,3 +29,12 @@ Authority: the user authorised implementation and a final PR **without merge** a
 
 - G2 RED observed incorrect journal mode and lack of schema gate; GREEN implements closed staging DB publication, per-connection FK/trusted-schema/busy policy, WAL/FULL writer and strict checksum/application/version preflight. A test fixture initially exercised public temp-root rejection instead of schema rejection; corrected it to a genuine private workspace without loosening production checks.
 - G2 suite: 8 passed, including real schema1→2 upgrade and standalone snapshot, failed SQL rollback, altered-checksum preservation, real SQLITE_FULL via max_page_count, SQL writer contention, FK rejection and JSON/FTS probes. Runtime SQLite version/source/compile options are in `.qualification/m12/g2-complete.log`; no host database or full-disk operation.
+
+- Runtime evidence resolved SQLite **3.54.1**, not the earlier documented 3.54.0 candidate. Its actual source ID/compile options and JSON/FTS/FK behavior are recorded. This is why the runtime check was retained.
+- G3 RED observed no write/revision advance and unauthenticated save accepted by the stub; GREEN uses one immediate transaction for preference revision/data and exact operation receipt. Two tests pass for restart/lost reply/exact replay, changed-payload key conflict, stale revision and foreign/unverified context refusal. No raw SQL/path/principal DTO was added.
+- User-requested guidance correction: read Scryntic only, restored practical tool/runtime/security/document/MCP and handoff details in Memoquill-local guidance. Three skill validators, nine-file local-link check and diff whitespace check passed; existing attribution was extended with source hashes. No Scryntic write or root-license change.
+- G4 RED: missing registered bytes returned an empty recovery report. GREEN: startup retains references, audits registered hashes, reports orphan/staging/unsafe paths and interrupts prepared receipts without replaying payloads; damaged/missing/unsafe state denies mutations while preserving reads. No automatic repair or GC. Full streaming hash audit is deliberately acceptable for the internal M1.2 slice; M3 must budget large-collection startup/audit before public import.
+- G4 suite: `.qualification/m12/g4-complete.log`, 25 passed plus two ignored child helpers. Real child SIGKILL at directory-sync/before/after-commit boundaries confirms interrupted versus applied receipts and preserved orphan bytes; injected write/file-sync/publish/directory-sync/commit errors cannot commit incomplete references. Same-length corruption and shard symlinks are detected without overwriting/following outside content. These tests do not establish physical power-loss correctness.
+- G5 RED→GREEN: dedicated owner/status failed with StorageFailure and unverified status was not denied; native status stub failed; three UI journeys had no persistence/retry flow. The typed facade now owns a 64-request queue and dedicated thread, drains accepted work before releasing the lock, retains accepted writes after lost replies, denies unverified contexts and supports explicit reopen. Five service tests, the native ACL test and all 17 UI tests pass. Context7 and installed Tauri/Tokio source supplied lifecycle/channel facts.
+- G5 adds four narrowly allowlisted async commands, English workspace feedback, explicit preference save/reload and same-operation retry. Fixture material remains ephemeral and the picker remains name-only. Further boundary RED→GREEN tests enforce defensive SQL/no extension loading, actionable filesystem-full errors and exact JavaScript revision integers; no imported SQL or runtime failpoint was exposed. Full milestone qualification/review is still pending.
+- One parallel test run exposed transient AlreadyOpen on immediate reopen while another test forks a crash child; serial rerun passed 34/34 and a parallel repeat also passed. Linux flock descriptors are shared across fork until CLOEXEC/close (man7 flock(2)); the private test wrapper now defaults to one harness thread, still running explicit real process-contention/crash tests. This isolates tests rather than weakening the owner lock or adding retries to production. See `.qualification/m12/g5-boundaries-{red,green,serial,parallel-repeat}.log`.

@@ -2,6 +2,8 @@ use super::{AppError, ErrorCode, error::Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub(super) const MAX_REVISION: i64 = 9_007_199_254_740_991;
+
 macro_rules! identity {
     ($name:ident) => {
         #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +103,129 @@ pub struct SavePreferences {
     pub operation_id: OperationId,
     pub expected_revision: i64,
     pub preferences: ReadingPreferences,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RegisterAsset {
+    pub contract_version: u32,
+    pub workspace_id: WorkspaceId,
+    pub operation_id: OperationId,
+}
+
+/// Constructed by a native adapter, never deserialized from a caller payload.
+#[derive(Clone, Copy)]
+pub struct RequestContext {
+    trusted_ui: bool,
+}
+impl RequestContext {
+    pub(crate) fn local_ui() -> Self {
+        Self { trusted_ui: true }
+    }
+    pub fn unverified_external() -> Self {
+        Self { trusted_ui: false }
+    }
+    pub(super) fn authorize(self) -> Result<()> {
+        if self.trusted_ui {
+            Ok(())
+        } else {
+            Err(AppError::new(ErrorCode::PermissionDenied))
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AssetInfo {
+    pub digest: AssetDigest,
+    pub byte_length: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct AssetDigest(String);
+impl AssetDigest {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+impl TryFrom<String> for AssetDigest {
+    type Error = AppError;
+    fn try_from(value: String) -> Result<Self> {
+        if value.len() == 64
+            && value
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Ok(Self(value));
+        }
+        Err(AppError::new(ErrorCode::InvalidRequest))
+    }
+}
+impl From<AssetDigest> for String {
+    fn from(value: AssetDigest) -> Self {
+        value.0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+pub enum OperationOutcome {
+    Preferences(PreferencesSnapshot),
+    Asset(AssetInfo),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "status",
+    content = "value",
+    rename_all = "snake_case",
+    deny_unknown_fields
+)]
+pub enum ReceiptResult {
+    Applied(OperationOutcome),
+    Interrupted(ErrorCode),
+    Pending,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OperationReceipt {
+    pub operation_id: OperationId,
+    pub result: ReceiptResult,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecoveryReport {
+    pub interrupted_operations: u64,
+    pub staging_files: u64,
+    pub orphan_assets: u64,
+    pub missing_assets: u64,
+    pub corrupt_assets: u64,
+    pub unsafe_paths: u64,
+}
+impl RecoveryReport {
+    pub(super) fn blocks_writes(&self) -> bool {
+        [self.missing_assets, self.corrupt_assets, self.unsafe_paths]
+            .into_iter()
+            .any(|count| count > 0)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceStatus {
+    pub contract_version: u32,
+    pub schema_version: i64,
+    pub preferences: PreferencesSnapshot,
+    pub recovery: RecoveryReport,
+    pub sqlite_version: String,
 }
 
 #[cfg(test)]

@@ -22,8 +22,12 @@ pub(super) struct Database {
     pub(super) connection: Connection,
     pub(super) owner: Owner,
     pub(super) id: WorkspaceId,
+    pub(super) recovery: super::RecoveryReport,
 }
 impl Database {
+    pub(super) fn recovery_report(&self) -> super::RecoveryReport {
+        self.recovery.clone()
+    }
     pub(super) fn open(root: &Path) -> Result<Self> {
         let owner = Owner::acquire(root)?;
         runtime_policy()?;
@@ -46,12 +50,14 @@ impl Database {
             migrations::apply(&mut connection, from, migrations::MIGRATIONS)?;
         }
         runtime_configuration(&connection)?;
-        let db = Self {
+        let mut db = Self {
             connection,
             owner,
             id,
+            recovery: super::RecoveryReport::default(),
         };
         db.preferences()?;
+        db.recovery = super::recovery::reconcile(&mut db.connection, root)?;
         Ok(db)
     }
     pub(super) fn preferences(&self) -> Result<PreferencesSnapshot> {
@@ -62,6 +68,9 @@ impl Database {
         )?;
         let preferences =
             serde_json::from_str(&data).map_err(|_| AppError::new(ErrorCode::RecoveryRequired))?;
+        if !(0..=super::types::MAX_REVISION).contains(&revision) {
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
         Ok(PreferencesSnapshot {
             workspace_id: self.id.clone(),
             revision,
@@ -91,6 +100,10 @@ fn runtime_policy() -> Result<()> {
     Ok(())
 }
 fn base_policy(connection: &Connection) -> Result<()> {
+    use rusqlite::config::DbConfig;
+    connection.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+    connection.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DML, false)?;
+    connection.set_db_config(DbConfig::SQLITE_DBCONFIG_DQS_DDL, false)?;
     connection.busy_timeout(Duration::from_millis(BUSY_MS))?;
     connection.pragma_update(None, "foreign_keys", true)?;
     connection.pragma_update(None, "trusted_schema", false)?;
@@ -211,6 +224,34 @@ mod tests {
     use super::*;
     use crate::workspace::ErrorCode;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn all_connection_roles_enforce_defensive_sql_and_disable_extension_loading() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let db = Database::open(&root).unwrap();
+        let readonly = open_connection(&root.join("memoquill.sqlite3"), true).unwrap();
+        for connection in [&db.connection, &readonly] {
+            assert!(
+                connection
+                    .db_config(rusqlite::config::DbConfig::SQLITE_DBCONFIG_DEFENSIVE)
+                    .unwrap()
+            );
+            assert!(
+                connection
+                    .query_row("SELECT \"unknown_literal\"", [], |r| r.get::<_, String>(0))
+                    .is_err()
+            );
+            let error = connection
+                .query_row(
+                    "SELECT load_extension('memoquill-must-never-load')",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .unwrap_err();
+            assert!(error.to_string().contains("not authorized"));
+        }
+    }
 
     #[test]
     fn new_workspace_is_durable_identifiable_and_connection_policy_is_verified() {
