@@ -1,0 +1,13 @@
+# Scan authored tests as well as application source. Generated/third-party files
+# have their own inventory and should not hide first-party Python test tooling.
+.git/
+.agents/
+.serena/
+.qualification/
+node_modules/
+target/
+src-tauri/target/
+src-tauri/gen/
+dist/
+coverage/
+docs/licenses/

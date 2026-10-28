@@ -1,0 +1,48 @@
+[
+  {
+    "packages": [
+      "alloc-stdlib"
+    ],
+    "file": "dropbox-rust-alloc-no-stdlib-LICENSE",
+    "source": "https://raw.githubusercontent.com/dropbox/rust-alloc-no-stdlib/0a81fd6928ea3b33c8cd484aa4575d50ffb98012/LICENSE",
+    "commit": "0a81fd6928ea3b33c8cd484aa4575d50ffb98012",
+    "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+  },
+  {
+    "packages": [
+      "dlopen2",
+      "dlopen2_derive"
+    ],
+    "file": "OpenByteDev-dlopen2-LICENSE",
+    "source": "https://raw.githubusercontent.com/OpenByteDev/dlopen2/cc80e4a0a90d499b677fdf7743699b4b3a43a989/LICENSE",
+    "commit": "cc80e4a0a90d499b677fdf7743699b4b3a43a989",
+    "sha256": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2"
+  },
+  {
+    "packages": [
+      "tauri-plugin"
+    ],
+    "file": "tauri-apps-tauri-LICENSE-APACHE-2.0",
+    "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE-APACHE-2.0",
+    "commit": "59b63ab500da9859f12d8888c3298bc29bba0b92",
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+  },
+  {
+    "packages": [
+      "tauri-plugin"
+    ],
+    "file": "tauri-apps-tauri-LICENSE-MIT",
+    "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE-MIT",
+    "commit": "59b63ab500da9859f12d8888c3298bc29bba0b92",
+    "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d"
+  },
+  {
+    "packages": [
+      "tauri-plugin"
+    ],
+    "file": "tauri-apps-tauri-LICENSE.spdx",
+    "source": "https://raw.githubusercontent.com/tauri-apps/tauri/59b63ab500da9859f12d8888c3298bc29bba0b92/LICENSE.spdx",
+    "commit": "59b63ab500da9859f12d8888c3298bc29bba0b92",
+    "sha256": "5e834fe9788c524210deda859c46a550ffa5aa0cba9ea0572f0d81120e97c008"
+  }
+]

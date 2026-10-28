@@ -1,0 +1,10 @@
+FROM registry.fedoraproject.org/fedora:44@sha256:de3396aa9d2452c5affd4a0b6eff9d3d0a7f3af58e243827790963c30e2d5e2c
+RUN dnf -y install gtk3 webkit2gtk4.1 mesa-dri-drivers mesa-libEGL \
+    at-spi2-core python3-pyatspi orca speech-dispatcher espeak-ng \
+    weston xorg-x11-server-Xvfb xorg-x11-server-Xwayland xdotool \
+    dbus-daemon dbus-tools ibus ibus-libpinyin python3-gobject \
+    dejavu-sans-fonts liberation-mono-fonts procps-ng strace \
+    && dnf clean all
+RUN useradd --uid 1000 --create-home learner
+USER learner
+WORKDIR /home/learner
