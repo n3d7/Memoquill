@@ -1,5 +1,7 @@
 # M1.2 — Durable workspace preparation
 
+Historical preparation checkpoint. Later user instructions authorized implementation and, subsequently, PR/merge after qualification. Current status and authority are in [the execution ledger](m1-2-execution.md); the preparation-only instructions below describe that earlier phase.
+
 Status: **preparation complete; implementation not started**. Prepared 2026-10-28 for [KER-98](https://linear.app/kerigan/issue/KER-98/m12-establish-durable-workspace-and-application-service-boundaries). The user's current instruction authorises investigation/planning and then stopping, not application changes, dependency installation, migrations, prototypes or another PR.
 
 ## Entry conditions and verified baseline

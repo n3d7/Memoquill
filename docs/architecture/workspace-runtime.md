@@ -59,11 +59,11 @@ FK rejection are probed; bindings/header constants are not runtime proof.
 First creation writes a complete staged database in DELETE/EXTRA mode, applies
 trusted embedded migrations and defaults, closes and fsyncs it, publishes with
 Linux NOREPLACE, then syncs both changed directories. It never renames a live
-WAL database. Existing files are preflighted for application ID, schema range,
+WAL database. Existing database/lock files must be regular files; asset verification uses nonblocking no-follow opens, so FIFOs are rejected without waiting. Existing files are preflighted for application ID, schema range,
 workspace ID and embedded migration checksums before upgrade. Unknown/newer or
 damaged workspaces are not reset.
 
-Before an upgrade the SQLite backup API creates a bounded standalone snapshot
+WAL/FULL is applied to the retained writer before any existing-schema migration. Before an upgrade the SQLite backup API creates a bounded standalone snapshot
 under `migration-backups/`, followed by integrity/FK checks and file/directory
 sync. Migrations run in one immediate transaction with checksums/user_version.
 These are internal database snapshots, not complete user backups of assets or
@@ -130,4 +130,4 @@ tests still exercise real processes. See [flock(2)](https://man7.org/linux/man-p
 These checks establish observed process-crash behavior and ordering, not physical
 power-loss correctness, hardware honesty, all-filesystem guarantees, practical
 learning effectiveness or human accessibility certification. Native RPM/AT-SPI
-qualification and remaining gaps belong in the milestone evidence document.
+qualification and remaining gaps are recorded in [workspace qualification](../quality/workspace-qualification.md).

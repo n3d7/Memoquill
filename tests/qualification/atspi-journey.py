@@ -111,12 +111,19 @@ def focus(role, name):
 
 def capture(name):
     import gi
-    os.environ['GDK_BACKEND'] = 'x11'  # The parent surface also contains nested Weston.
-    gi.require_version('Gdk', '3.0')
-    from gi.repository import Gdk
-    window = Gdk.get_default_root_window()
-    image = Gdk.pixbuf_get_from_window(window, 0, 0, window.get_width(), window.get_height())
-    image.savev(f'/evidence/{name}-{mode}.png', 'png', [], [])
+    previous = os.environ.get('GDK_BACKEND')
+    os.environ['GDK_BACKEND'] = 'x11'  # Capture the parent surface containing Weston.
+    try:
+        gi.require_version('Gdk', '3.0')
+        from gi.repository import Gdk
+        window = Gdk.get_default_root_window()
+        image = Gdk.pixbuf_get_from_window(window, 0, 0, window.get_width(), window.get_height())
+        image.savev(f'/evidence/{name}-{mode}.png', 'png', [], [])
+    finally:
+        if previous is None:
+            os.environ.pop('GDK_BACKEND', None)
+        else:
+            os.environ['GDK_BACKEND'] = previous
 
 def storage_restart():
     """Persist preferences through real UI; restart normally in this private profile."""
@@ -128,7 +135,12 @@ def storage_restart():
     wait_for(lambda: find('button', 'Save reading preferences').getState().contains(pyatspi.STATE_FOCUSED), 'save result restores its trigger')
     data_root = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')))
     workspace = data_root / 'io.github.n3d7.memoquill/workspace'
-    key('alt+F4')
+    if mode == 'wayland':
+        # Nested Weston has no Alt+F4 close binding. Activate GTK's real close control.
+        if not find('button', 'Close').queryAction().doAction(0):
+            raise AssertionError('Native window-close action was not accepted')
+    else:
+        key('alt+F4')
     def released():
         with (workspace / 'workspace.lock').open('rb') as lock:
             try:
@@ -138,8 +150,11 @@ def storage_restart():
                 return False
     wait_for(released, 'normal window close drains storage and releases owner lock')
     with Path(f'/evidence/restart-{mode}.log').open('w') as output:
-        child = subprocess.Popen(['memoquill'], stdout=output, stderr=subprocess.STDOUT)
+        child_env = {**os.environ, 'GDK_BACKEND': mode, 'WAYLAND_DEBUG': '1'}
+        child = subprocess.Popen(['memoquill'], env=child_env, stdout=output, stderr=subprocess.STDOUT)
         try:
+            if mode == 'wayland':
+                wait_for(lambda: 'wl_display' in Path('/evidence/restart-wayland.log').read_text(), 'restarted app uses native Wayland protocol')
             wait_for(lambda: any(node.name == 'Dark' and node.getState().contains(pyatspi.STATE_SELECTED) for node in nodes(find('combo box', 'Appearance'))), 'saved appearance restored after native restart')
             wait_for(lambda: any(node.name == '200%' and node.getState().contains(pyatspi.STATE_SELECTED) for node in nodes(find('combo box', 'Text size'))), 'saved text scale restored after native restart')
             wait_for(lambda: text(find('entry', 'Title')) == 'Learning material fixture', 'material fixture remains explicitly ephemeral')

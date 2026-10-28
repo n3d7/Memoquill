@@ -1,6 +1,6 @@
 # Linear backlog mapping
 
-Roadmap authority: [roadmap.md](roadmap.md). Dedicated project: [Memoquill — Foundation V1](https://linear.app/kerigan/project/memoquill-foundation-v1-05143f79bda3), `P-KER-3`, Kerigan team (`KER`). Project, seven milestones and twelve issues were successfully created and their returned IDs/URLs recorded below; no unrelated project/issue was modified. KER-97 remains In Review with manual acceptance open. The later user request authorized KER-98, now In Progress with [implementation/qualification](m1-2-execution.md) and a final PR without merge. Other issues remain outside this execution. PR #1 published the Foundation/M1.1 baseline; local M1.2 work is not yet published.
+Roadmap authority: [roadmap.md](roadmap.md). Dedicated project: [Memoquill — Foundation V1](https://linear.app/kerigan/project/memoquill-foundation-v1-05143f79bda3), `P-KER-3`, Kerigan team (`KER`). Project, seven milestones and twelve issues were successfully created and their returned IDs/URLs recorded below; no unrelated project/issue was modified. KER-97 remains In Review with manual acceptance open. The later user request authorized KER-98, now In Progress with [implementation/qualification](m1-2-execution.md) and a final PR and merge after completed qualification. Other issues remain outside this execution. PR #1 published the Foundation/M1.1 baseline; local M1.2 work is not yet published.
 
 Seven meaningful milestones contain twelve substantial issues. Platform feasibility/durability, ingestion/recovery, session/scheduling, and MCP transport/authoring/authority risks are split where independent acceptance prevents an unmanageable combined ticket. MCP includes rich authoring and explicitly delegated reversible autonomy, not only read/propose. No time estimates or target dates are invented.
 
@@ -113,13 +113,13 @@ Supporting documentation
 - `docs/architecture/ai-mcp-integration.md`
 - `docs/quality/verification-strategy.md`
 
-Foundation documents and the M1.1 source candidate are published in Memoquill main through PR #1. The following preparation checkpoint is historical; the later user instruction authorizes M1.2 implementation and a PR **without merge**.
+Foundation documents and the M1.1 source candidate are published in Memoquill main through PR #1. The following preparation checkpoint is historical; the later user instruction authorizes M1.2 implementation and a PR and merge after checks.
 
 #### Historical preparation status — 2026-10-28
 
 Preparation completed before implementation, while KER-98 was Backlog. High priority, M1 milestone and KER-97 dependency were preserved. Those notes clarify the patched SQLite runtime check, bounded single writer, migration snapshots, asset publication ordering, operation receipts and failure testing.
 
-The detailed [M1.2 preparation](m1-2-workspace-preparation.md) defines G0–G6. Current [execution evidence](m1-2-execution.md) records G1–G5 implementation, the manual-gate disposition and pending final qualification. Preparation itself did not supply implementation authority; the subsequent user request did. KER-97 remains In Review; no later milestone or merge is authorized.
+The detailed [M1.2 preparation](m1-2-workspace-preparation.md) defines G0–G6. Current [execution evidence](m1-2-execution.md) records G1–G5 implementation, the manual-gate disposition and completed local qualification. Preparation itself did not supply implementation authority; the subsequent user request did. KER-97 remains In Review; the latest user instruction authorizes PR/merge after checks, but no later milestone.
 
 ### M2 — Deliver custom subjects, material authoring, and navigation
 

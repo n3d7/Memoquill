@@ -1,12 +1,12 @@
 # M1.2 execution ledger
 
-Authority: the user authorised implementation and a final PR **without merge** after the preparation. Base: `1374c18decc30cb6081491707139b6910f8119fa`; branch `feat/ker-98-durable-workspace`. Seven uncommitted preparation documents are preserved and included deliberately. Scope/spec: KER-98 and [preparation](m1-2-workspace-preparation.md), with the existing architecture/data/MCP documents as constraints.
+Authority: the user authorised implementation after preparation. The latest instruction now authorizes PR **and merge after completed work/checks**, superseding the earlier no-merge request; refresh origin/main before integration and update local main afterward. Base: `1374c18decc30cb6081491707139b6910f8119fa`; branch `feat/ker-98-durable-workspace`. Seven uncommitted preparation documents are preserved and included deliberately. Scope/spec: KER-98 and [preparation](m1-2-workspace-preparation.md), with the existing architecture/data/MCP documents as constraints.
 
 ## Workflow and rulings
 
 - ub-mode owns coding, shared RED→GREEN tests, complexity/duplication/mutation checks and this action log. Superpowers verification-before-completion and one fresh whole-branch review support that workflow. Its overlapping executor/planning/TDD loops are not run again.
 - G0 ruling: the explicit new request authorises storage implementation. M1.1 physical GNOME/human listening remains unconfirmed and KER-97 stays In Review. Proceed with shell-independent storage and bounded automated desktop regression; preserve the manual gate for subsequent domain/release acceptance rather than invent a pass. Cost if wrong: UI adapter work may need revision; core services/storage remain reusable.
-- No new subject/learning/import/MCP runtime, cloud, accounts, unrestricted native authority or project-license change. Keep material edits ephemeral and the picker name-only. No merge, including automatic merge.
+- No new subject/learning/import/MCP runtime, cloud, accounts, unrestricted native authority or project-license change. Keep material edits ephemeral and the picker name-only. PR/merge require completed qualification of the exact head against current main under the latest instruction; no release or next milestone is authorized.
 - One feature branch in the existing workspace preserves the user's prepared files and current code graph/build environment; no second worktree or competing state is created. Final review uses a bounded, explicit subagent context as requested by the selected review skill.
 
 ## Progress
@@ -17,7 +17,7 @@ Authority: the user authorised implementation and a final PR **without merge** a
 - [x] G3 — settings, revisions and operation receipts/idempotency
 - [x] G4 — asset durability/reconciliation and failure/crash tests
 - [x] G5 — bounded storage owner, thin async UI and safe feedback
-- [ ] G6 — qualification, independent review and PR (no merge)
+- [x] G6 — local qualification and independent review; publication/merge tracked below
 
 ## Actions and evidence
 
@@ -43,3 +43,12 @@ Authority: the user authorised implementation and a final PR **without merge** a
 - Rust mutation first pass:101 killed,28 survivors,8 uncovered/137 sites. Incomplete: strengthen invalid request limits/digests, independent SQLite policy/integrity failures, persisted receipt corruption/hash compatibility, staging/orphan/unsafe-path reconciliation and accepted-request lost-channel/uncertain-owner behavior. Bool-based internal file/open roles create weakly observable sites; replace with explicit role factories, not blanket ignore rules. Reuse first-pass artifacts and rerun changed/survivor scope after verification.
 - Security: Semgrep236 rules/41 targets has two current_exe matches in test-only child helpers; Trivy has the existing glib version match and3 Low one-shot-container healthcheck warnings, no secrets. Cargo audit0 vulnerabilities plus unmaintained proc-macro-error warning. DP5.2.0 completed616-component BOM for dedicated Memoquill/0.1.0-m1.2 (b3e5bc94-8ec1-451c-b5a7-808c401e62c1), metrics0 but detailed findings403; do not claim full visibility.
 - User-authorized GitHub alert follow-up: verified live main manifest/lock still pin reviewed glib backport7e91f1a9420fd3e6c58b7913bbbf201888304ea9. All src files versus registry0.18.5 differ only by upstream mut/&mut p fix; fresh optimized regression passed. Alert#1 read-back confirms dismissed/inaccurate at2026-10-28T15:51:15Z; comment points to exact fixed source and reopen-on-pin-change. Advisory remains valid upstream and no global scanner suppression was added.
+
+- Latest user steering authorizes PR plus merge after completing this work and checks, with current main. It supersedes the earlier PR-without-merge boundary only; preserve manual acceptance limitations and do not start M2. Fetch current origin/main, reconcile any new base changes before final qualification, then verify remote merge and local main equality.
+
+- USER STOP at 2026-10-28 16:45:10 UTC: paused before further work/publication. No M1.2 push/PR/merge. Latest merge permission persists only after explicit resume and completed checks. Current blocker is the Wayland harness close action: Alt+F4 emitted no close event; use the observed native accessible Close button and requalify. X11 passed42+7; app source checks/mutations passed. Detailed current checkpoint in docs/HANDOFF.md. No owned heavy job remains.
+
+- Resumed at 2026-10-28 20:30:11 UTC under the latest PR+merge authority. Fixed only the Wayland harness close action: the observed GTK accessible Close button emits the normal window close; X11 retains its already-qualified Alt+F4 path. The Wayland run now passes43 interaction/storage +7 Orca presentation checks, normal exit0, restored Dark/200%, reset material and restarted-process wl_display evidence. X11 remains42+7/exit0. App/RPM source and artifact hash were unchanged.
+- Final source candidate: all62 Rust +20 UI checks, optimized glib, CRAP max9.3, Dryer>=0.8 clean, Rust131/131 and UI38/38 selected mutations killed. Evidence and limitations are consolidated in docs/quality/workspace-qualification.md. No physical GNOME/human listening, binary release, M2, license change or Scryntic write is claimed.
+- Linear issue read-back confirms KER-98 In Progress with unchanged High/M1/dependencies. Optional advertised get_agent_context failed with server Tool not found; ordinary issue retrieval works. This does not change acceptance criteria or block source delivery.
+- origin/main3f76adb (user SECURITY.md template) is included in c45c67a; it was fetched again before publication. Final PR/merge must pin the exact reviewed head, verify remote checks/current base and then fast-forward local main. GitHub/Linear remain authoritative for terminal publication status, separate from local candidate evidence.

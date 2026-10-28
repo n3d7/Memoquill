@@ -1,6 +1,6 @@
 # Memoquill Foundation documentation
 
-Status: research/product architecture/planning are preserved. M1.1 supplies the desktop qualification shell. M1.2 now implements the durable workspace and local reading preferences; final qualification and a review PR are in progress. Manual desktop acceptance and release remain separate; no merge is authorized for M1.2.
+Status: research/product architecture/planning are preserved. M1.1 supplies the desktop qualification shell. M1.2 now implements the durable workspace and local reading preferences; local qualification is complete and source delivery is being finalized. The user authorized PR and merge after checks; manual desktop acceptance and release remain separate.
 
 Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
 
@@ -15,6 +15,7 @@ Foundation documentation and the M1.1 source candidate are published through [PR
 
 - [Actual Fedora desktop qualification](quality/fedora-desktop-baseline.md) and [M1.1 implementation/action log](planning/m1-desktop-qualification.md).
 - [M1.1 review report](task-reports/2026-10-28-103031Z-m1-desktop-qualification.md), [source/artifact evidence](quality/m1-desktop-evidence.json), and [native reproduction](../tests/qualification/README.md).
+- [M1.2 qualification evidence](quality/workspace-qualification.md).
 - [M1.2 historical preparation](planning/m1-2-workspace-preparation.md), [execution/verification ledger](planning/m1-2-execution.md), and [implemented workspace runtime](architecture/workspace-runtime.md). The later implementation request supersedes the preparation-only pause; M2 remains unstarted.
 
 - [Learning science and evidence register](research/learning-science.md).
