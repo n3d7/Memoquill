@@ -2,6 +2,8 @@
 
 Status: research/product architecture/planning are preserved. M1.1 now has a local desktop shell/RPM with passing bounded native automation, ready for user review and manual acceptance. M1.2 remains unstarted; a local candidate is not a release.
 
+Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
+
 ## Read in this order
 
 1. [Foundation V1 scope](product/foundation-v1.md) and [product specification](product/product-spec.md).
