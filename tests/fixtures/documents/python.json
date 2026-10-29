@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "00000000-0000-4000-8000-000000000021",
+      "content": {
+        "type": "code",
+        "language": "python",
+        "text": "def greet(name):\n    return f\"Hello, {name} 😀\"\n"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000022",
+      "content": {
+        "type": "unsupported",
+        "original": "<script>untrusted()</script>",
+        "source": null,
+        "reason": "Active source retained as inert text"
+      }
+    }
+  ]
+}

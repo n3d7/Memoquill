@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "content": {
+        "type": "paragraph",
+        "inlines": [
+          {
+            "text": "English — café é 😀 العربية 中文",
+            "marks": [
+              {
+                "type": "strong"
+              }
+            ]
+          },
+          {
+            "text": " source",
+            "marks": [
+              {
+                "type": "link",
+                "href": "https://example.org/lesson"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "content": {
+        "type": "media",
+        "assetDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mime": "image/png",
+        "caption": "A caption",
+        "alt": "An illustration"
+      }
+    }
+  ]
+}

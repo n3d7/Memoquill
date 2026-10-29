@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "00000000-0000-4000-8000-000000000031",
+      "content": {
+        "type": "list",
+        "ordered": true,
+        "items": [
+          [
+            {
+              "id": "00000000-0000-4000-8000-000000000032",
+              "content": {
+                "type": "paragraph",
+                "inlines": [
+                  {
+                    "text": "Read the source.",
+                    "marks": []
+                  }
+                ]
+              }
+            }
+          ],
+          [
+            {
+              "id": "00000000-0000-4000-8000-000000000033",
+              "content": {
+                "type": "paragraph",
+                "inlines": [
+                  {
+                    "text": "Record observations.",
+                    "marks": []
+                  }
+                ]
+              }
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}
