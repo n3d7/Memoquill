@@ -1,4 +1,5 @@
 pub mod draft;
+pub mod organization;
 pub mod workspace;
 
 use std::sync::atomic::{AtomicU8, Ordering};

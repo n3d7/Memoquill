@@ -1,5 +1,7 @@
 # Memoquill M2 execution checkpoint
 
+Branch steering2026-10-29: user created origin/dev from8405103; local dev fast-forwarded to4e9fbe2 and checked out with44 working-file hashes unchanged. Continue completed-substep commits in dev. After the entire M2 step and required gates, user authorizes merging dev into main; earlier PR-without-merge restriction is superseded. No release authority.
+
 Current resume2026-10-29: context-efficiency skill added; [local ignored note](agent-notes/index.md) carries short interrupted-work pointers. KER-110/111/112 remain incomplete pending current validation. User authorizes continuation, per-child commits and PR without merge.
 
 - Updated: 2026-10-28 21:26 UTC.
