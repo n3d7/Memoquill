@@ -1,5 +1,7 @@
 # Memoquill M2 execution checkpoint
 
+Current resume2026-10-29: context-efficiency skill added; [local ignored note](agent-notes/index.md) carries short interrupted-work pointers. KER-110/111/112 remain incomplete pending current validation. User authorizes continuation, per-child commits and PR without merge.
+
 - Updated: 2026-10-28 21:26 UTC.
 - Authorized: implement KER-99; separate commit after each completed substep on feat/ker-99-authoring; create PR without merge. Do not wait for GitHub CI between substeps.
 - Baseline: main8405103cae7bcafdeec15caebf2516bfcf0a035e; M1.2 source integrated/KER-98 Done.
