@@ -20,3 +20,5 @@ Next: obtain explicit permission for a screenshot-free packaged native GUI run; 
 Pointers: [M2 contracts](planning/m2-contracts.md), [execution ledger](planning/m2-execution.md), [ignored local index](agent-notes/index.md), [license report](task-reports/2026-11-01-094200Z-project-license.md).
 
 Latest integration report: [navigation and recovery](task-reports/2026-11-01-160910Z-m2-integration.md). All four reviewed recovery defects are closed; current frontend suite63 passes. Independent review is complete for this bounded checkpoint.
+
+Manual GUI follow-up: user-provided initial/follow-up screenshots confirm empty-state rendering and corrected preference status text/alignment. Sixteen focused tests and current RPM pass. See [visual follow-up](task-reports/2026-11-01-185457Z-workspace-status-layout.md). Active launch uses separate test profile; only user supplies screenshots. Next: subject/material creation and saved-content/restart evidence.

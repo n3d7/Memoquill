@@ -26,8 +26,8 @@ function readyMessage(status: WorkspaceStatus): string {
   if (needsRecovery(status)) return errors.recovery_required;
   const retained = status.recovery.stagingFiles + status.recovery.orphanAssets;
   return retained > 0
-    ? `Workspace ready. ${retained} unreferenced files were preserved for later recovery. Only reading preferences are saved.`
-    : 'Workspace ready. Reading preferences are saved locally; material edits are temporary.';
+    ? `Workspace ready. ${retained} unreferenced files were preserved for later recovery.`
+    : 'Workspace ready. Reading preferences are stored locally.';
 }
 async function sendPreferences(request: SavePreferences, retry: boolean): Promise<PreferencesSnapshot> {
   if (retry) await reopenWorkspace();

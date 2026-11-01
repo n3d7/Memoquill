@@ -10,7 +10,7 @@ export function ReadingPreferencesPanel({ reading }: { reading: ReadingControlle
   async function show(action: () => Promise<string>, origin: HTMLButtonElement) {
     const message = await action();result.show(message, origin);
   }
-  return <section aria-label="Local workspace">
+  return <section className="reading-preferences" aria-label="Local workspace">
     <fieldset className="appearance" aria-describedby="workspace-message" disabled={reading.working}>
       <legend>Reading preferences</legend>
       <label>Appearance<select value={reading.preferences.theme} disabled={!reading.loaded || reading.retry}

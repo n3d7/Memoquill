@@ -5,7 +5,7 @@ body { margin: 0; }
 .app[data-theme="dark"] { --bg: #171e27; --fg: #eef2f6; --field: #222d3a; --line: #a1aeba; --accent: #92c6ff; color-scheme: dark; }
 .app[data-theme="light"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) { .app[data-theme="system"] { --bg: #171e27; --fg: #eef2f6; --field: #222d3a; --line: #a1aeba; --accent: #92c6ff; } }
-header, main, fieldset { max-width: 70rem; margin-inline: auto; }
+header, main, fieldset, .reading-preferences { max-width: 70rem; margin-inline: auto; }
 h1, h2, h3, h4 { line-height: 1.25; }
 h1 { margin-block: .2em; }
 p { max-width: 75ch; }
