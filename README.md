@@ -2,7 +2,7 @@
 
 Work in progress
 
-Memoquill is a planned open-source, subject-agnostic learning application for organizing sources, studying, practicing, and retaining knowledge. Foundation V1 targets offline Linux desktop use, especially Fedora; AI is optional.
+Memoquill is a planned source-available, subject-agnostic learning application for organizing sources, studying, practicing, and retaining knowledge. Foundation V1 targets offline Linux desktop use, especially Fedora; AI is optional.
 
 Foundation implementation includes the Fedora desktop qualification shell and the M1.2 durable workspace. It demonstrates offline reading/editing, mathematical rendering, passive code, typed Rust calls, native accessibility integration and explicitly saved local reading preferences. Learning content and progress are not yet persistent; the complete learning application remains planned. See the [workspace runtime](docs/architecture/workspace-runtime.md) and [current execution evidence](docs/planning/m1-2-execution.md).
 
@@ -16,4 +16,4 @@ For development on Fedora, use the pinned Rust toolchain and Node/npm versions f
 
 The [M1.1 baseline](docs/quality/fedora-desktop-baseline.md) records passing automated X11/Wayland/IME/Orca checks and remaining manual acceptance. See the [review report](docs/task-reports/2026-10-28-103031Z-m1-desktop-qualification.md) and [native reproduction](tests/qualification/README.md). No public release is implied by this local implementation.
 
-The project license is [MIT](LICENSE). Adapted operational guidance and future dependencies retain their applicable notices; see [third-party reuse](docs/architecture/third-party-reuse.md).
+The project license is [Apache License 2.0 with Commons Clause 1.0](LICENSE). Commons Clause restricts selling the software as defined in the license; this combination is source-available and is not an OSI-approved open-source license. Earlier versions distributed under MIT retain their granted rights. Adapted operational guidance and future dependencies retain their applicable notices; see [third-party reuse](docs/architecture/third-party-reuse.md).
