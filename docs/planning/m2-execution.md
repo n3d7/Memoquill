@@ -22,3 +22,5 @@ Pre-existing this execution: preparation/HANDOFF documents from prior authorized
 | 2026-11-01 / KER-113 component | Completed stable structured editor and nested authoring controls; fixed label-change focus/history loss. | [Editor checkpoint](../task-reports/2026-11-01-100313Z-structured-editor.md);14focused tests, TS, scoped CRAP<=9 and20valid selected mutations killed. Integrated save/native acceptance remains in progress. |
 
 | 2026-11-01 / KER-114 backend/native | Immutable managed originals, provenance, schema4 and bounded passive preview; native chooser copies regular files without caller-path authority. | [Managed originals checkpoint](../task-reports/2026-11-01-101213Z-managed-originals.md);116Rust tests/3ignored; scopedCRAP<=9,8selectedvalid mutationskilled. UI/native acceptance remains pending. |
+
+| 2026-11-01 / KER-114 component | Added passive originals/provenance component with exact pending retry, cancellation focus and draft protection. | [Source UI checkpoint](../task-reports/2026-11-01-101541Z-source-authoring-ui.md);10tests/TS, scopedCRAP8.323,8selectedvalidmutationskilled. Production/native journey remains pending. |
