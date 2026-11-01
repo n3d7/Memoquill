@@ -1,7 +1,7 @@
 {
   "scope": "Linux x86_64 Cargo normal/build/test dependency graph and complete npm lockfile; npm runtime notices included, development/platform-only npm packages inventoried but not shipped as UI libraries.",
   "cargoLockSha256": "0d5e3617785fe608f6930af387ed3b34c4dbb423a6455a26e1c168cb2cce949c",
-  "npmLockSha256": "c281d147041e7e53ed51cb3fcc059b185d804062852e88b09bc2030f2a0b0703",
+  "npmLockSha256": "007edd2b4a8b8b4a44d18d5384685dd6722765304dc4a3d2595dc17e789406e4",
   "components": [
     {
       "ecosystem": "cargo",

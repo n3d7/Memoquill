@@ -182,6 +182,7 @@ pub enum OperationOutcome {
     Document(super::SavedDocument),
     Annotation(Box<super::Annotation>),
     ReadingPosition(super::ReadingPosition),
+    Source(Box<super::OriginalSource>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

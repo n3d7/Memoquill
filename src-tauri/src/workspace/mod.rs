@@ -9,11 +9,13 @@ mod operations;
 mod owner;
 mod recovery;
 mod service;
+mod sources;
 mod types;
 
 pub use content::*;
 pub use error::{AppError, ErrorCode};
 pub use service::ApplicationService;
+pub use sources::*;
 pub use types::*;
 
 #[cfg(test)]

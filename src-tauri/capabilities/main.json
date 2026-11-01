@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main-window typed workspace, organization, document, annotation, reading-position and receipt operations; ephemeral draft checks and name-only picker. No arbitrary SQL, OS file access, execution, network or window commands.",
+  "description": "Main-window typed workspace, authoring and managed-source operations; explicit native picker copies regular bounded user-selected files. No arbitrary SQL, caller-path file access, execution, network or window commands.",
   "windows": [
     "main"
   ],
@@ -19,6 +19,10 @@
     "allow-save-annotation",
     "allow-annotations",
     "allow-save-reading-position",
-    "allow-reading-position"
+    "allow-reading-position",
+    "allow-pick-source",
+    "allow-sources",
+    "allow-save-source",
+    "allow-source-preview"
   ]
 }

@@ -14,6 +14,10 @@ fn main() {
             "annotations",
             "save_reading_position",
             "reading_position",
+            "pick_source",
+            "sources",
+            "save_source",
+            "source_preview",
         ]),
     ))
     .expect("Tauri build configuration must be valid");

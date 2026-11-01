@@ -12,6 +12,7 @@ const QUEUE_CAPACITY: usize = 64;
 enum Request {
     Content(ContentRequest),
     Notes(NotesRequest),
+    Sources(SourcesRequest),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
     Receipt(RequestContext, OperationId, Reply<Option<OperationReceipt>>),
@@ -55,6 +56,15 @@ enum NotesRequest {
         Reply<Option<ReadingPosition>>,
     ),
 }
+enum SourcesRequest {
+    List(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<SourceList>,
+    ),
+    Save(RequestContext, Box<SaveSource>, Reply<OriginalSource>),
+    Preview(RequestContext, uuid::Uuid, Reply<SourcePreview>),
+}
 
 /// Typed application boundary; no connection, SQL, caller path or principal payload.
 #[derive(Clone)]
@@ -62,6 +72,42 @@ pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn sources(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<SourceList> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::List(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn save_source(
+        &self,
+        context: RequestContext,
+        request: SaveSource,
+    ) -> Result<OriginalSource> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Save(context, Box::new(request), reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn source_preview(
+        &self,
+        context: RequestContext,
+        source_id: uuid::Uuid,
+    ) -> Result<SourcePreview> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Preview(context, source_id, reply)),
+            false,
+        )
+        .await
+    }
     pub async fn library(&self, context: RequestContext) -> Result<crate::organization::Snapshot> {
         self.request(
             context,
@@ -272,6 +318,7 @@ impl Store {
         match request {
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),
+            Request::Sources(request) => self.handle_sources(request),
             Request::Status(reply) => {
                 let _ = reply.send(self.access(status));
             }
@@ -292,6 +339,19 @@ impl Store {
                 let _ = reply.send(self.access(status));
             }
             Request::Shutdown(_) => unreachable!("shutdown is owned by the worker loop"),
+        }
+    }
+    fn handle_sources(&mut self, request: SourcesRequest) {
+        match request {
+            SourcesRequest::List(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.sources(context, id)));
+            }
+            SourcesRequest::Save(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_source(context, &request)));
+            }
+            SourcesRequest::Preview(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.source_preview(context, id)));
+            }
         }
     }
     fn handle_content(&mut self, request: ContentRequest) {

@@ -1,3 +1,4 @@
+mod attachments;
 mod authoring;
 pub mod document;
 pub mod draft;
@@ -64,7 +65,11 @@ pub fn run() {
             authoring::save_annotation,
             authoring::annotations,
             authoring::save_reading_position,
-            authoring::reading_position
+            authoring::reading_position,
+            attachments::pick_source,
+            attachments::sources,
+            attachments::save_source,
+            attachments::source_preview
         ])
         .build(tauri::generate_context!())
         .expect("Memoquill could not start")
@@ -159,6 +164,51 @@ mod tests {
                 serde_json::json!({})
             )
             .is_err()
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn native_selection_rejects_other_surfaces_and_caller_path_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let status =
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![attachments::pick_source])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let body = serde_json::json!({"request": {"contractVersion":1,
+            "workspaceId":status.preferences.workspace_id, "operationId":uuid::Uuid::new_v4()}});
+        assert!(ipc(&other, "pick_source", "tauri://localhost", body.clone()).is_err());
+        assert!(
+            ipc(
+                &main,
+                "pick_source",
+                "https://untrusted.example",
+                body.clone()
+            )
+            .is_err()
+        );
+        let mut forged = body.clone();
+        forged["request"]["path"] = serde_json::json!("/etc/passwd");
+        assert!(ipc(&main, "pick_source", "tauri://localhost", forged).is_err());
+        let mut foreign = body;
+        foreign["request"]["workspaceId"] = serde_json::json!(uuid::Uuid::new_v4());
+        let error = ipc(&main, "pick_source", "tauri://localhost", foreign).unwrap_err();
+        assert_eq!(
+            error,
+            serde_json::to_value(AppError {
+                code: workspace::ErrorCode::PermissionDenied
+            })
+            .unwrap()
         );
         tauri::async_runtime::block_on(service.shutdown()).unwrap();
     }

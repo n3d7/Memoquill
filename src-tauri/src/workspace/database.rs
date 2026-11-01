@@ -15,7 +15,7 @@ use std::{
 };
 
 pub(super) const APPLICATION_ID: i32 = 0x4d514c4c;
-pub(super) const SCHEMA_VERSION: i64 = 3;
+pub(super) const SCHEMA_VERSION: i64 = 4;
 pub(super) const BUSY_MS: u64 = 2000;
 
 pub(super) struct Database {
@@ -263,6 +263,97 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
+    fn schema_three_upgrade_preserves_content_and_a_standalone_backup() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let owner = Owner::acquire(&root).unwrap();
+        prepare_directories(&root).unwrap();
+        let path = root.join("memoquill.sqlite3");
+        bootstrap(&path, 3).unwrap();
+        let connection = open_connection(&path, Access::ReadWrite).unwrap();
+        let workspace: String = connection
+            .query_row("SELECT id FROM workspace_meta", [], |r| r.get(0))
+            .unwrap();
+        let resource = crate::organization::ResourceId::generate();
+        connection
+            .execute(
+                "INSERT INTO resources(id,title,archived) VALUES(?1,'Preserved source target',0)",
+                [resource.to_string()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO library_meta(workspace_id,revision) VALUES(?1,1)",
+                [&workspace],
+            )
+            .unwrap();
+        connection
+            .execute("UPDATE preferences SET revision=7", [])
+            .unwrap();
+        connection.close().unwrap();
+        drop(owner);
+
+        let db = Database::open(&root).unwrap();
+        assert_eq!(db.id.as_str(), workspace);
+        assert_eq!(db.preferences().unwrap().revision, 7);
+        let library = db
+            .library(super::super::RequestContext::local_ui())
+            .unwrap();
+        assert_eq!(library.revision, 1);
+        assert_eq!(
+            library.resources[&resource].title,
+            "Preserved source target"
+        );
+        assert_eq!(
+            db.sources(super::super::RequestContext::local_ui(), resource)
+                .unwrap()
+                .revision,
+            0
+        );
+        assert_eq!(
+            db.connection
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            4
+        );
+        migrations::validate(&db.connection, 4).unwrap();
+        integrity(&db.connection).unwrap();
+        let files = std::fs::read_dir(root.join("migration-backups"))
+            .unwrap()
+            .collect::<std::io::Result<Vec<_>>>()
+            .unwrap();
+        assert_eq!(files.len(), 1);
+        let backup = open_connection(&files[0].path(), Access::ReadOnly).unwrap();
+        integrity(&backup).unwrap();
+        assert_eq!(
+            backup
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            backup
+                .query_row(
+                    "SELECT title FROM resources WHERE id=?1",
+                    [resource.to_string()],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            "Preserved source target"
+        );
+        assert_eq!(
+            backup
+                .query_row(
+                    "SELECT count(*) FROM sqlite_schema WHERE name='original_sources'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
     fn schema_two_upgrade_and_rollback_preserve_assets_receipts_and_preferences() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().join("workspace");
@@ -387,7 +478,7 @@ mod tests {
             db.connection
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            3
+            SCHEMA_VERSION
         );
     }
 
@@ -528,6 +619,12 @@ mod tests {
         let (_temp, root) = legacy_root();
         let db = Database::open(&root).unwrap();
         assert_eq!(db.preferences().unwrap().revision, 7);
+        assert_eq!(
+            db.connection
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            SCHEMA_VERSION
+        );
         assert_eq!(db.preferences().unwrap().preferences.text_scale.get(), 125);
         let files = std::fs::read_dir(root.join("migration-backups"))
             .unwrap()
