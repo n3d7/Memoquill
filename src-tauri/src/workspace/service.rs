@@ -10,6 +10,8 @@ type Reply<T> = oneshot::Sender<Result<T>>;
 const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
+    Content(ContentRequest),
+    Notes(NotesRequest),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
     Receipt(RequestContext, OperationId, Reply<Option<OperationReceipt>>),
@@ -23,6 +25,36 @@ enum Request {
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
+enum ContentRequest {
+    Library(RequestContext, Reply<crate::organization::Snapshot>),
+    ApplyContent(
+        RequestContext,
+        ApplyContent,
+        Reply<crate::organization::Snapshot>,
+    ),
+    SaveDocument(RequestContext, SaveDocument, Reply<SavedDocument>),
+    ReadDocument(
+        RequestContext,
+        crate::organization::ResourceId,
+        Option<uuid::Uuid>,
+        Reply<Option<SavedDocument>>,
+    ),
+}
+
+enum NotesRequest {
+    SaveAnnotation(RequestContext, SaveAnnotation, Reply<Annotation>),
+    Annotations(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<Vec<Annotation>>,
+    ),
+    SavePosition(RequestContext, SaveReadingPosition, Reply<ReadingPosition>),
+    ReadPosition(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<Option<ReadingPosition>>,
+    ),
+}
 
 /// Typed application boundary; no connection, SQL, caller path or principal payload.
 #[derive(Clone)]
@@ -30,6 +62,106 @@ pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn library(&self, context: RequestContext) -> Result<crate::organization::Snapshot> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::Library(context, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn apply_content(
+        &self,
+        context: RequestContext,
+        request: ApplyContent,
+    ) -> Result<crate::organization::Snapshot> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::ApplyContent(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn save_document(
+        &self,
+        context: RequestContext,
+        request: SaveDocument,
+    ) -> Result<SavedDocument> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::SaveDocument(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn read_document(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+        revision_id: Option<uuid::Uuid>,
+    ) -> Result<Option<SavedDocument>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Content(ContentRequest::ReadDocument(
+                    context,
+                    resource_id,
+                    revision_id,
+                    reply,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn save_annotation(
+        &self,
+        context: RequestContext,
+        request: SaveAnnotation,
+    ) -> Result<Annotation> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::SaveAnnotation(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn annotations(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<Vec<Annotation>> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::Annotations(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn save_reading_position(
+        &self,
+        context: RequestContext,
+        request: SaveReadingPosition,
+    ) -> Result<ReadingPosition> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::SavePosition(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn reading_position(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<Option<ReadingPosition>> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::ReadPosition(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
     /// The native adapter supplies the managed root. Opening/auditing happens off the UI thread.
     pub fn start(root: PathBuf) -> Result<Self> {
         let (sender, receiver) = mpsc::channel(QUEUE_CAPACITY);
@@ -138,6 +270,8 @@ impl Store {
     }
     fn handle(&mut self, request: Request) {
         match request {
+            Request::Content(request) => self.handle_content(request),
+            Request::Notes(request) => self.handle_notes(request),
             Request::Status(reply) => {
                 let _ = reply.send(self.access(status));
             }
@@ -158,6 +292,38 @@ impl Store {
                 let _ = reply.send(self.access(status));
             }
             Request::Shutdown(_) => unreachable!("shutdown is owned by the worker loop"),
+        }
+    }
+    fn handle_content(&mut self, request: ContentRequest) {
+        match request {
+            ContentRequest::Library(context, reply) => {
+                let _ = reply.send(self.access(|db| db.library(context)));
+            }
+            ContentRequest::ApplyContent(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.apply_content(context, &request)));
+            }
+            ContentRequest::SaveDocument(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_document(context, &request)));
+            }
+            ContentRequest::ReadDocument(context, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.read_document(context, id, revision)));
+            }
+        }
+    }
+    fn handle_notes(&mut self, request: NotesRequest) {
+        match request {
+            NotesRequest::SaveAnnotation(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_annotation(context, &request)));
+            }
+            NotesRequest::Annotations(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.annotations(context, id)));
+            }
+            NotesRequest::SavePosition(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_reading_position(context, &request)));
+            }
+            NotesRequest::ReadPosition(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.reading_position(context, id)));
+            }
         }
     }
 }

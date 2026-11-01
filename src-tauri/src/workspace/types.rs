@@ -178,6 +178,10 @@ impl From<AssetDigest> for String {
 pub enum OperationOutcome {
     Preferences(PreferencesSnapshot),
     Asset(AssetInfo),
+    Organization(Box<crate::organization::Snapshot>),
+    Document(super::SavedDocument),
+    Annotation(Box<super::Annotation>),
+    ReadingPosition(super::ReadingPosition),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -206,9 +206,9 @@ fn insert<K: Ord, V>(map: &mut BTreeMap<K, V>, id: K, value: V) -> Result<(), Do
 }
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod additional_tests;
+#[cfg(test)]
+mod tests;
 #[cfg(test)]
 mod initial_tests {
     use super::*;

@@ -6,6 +6,14 @@ fn main() {
             "save_reading_preferences",
             "operation_receipt",
             "reopen_workspace",
+            "library",
+            "apply_content",
+            "save_document",
+            "read_document",
+            "save_annotation",
+            "annotations",
+            "save_reading_position",
+            "reading_position",
         ]),
     ))
     .expect("Tauri build configuration must be valid");

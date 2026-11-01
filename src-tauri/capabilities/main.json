@@ -1,7 +1,24 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main-window typed workspace/preferences/receipt operations, ephemeral draft checks and an explicit name-only picker. No arbitrary SQL, file reading, execution, network or window commands.",
-  "windows": ["main"],
-  "permissions": ["allow-check-draft", "allow-workspace-status", "allow-save-reading-preferences", "allow-operation-receipt", "allow-reopen-workspace", "dialog:allow-open"]
+  "description": "Main-window typed workspace, organization, document, annotation, reading-position and receipt operations; ephemeral draft checks and name-only picker. No arbitrary SQL, OS file access, execution, network or window commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-check-draft",
+    "allow-workspace-status",
+    "allow-save-reading-preferences",
+    "allow-operation-receipt",
+    "allow-reopen-workspace",
+    "allow-library",
+    "dialog:allow-open",
+    "allow-apply-content",
+    "allow-save-document",
+    "allow-read-document",
+    "allow-save-annotation",
+    "allow-annotations",
+    "allow-save-reading-position",
+    "allow-reading-position"
+  ]
 }

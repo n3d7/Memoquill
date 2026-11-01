@@ -15,7 +15,7 @@ use std::{
 };
 
 pub(super) const APPLICATION_ID: i32 = 0x4d514c4c;
-pub(super) const SCHEMA_VERSION: i64 = 2;
+pub(super) const SCHEMA_VERSION: i64 = 3;
 pub(super) const BUSY_MS: u64 = 2000;
 
 pub(super) struct Database {
@@ -261,6 +261,135 @@ mod tests {
     use super::*;
     use crate::workspace::ErrorCode;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn schema_two_upgrade_and_rollback_preserve_assets_receipts_and_preferences() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let owner = Owner::acquire(&root).unwrap();
+        prepare_directories(&root).unwrap();
+        let path = root.join("memoquill.sqlite3");
+        bootstrap(&path, 2).unwrap();
+        let mut connection = open_connection(&path, Access::ReadWrite).unwrap();
+        let workspace: String = connection
+            .query_row("SELECT id FROM workspace_meta", [], |r| r.get(0))
+            .unwrap();
+        let workspace = WorkspaceId::try_from(workspace).unwrap();
+        let operation = super::super::OperationId::generate();
+        let digest = "a".repeat(64);
+        let receipt = super::super::OperationReceipt {
+            operation_id: operation.clone(),
+            result: super::super::ReceiptResult::Applied(super::super::OperationOutcome::Asset(
+                super::super::AssetInfo {
+                    digest: super::super::AssetDigest::try_from(digest.clone()).unwrap(),
+                    byte_length: 3,
+                },
+            )),
+        };
+        connection
+            .execute("UPDATE preferences SET revision=7", [])
+            .unwrap();
+        super::super::operations::insert_applied(
+            &connection,
+            &workspace,
+            &receipt,
+            "old-request-hash",
+            "asset",
+        )
+        .unwrap();
+        connection
+            .execute(
+                "INSERT INTO assets(digest,byte_length,registered_by) VALUES(?1,3,?2)",
+                params![digest, operation.as_str()],
+            )
+            .unwrap();
+        let failure = super::super::faults::using(
+            |phase| {
+                if phase == super::super::faults::Phase::MigrationBeforeCommit {
+                    Err(AppError::new(ErrorCode::StorageFull))
+                } else {
+                    Ok(())
+                }
+            },
+            || migrations::apply(&mut connection, 2, migrations::MIGRATIONS),
+        );
+        assert_eq!(failure.unwrap_err().code, ErrorCode::StorageFull);
+        assert_eq!(
+            connection
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM sqlite_schema WHERE name='resource_revisions'",
+                    [],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT registered_by FROM assets", [], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            operation.as_str()
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| r
+                    .get::<_, i64>(
+                    0
+                ))
+                .unwrap(),
+            0
+        );
+        connection.close().unwrap();
+        drop(owner);
+        let db = Database::open(&root).unwrap();
+        assert_eq!(db.preferences().unwrap().revision, 7);
+        assert_eq!(
+            db.operation_receipt(super::super::RequestContext::local_ui(), &operation)
+                .unwrap(),
+            Some(receipt)
+        );
+        assert_eq!(
+            db.connection
+                .query_row(
+                    "SELECT registered_by FROM assets WHERE digest=?1",
+                    [&digest],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            operation.as_str()
+        );
+        assert_eq!(
+            db.connection
+                .query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| r
+                    .get::<_, i64>(
+                    0
+                ))
+                .unwrap(),
+            0
+        );
+        let target: String = db
+            .connection
+            .query_row(
+                "SELECT \"table\" FROM pragma_foreign_key_list('assets')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(target, "operations");
+        assert_eq!(
+            db.connection
+                .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+    }
 
     #[test]
     fn all_connection_roles_enforce_defensive_sql_and_disable_extension_loading() {
