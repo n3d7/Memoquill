@@ -73,7 +73,7 @@ export function useReadingPreferences() {
     try {
       const result = await sendPreferences(request, pending !== null);
       setSnapshot(result);setPreferences(result.preferences);setPending(null);
-      const text = 'Reading preferences saved. Material edits are still temporary.';
+      const text = 'Reading preferences saved. Material edits are unchanged.';
       setMessage(text);return text;
     } catch (reason) { const text = storageMessage(reason);setMessage(text);return text; }
     finally { setWorking(false); }

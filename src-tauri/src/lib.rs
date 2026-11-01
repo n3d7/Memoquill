@@ -69,7 +69,8 @@ pub fn run() {
             attachments::pick_source,
             attachments::sources,
             attachments::save_source,
-            attachments::source_preview
+            attachments::source_preview,
+            authoring::search_resources
         ])
         .build(tauri::generate_context!())
         .expect("Memoquill could not start")
@@ -133,7 +134,10 @@ mod tests {
         let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
         let app = mock_builder()
             .manage(service.clone())
-            .invoke_handler(tauri::generate_handler![authoring::library])
+            .invoke_handler(tauri::generate_handler![
+                authoring::library,
+                authoring::search_resources
+            ])
             .build(tauri::generate_context!())
             .unwrap();
         let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
@@ -147,6 +151,54 @@ mod tests {
             .deserialize::<crate::organization::Snapshot>()
             .unwrap();
         assert!(snapshot.subjects.is_empty());
+        let search = serde_json::json!({"query":"", "offset":0});
+        let page = ipc(
+            &main,
+            "search_resources",
+            "tauri://localhost",
+            search.clone(),
+        )
+        .unwrap()
+        .deserialize::<workspace::SearchPage>()
+        .unwrap();
+        assert!(page.items.is_empty());
+        assert!(
+            ipc(
+                &other,
+                "search_resources",
+                "tauri://localhost",
+                search.clone()
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "search_resources",
+                "https://untrusted.example",
+                search
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "search_resources",
+                "tauri://localhost",
+                serde_json::json!({"query":"", "offset":-1})
+            )
+            .is_err()
+        );
+        assert_eq!(
+            ipc(
+                &main,
+                "search_resources",
+                "tauri://localhost",
+                serde_json::json!({"query":"\u{0}", "offset":0})
+            )
+            .unwrap_err(),
+            serde_json::json!({"code":"invalid_request"})
+        );
         assert!(
             ipc(
                 &other,

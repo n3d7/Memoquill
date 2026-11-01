@@ -23,6 +23,7 @@
     "allow-pick-source",
     "allow-sources",
     "allow-save-source",
-    "allow-source-preview"
+    "allow-source-preview",
+    "allow-search-resources"
   ]
 }

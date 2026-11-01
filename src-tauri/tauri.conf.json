@@ -10,7 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "label": "main", "title": "Memoquill — Desktop qualification", "width": 1120, "height": 900, "minWidth": 360, "minHeight": 480 }],
+    "windows": [{ "label": "main", "title": "Memoquill", "width": 1120, "height": 900, "minWidth": 360, "minHeight": 480 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'",
       "capabilities": ["main"]
@@ -20,8 +20,8 @@
     "active": true,
     "targets": ["rpm"],
     "category": "Education",
-    "shortDescription": "Local-first learning — desktop qualification fixture",
-    "longDescription": "Memoquill M1.1 qualifies an offline reading and editing shell. This early fixture does not yet store learning content or progress.",
+    "shortDescription": "Local-first, subject-independent learning workspace",
+    "longDescription": "Memoquill supports custom subjects, structured material authoring, managed originals and offline organization. AI and cloud services are not required.",
     "copyright": "Copyright 2026 n3d7",
     "license": "LicenseRef-Memoquill-Apache-2.0-Commons-Clause-1.0",
     "licenseFile": "../LICENSE",

@@ -10,6 +10,17 @@ use tauri::State;
 use uuid::Uuid;
 
 #[tauri::command]
+pub async fn search_resources(
+    service: State<'_, ApplicationService>,
+    query: String,
+    offset: u64,
+) -> Result<crate::workspace::SearchPage, AppError> {
+    service
+        .search_resources(RequestContext::local_ui(), query, offset)
+        .await
+}
+
+#[tauri::command]
 pub async fn library(service: State<'_, ApplicationService>) -> Result<Snapshot, AppError> {
     service.library(RequestContext::local_ui()).await
 }

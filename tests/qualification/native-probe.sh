@@ -52,8 +52,12 @@ fi
 WAYLAND_DEBUG=1 "${app_command[@]}" >"/evidence/app-$mode.log" 2>&1 &
 app_pid=$!
 printf '%s\n' "$app_pid" > "/evidence/app-pid-$mode"
-python3 /input/atspi-probe.py "$mode"
-python3 /input/atspi-journey.py "$mode"
+if [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
+  python3 /input/m2-journey.py "$mode"
+else
+  python3 /input/atspi-probe.py "$mode"
+  python3 /input/atspi-journey.py "$mode"
+fi
 if [[ "${MEMOQUILL_STORAGE_AUDIT:-0}" == 1 ]]; then
   # The journey closed the original window normally before its controlled restart.
   wait "$app_pid"
@@ -61,5 +65,9 @@ if [[ "${MEMOQUILL_STORAGE_AUDIT:-0}" == 1 ]]; then
 fi
 kill -TERM "$orca_pid"
 wait "$orca_pid"
-python3 /input/atspi-speech.py "$mode"
+if [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
+  python3 /input/m2-speech.py "$mode"
+else
+  python3 /input/atspi-speech.py "$mode"
+fi
 kill "$app_pid" "$xvfb_pid" 2>/dev/null || true

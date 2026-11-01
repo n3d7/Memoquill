@@ -4,7 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import axe from 'axe-core';
-import { App } from './App';
+import { QualificationApp as App } from './App';
 import workspace from '../tests/fixtures/workspace-status.json';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));

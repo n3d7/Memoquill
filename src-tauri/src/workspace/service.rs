@@ -10,6 +10,7 @@ type Reply<T> = oneshot::Sender<Result<T>>;
 const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
+    Search(RequestContext, String, u64, Reply<SearchPage>),
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
@@ -72,6 +73,19 @@ pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn search_resources(
+        &self,
+        context: RequestContext,
+        query: String,
+        offset: u64,
+    ) -> Result<SearchPage> {
+        self.request(
+            context,
+            |reply| Request::Search(context, query, offset, reply),
+            false,
+        )
+        .await
+    }
     pub async fn sources(
         &self,
         context: RequestContext,
@@ -316,6 +330,9 @@ impl Store {
     }
     fn handle(&mut self, request: Request) {
         match request {
+            Request::Search(context, query, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.search_resources(context, &query, offset)));
+            }
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),
             Request::Sources(request) => self.handle_sources(request),

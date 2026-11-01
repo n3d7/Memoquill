@@ -18,6 +18,7 @@ fn main() {
             "sources",
             "save_source",
             "source_preview",
+            "search_resources",
         ]),
     ))
     .expect("Tauri build configuration must be valid");
