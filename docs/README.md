@@ -31,3 +31,10 @@ Foundation documentation and the M1.1 source candidate are published through [PR
 - [Current checkpoint](HANDOFF.md), [planning report](task-reports/2026-10-27-093441Z-foundation-research-planning.md), [agent guide](../AGENTS.md), and [project-local skills](../.agents/skills/).
 
 The roadmap defines implementation order; Linear records its executable backlog and current tracker state. Product requirements define desired behavior, ADRs record decisions, and research documents preserve evidence and limitations. Do not infer implementation from any of them. Repository documentation is currently local until separately authorized publication.
+
+## Architecture-first composition follow-up
+
+- [Clarified requirements and Linear mapping](planning/lesson-composition-requirements.md): manual/agent lesson composition, replaceable UI, guest identity seam, M4/M6 boundaries and final optional M8.
+- [Architecture research and evidence applicability](research/composable-learning-architecture.md): trusted registries, learning-component schemas, security/accessibility and conditional gamification evidence.
+
+Feature/UI development and further GUI qualification are paused pending revised architecture agreement.

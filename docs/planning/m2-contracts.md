@@ -1,5 +1,7 @@
 # M2 contracts and entry-gate disposition
 
+> Current architecture clarification: see the composition section below. New feature/UI development is on hold pending architectural agreement.
+
 Status: KER-109 contract baseline frozen; development-only desktop deferral explicitly dispositioned under the user's delegated judgment.
 Updated: 2026-10-28 21:22 UTC.
 Parent: [KER-99](https://linear.app/kerigan/issue/KER-99); first slice: [KER-109](https://linear.app/kerigan/issue/KER-109).
@@ -157,3 +159,18 @@ One literal source search was blocked by a search-frequency hook; graph symbol/s
 
 Next: implement KER-110/KER-111 under the M2 start authority and recorded development-only deferral. The user's subsequent instruction authorizes a PR without merge; verify the final candidate before committing/pushing the scoped PR branch. Merge and release remain unauthorized.
 
+<!-- lesson-composition-clarification:start -->
+## Contract freeze reopened for composition architecture — 2026-11-01
+
+The user clarified manual learner-built lesson experiences, equivalent later MCP authoring, replaceable frontend code and scientific learning quality. The prior KER-109 freeze remains historical evidence; it does not define or approve the new composition/registry/interaction contract. Product feature/UI development and further GUI qualification are paused until the revised architecture is agreed.
+
+KER-117 resolves lesson aggregate ownership against existing unit/resource/activity concepts and separates canonical content/provenance, activity/evaluation definitions, composition/presentation and learner history. It freezes component/action capabilities, versions/references/migrations/unknown-type behavior, proposal/state scopes and explicit resource budgets before implementation.
+
+KER-118 defines replaceable views/controllers/application ports/native-test adapters plus a local-guest identity/session seam for future login. KER-119 owns validated shared-service composition persistence and exact revision/receipt behavior. KER-120 owns manual offline composition and the shared trusted renderer/preview; author previews are not real study outcomes. KER-116 now depends on these four tasks.
+
+Acceptance includes four-subject manual composition, isolated lesson tabs/settings, safe custom methods, invalid/deep/cyclic/cross-scope inputs, unknown-version preservation, offline save/reopen, anchor/history continuity, exact retry/conflicts, semantic reading/keyboard/focus behavior and replacing a screen without Rust storage/domain changes.
+
+M4 supplies real study/evaluation/history, M6 the live scoped agent adapter with manual/agent parity. Only a guest identity seam is prepared now; actual registration and cloud services remain future work. M8/KER-121 is a final default-off per-lesson gamification extension after core M7 qualification and does not block the core stage.
+
+See [requirements](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md). Existing source/provenance, offline, native security and physical GNOME/human Orca gates remain unchanged. No implementation completion, dependency choice or release authority is inferred.
+<!-- lesson-composition-clarification:end -->

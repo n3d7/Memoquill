@@ -1,5 +1,7 @@
 # Technical design
 
+> Current architecture clarification: see the composition section below. New feature/UI development is on hold pending architectural agreement.
+
 ## Recommendation and decision status
 
 Use **Rust, TypeScript, React, Tauri 2, and SQLite** as a local modular monolith. Tauri 2 is the deliberately selected stable family, not a claim that no newer previews exist. Exact compatible releases are pinned in the manifests/lockfiles. M1.1 provides the published qualification fixture; M1.2 implements the [workspace runtime](workspace-runtime.md), including local preferences, storage/asset safety and typed application boundaries. Its [execution ledger](../planning/m1-2-execution.md) records current qualification; broader subjects/imports/learning/MCP components below remain planned. [Technical alternatives and inspected versions](../research/technical-options.md) provide the comparison; [ADRs](decisions.md) define reconsideration conditions.
@@ -68,3 +70,25 @@ M1 validates an actual Fedora RPM build; a development run may supplement but ne
 For V1, use signed release metadata/checksums and explicit manual updates; do not add a custom auto-updater. When installing through a package manager, follow that channel's update policy. Verify backup/migration compatibility before a new version activates a workspace. Update delivery/signing keys and release automation require separate publication authority; none is configured now.
 
 Future portability benefits from platform adapters, UUIDs, immutable revisions, explicit ownership, and versioned exports. Do not build sync/conflict-free replication, cross-platform IPC implementations, or a plugin marketplace now. Cheap preparation is not a promise that future sync will be automatic.
+
+<!-- lesson-composition-clarification:start -->
+## Composable lesson architecture — clarification, 2026-11-01
+
+Status: requirements and research direction; detailed contracts remain to be agreed in KER-117. Application feature/UI development and GUI qualification are on hold until the revised architecture is agreed. The current fixed forms/document editor do not implement this constructor.
+
+A person must be able to assemble lessons and their own learning methods from content, exercises/tests, interaction and presentation primitives inside each lesson tab. The later agent uses the same authoring operations through MCP. Do not turn the initial four activity families or subject fixtures into a universal lesson template.
+
+Separate presentational views/components and design tokens from scenario controllers and a narrow frontend application port. Native Tauri IPC is one adapter; tests use a deterministic adapter. Rust application services retain permissions, invariant checks, transactions, durable receipts and repositories. Presentation components do not import storage implementations or call unrestricted IPC directly. Replacing a representative screen/design system must preserve service contracts and Rust domain/storage code.
+
+Use a versioned application-owned declarative composition contract and trusted component/action registry. Registry descriptors cover typed props, slots, events/actions, state scope, accessibility, capability/version compatibility and fallback behavior. Compare an owned renderer with a json-render adapter before selecting a dependency. User/agent payloads do not contain executable React/JS/HTML, dynamic imports, unrestricted CSS, network/file actions or permission expansion.
+
+Manual editing and future MCP proposals share semantic validation, exact bases/diffs, preview and transactional apply through the same services. Enforce lesson/reference/action/state-path authority and explicit containment, depth/node/byte/work limits. Review or a matching explicit delegated policy controls agent application. Global shell and personal outcomes have separate authority. Unknown components remain visible, inert, preserved and recoverable.
+
+Content/provenance, immutable activity/evaluation definitions, composition/presentation and learner attempts/history are separate. Preview uses the same renderer as a lesson while maintaining separate preview outcomes. Recomposition preserves stable identities, anchors and history; each tab owns its local configuration and state. Keep meaningful DOM/reading order, keyboard alternatives, focus continuity and offline save/reopen.
+
+Prepare an identity/session port with a local guest actor in KER-118. Future account identity is distinct from agent grants and workspace authority; actual registration/provider/password/session handling needs a later design. No fake login controls, mandatory account, new auth service or cloud dependency is introduced by this seam.
+
+M8/KER-121 is a final optional per-lesson gamification extension after core M7 qualification. Versioned lesson-local rules can express custom achievements, levels, ratings/scores, percentages and scales. Default off; no global XP/account level or implicit cross-lesson effects. Explain metrics/provenance, preserve ordinary learning records, and separate reward/completion scores from assessment evidence. Recommended presets require applicable research and learning/time/autonomy/accessibility checks; safe custom experiments remain possible.
+
+See [requirements and Linear mapping](../planning/lesson-composition-requirements.md) and [research/applicability](../research/composable-learning-architecture.md). KER-117–120 own contracts, frontend boundaries, persistence and manual composition respectively; M4 owns real study/evaluation/history and M6 the live scoped agent adapter.
+<!-- lesson-composition-clarification:end -->

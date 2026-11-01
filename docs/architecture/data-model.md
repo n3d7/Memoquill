@@ -1,5 +1,7 @@
 # Data model, durability, and ownership
 
+> Current architecture clarification: see the composition section below. New feature/UI development is on hold pending architectural agreement.
+
 This is a logical schema and contract plan, not applied SQL. Stable UUIDs identify entities independently of labels, placement, or source offsets. Use random UUIDs (no account/server required), timestamps in UTC, and explicit local display/study-day policy. One learner profile per local workspace is enough for V1; profile IDs keep personal history separate without implementing accounts.
 
 ## Core records
@@ -65,3 +67,24 @@ A full native backup is for exact restoration; a portable package is for interop
 Reject traversal, absolute paths, symlinks/hardlinks, duplicate/conflicting manifest paths, compression bombs, unknown executable handlers, unsupported versions, and checksum failures before activation. No token/grant secrets are exported; restored agents must be authorized again.
 
 Stable IDs and revision provenance make future sync analysis possible, but V1 has no vector clocks, remote store, conflict-free algorithm, or sync service. A local operation audit is for recovery and explainability, not a claim that all future merge semantics have been solved.
+
+<!-- lesson-composition-clarification:start -->
+## Composition and identity boundaries — clarification, 2026-11-01
+
+These are requirements to resolve in KER-117, not a claim that new tables/DTOs exist. First map the user-facing lesson/tab to existing unit/resource/activity concepts; justify any new aggregate rather than duplicating domain identities through UI terminology.
+
+| Concern | Required boundary |
+| --- | --- |
+| Content/source revisions | Keep existing canonical content, stable block IDs, immutable sources and provenance; a layout edit does not rewrite their history. |
+| Activity/revision | Keep question, answer/rubric, feedback/help and evaluation policy versioned independently of presentation. Registry extension does not make the initial types a closed pedagogical universe. |
+| Composition/presentation revision | Application-owned schema references stable content/activity identities and explicit versions; typed component props/slots/actions, ordering and local appearance. Choose exact ownership, compatibility, serialization and budgets in KER-117. |
+| Learner state/history | Attempts, observed assistance, evaluation evidence and progress remain separate from content/layout and author previews. Changed definitions do not silently regrade, erase or relabel historical outcomes. |
+| Component registry | Trusted implementations and versioned capability/prop/action schemas; payloads carry data, never arbitrary executable handlers. Unknown versions/types preserve bounded raw data with an inert fallback. |
+| Lesson-local interaction state | Namespaced to the lesson/tab/component and purpose; define temporary versus persisted drafts, migrations and author-preview versus real-study state explicitly. |
+| Future identity context | A local guest actor behind a port, distinct from MCP grants. Decide future account/profile linking, stable IDs and ownership migration before real login; credentials are not lesson content. |
+| Optional M8 motivation | Per-lesson definitions/rules/reward records with provenance and explicit enable/disable/reset semantics. Completion/reward percentages do not overwrite learning evidence or become universal mastery. |
+
+Shared services validate references, scope, containment/cycles, type/schema/version compatibility and bounded resource usage before persistence or activation. Manual and future MCP authors use the same revision/conflict/idempotency pipeline. No agent receives a raw database/path authority shortcut.
+
+Portable export/recovery must eventually cover the new composition schemas and supported references without exporting grants/account secrets. No current migration is changed by this clarification. See [requirements](../planning/lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md).
+<!-- lesson-composition-clarification:end -->
