@@ -18,3 +18,5 @@ Pre-existing this execution: preparation/HANDOFF documents from prior authorized
 
 
 | 2026-11-01 / KER-112 | Completed typed relational storage/schema3, immutable documents and anchored notes/reading position; hardened persisted reads and native authority. | [Storage report](../task-reports/2026-11-01-095407Z-m2-typed-storage.md); 102 Rust tests pass/3ignored; scoped CRAP<=9.3 and six selected valid mutations killed. Final M2 acceptance remains pending. |
+
+| 2026-11-01 / KER-113 component | Completed stable structured editor and nested authoring controls; fixed label-change focus/history loss. | [Editor checkpoint](../task-reports/2026-11-01-100313Z-structured-editor.md);14focused tests, TS, scoped CRAP<=9 and20valid selected mutations killed. Integrated save/native acceptance remains in progress. |
