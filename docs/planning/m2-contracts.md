@@ -189,4 +189,4 @@ Include lesson-scoped source-reference/bibliography/locator/coverage contracts n
 
 ## Tab isolation acceptance correction — 2026-11-04
 
-Replace the proposed same-lesson concurrent-tab scenario with independent lesson configuration/drafts/responses/assistance/reading state/schedules/progress, no automatic pinned-content propagation, and reopening an existing Unit tab. Multiple synchronized views of one lesson remain future design work; separate view IDs are only an extension seam. This clarifies [KER-117](../architecture/lesson-composition.md), not current implementation behavior.
+Replace the proposed same-lesson concurrent-tab scenario with independent lesson configuration/drafts/responses/assistance/reading state/schedules/progress, no automatic pinned-content propagation, and distinct editable tabs that cannot alias mutable lesson state. Linked-tab editing/synchronization and the proposed future-view seam are excluded entirely. This clarifies [KER-117](../architecture/lesson-composition.md), not current implementation behavior.

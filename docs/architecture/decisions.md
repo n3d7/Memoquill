@@ -88,4 +88,4 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 
 ### ADR-09 clarification — lesson isolation
 
-User correction, 2026-11-04: different lessons have independent mutable configuration and learner state. Concurrent views/editing of one lesson are deferred. Preserve distinct domain/view IDs and immutable revisions as an extension seam only, with no synchronization or shared-state feature. Normal lesson edits rebind only that lesson; reused definitions do not couple lesson progress.
+User correction, 2026-11-04: different lessons have independent mutable configuration and learner state. Linked-tab editing and synchronization are excluded entirely, including the proposed future-view seam. Distinct editable lesson tabs must not alias mutable Unit/composition/draft or learner state. Normal lesson edits rebind only that lesson; reused definitions do not couple lesson progress.

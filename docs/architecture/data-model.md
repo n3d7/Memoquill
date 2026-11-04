@@ -107,4 +107,4 @@ Metric definitions retain kind/meaning, units, denominator, rule version and evi
 
 ## Lesson isolation clarification — 2026-11-04
 
-Lesson-local reading preferences, responses, assistance, schedules and progress include Unit scope. Reused immutable resources/activities never share mutable lesson state or follow new revisions automatically. Normal edits create a revision and rebind only the edited lesson. The [composition contract](lesson-composition.md) retains separate domain/view IDs as a future seam; concurrent views of one lesson are deferred.
+Lesson-local reading preferences, responses, assistance, schedules and progress include Unit scope. Reused immutable resources/activities never share mutable lesson state or follow new revisions automatically. Normal edits create a revision and rebind only the edited lesson. The [composition contract](lesson-composition.md) forbids linked mutable state across lesson tabs. No concurrent-view/synchronization feature or future seam is retained. Explicit duplication creates an independent Unit without copying learning history.

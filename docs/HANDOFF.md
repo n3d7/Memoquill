@@ -4,7 +4,7 @@ Updated 2026-11-04 14:58:43 UTC. Authorized phase: KER-117 architecture/research
 Application feature/UI development and GUI qualification remain paused until user agreement.
 
 - [Concrete contract](architecture/lesson-composition.md) and proposed ADR-09 now specify Unit-owned lessons, exact revisions, registry/actions/conditions, state/history, shared authoring, migrations/unknown types, budgets and four subject traces.
-- Proposed lessonId = existing unitId, one active composition head per Unit. Different lesson tabs are independent; reopening a Unit focuses its existing tab. Concurrent views/editing are deferred; separate view IDs remain an extension seam only. Existing resource/activity/block IDs and append-only personal history remain separate.
+- Proposed lessonId = existing unitId, one active composition head per Unit. Different lesson tabs are independent and cannot alias mutable composition/draft/learner state. Linked-tab editing/synchronization and its future-view seam are excluded entirely. Existing resource/activity/block IDs and append-only personal history remain separate.
 - Recommend a small owned renderer first; json-render remains an optional translating adapter. No new dependency, SQL, runtime API or feature was implemented.
 - Independent builder check raised activity-occurrence identity and event/condition editing. Both were specified and reviewer confirmed resolution; no further question from that bounded check.
 - KER-117 remains In Progress, description updated and read back; comment records local commit/review. Architecture agreement, not code completion, is the outstanding criterion.

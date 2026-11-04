@@ -32,12 +32,13 @@ drafts; separately reusable variants later require their own explicit design.
 Different lesson tabs are independent: composition, configuration, drafts,
 responses, hint/reveal state, attempts and progress are scoped to their own Unit.
 Editing or studying one lesson must not change another lesson's state or pinned
-content. The current contract permits one open lesson tab per Unit; opening it
-again focuses the existing tab rather than creating another editing view.
-Keep domain identity separate from view identity: `(workspaceId, unitId,
-viewInstanceId)`. This is an extension seam only. Concurrent views/editing of the
-same lesson are deferred; no synchronization, shared-draft mode or new API is
-specified or enabled now. Any future feature requires its own design/agreement.
+content. Every distinct editable lesson tab owns an independent Unit/composition
+and mutable state. Tabs must not alias a mutable composition, draft, response,
+schedule or progress record. No linked-tab editing, synchronization or future
+multiple-view feature/seam is part of this architecture. Explicit duplication
+creates a separate Unit and independent authored configuration; it does not copy
+attempts, mastery or mutable state. Closing/reopening a lesson retains its own
+identity and history without linking it to another tab.
 Moving/renaming a collection entry preserves Unit, composition and history IDs.
 An existing resource opened alone remains a resource view. Creating a lesson from
 it explicitly creates a Unit and a pinned reference, without copying its bytes.
@@ -74,9 +75,10 @@ write alone permits rebinding/forking into its scope, not rewriting shared targe
 Forking creates new IDs and provenance, never copies mastery or attempts.
 Immutable source/content bytes may be reused without coupling lesson behavior.
 An ordinary lesson edit creates a revision and rebinds only that lesson; every
-other lesson retains its pinned revisions. Updating several lessons is a separate,
-explicitly reviewed operation with authority for every affected lesson, outside
-the ordinary lesson edit. Reusing an activity definition never shares responses,
+other lesson retains its pinned revisions. The lesson constructor exposes no
+cross-lesson update or propagation operation. Internal reuse/deduplication of
+immutable bytes does not create editable links between lessons. Reusing an activity
+definition never shares responses,
 assistance, schedule state or progress between lessons.
 
 ## Components, activities and layout
@@ -307,7 +309,8 @@ Custom safe methods remain possible without claiming scientific validation.
 
 Implementation acceptance must cover manual/agent equivalent operations and receipts;
 independent lesson tabs/settings/drafts/responses/assistance/schedules/progress;
-reopening the same Unit focuses its existing tab; no concurrent lesson views;
+distinct editable tabs cannot alias mutable Unit/composition or learner state;
+explicit duplication yields an independent lesson without copied attempts;
 shared immutable content edits rebind only the edited lesson, with no propagation;
 shared resource denial/fork without disclosure;
 retry-after-lost-reply and changed-payload rejection; revoked grant at apply;
