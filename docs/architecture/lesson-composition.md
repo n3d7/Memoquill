@@ -1,8 +1,9 @@
 # Lesson composition contract — KER-117
 
-Status: concrete architecture proposal, 2026-11-04; awaiting user agreement.
+Status: architecture baseline for authorized M2 execution, 2026-11-04.
+The user instructed immediate M2 continuation after the final tab-isolation correction; this supersedes the earlier architecture-only hold.
 This document specifies desired behavior, not implemented APIs, tables or acceptance.
-Application development and GUI qualification remain paused. Normative words below
+M2 application development is now authorized; GUI/screenshots remain prohibited. Normative words below
 apply to the proposed contract only. Existing IDs and codecs remain authoritative.
 
 ## Intent, constraints and alternatives
@@ -327,12 +328,12 @@ Do not call KER-120 or integrated M2 complete from this slice alone.
 
 ## Agreement and implementation discretion
 
-User agreement is still needed on Unit ownership, immutable pinned revisions,
-owned-renderer baseline, restricted vocabulary/limits and first slice. Builder may
+The user authorized M2 execution after the final isolation correction; the
+owning tasks implement this baseline with its limits and acceptance matrix. Builder may
 choose internal module/table names, view controls and indexing strategy consistent
 with these contracts. Dependency selection, executable extensions, real auth,
 gamification and study implementation are outside this checkpoint. KER-117 remains
-In Progress until architectural agreement; only then prepare an implementation plan.
+tracked separately from implementation/qualification; see the [M2 implementation plan](../superpowers/plans/2026-11-04-m2-composition.md).
 
 Evidence: [existing architecture research](../research/composable-learning-architecture.md),
 [screening and source contracts](../research/composable-learning-screening.md),

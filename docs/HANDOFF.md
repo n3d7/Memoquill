@@ -1,7 +1,7 @@
 # Memoquill architecture-first checkpoint
 
-Updated 2026-11-04 14:58:43 UTC. Authorized phase: KER-117 architecture/research/docs/Linear only.
-Application feature/UI development and GUI qualification remain paused until user agreement.
+Updated 2026-11-04 14:58:43 UTC. Authorized phase: complete M2 and all substeps with local dev substep commits only.
+User follow-up explicitly authorizes M2 application development after the final isolation correction. GUI/screenshots/push/merge remain prohibited.
 
 - [Concrete contract](architecture/lesson-composition.md) and proposed ADR-09 now specify Unit-owned lessons, exact revisions, registry/actions/conditions, state/history, shared authoring, migrations/unknown types, budgets and four subject traces.
 - Proposed lessonId = existing unitId, one active composition head per Unit. Different lesson tabs are independent and cannot alias mutable composition/draft/learner state. Linked-tab editing/synchronization and its future-view seam are excluded entirely. Existing resource/activity/block IDs and append-only personal history remain separate.
@@ -23,6 +23,6 @@ Application feature/UI development and GUI qualification remain paused until use
 
 - User correction: lesson content/configuration/drafts/responses/assistance/reading preferences/schedules/progress stay isolated. Shared immutable definitions do not imply live updates or shared learner state. See [correction report](task-reports/2026-11-04-145843Z-ker117-tab-isolation.md).
 
-Next: obtain user agreement on contract ownership, pinning, registry/limits, renderer direction and first slice; then prepare an implementation plan. No application work is authorized by this checkpoint.
+Next: execute [M2 plan](superpowers/plans/2026-11-04-m2-composition.md) Task1 persistence, then frontend ports and composer, with per-task review/local commits. Preserve unverified physical/native acceptance; do not close M2 from unit tests alone.
 
 Resume: [report](task-reports/2026-11-04-145327Z-ker117-lesson-contract.md), [requirements](planning/lesson-composition-requirements.md), [M2 contracts](planning/m2-contracts.md), [prior follow-up](task-reports/2026-11-01-201122Z-research-source-ingestion-followup.md), [scientific ledger](research/composable-learning-screening.md).
