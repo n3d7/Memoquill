@@ -2,6 +2,7 @@ mod attachments;
 mod authoring;
 pub mod document;
 pub mod draft;
+mod lesson_commands;
 pub mod organization;
 pub mod workspace;
 
@@ -53,6 +54,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
+            lesson_commands::lesson_discover,
+            lesson_commands::lesson_read,
+            lesson_commands::lesson_read_source,
+            lesson_commands::lesson_list_drafts,
+            lesson_commands::lesson_read_activity,
+            lesson_commands::lesson_create_draft,
+            lesson_commands::lesson_edit_draft,
+            lesson_commands::lesson_preview_draft,
+            lesson_commands::lesson_apply_draft,
+            lesson_commands::lesson_discard_draft,
+            lesson_commands::lesson_get_receipt,
             check_draft,
             workspace_status,
             save_reading_preferences,
@@ -128,6 +140,58 @@ mod tests {
         webview::InvokeRequest,
     };
 
+    #[test]
+    fn lesson_registry_and_mutations_respect_native_capabilities_and_closed_context() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                lesson_commands::lesson_discover,
+                lesson_commands::lesson_create_draft
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "secondary", Default::default())
+            .build()
+            .unwrap();
+        let registry = ipc(
+            &main,
+            "lesson_discover",
+            "tauri://localhost",
+            serde_json::json!({}),
+        )
+        .unwrap()
+        .deserialize::<Vec<workspace::RegistryDescriptor>>()
+        .unwrap();
+        assert_eq!(registry.len(), 8);
+        assert!(
+            ipc(
+                &other,
+                "lesson_discover",
+                "tauri://localhost",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "lesson_discover",
+                "https://untrusted.example",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        let status =
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
+        let forged = serde_json::json!({"request":{"contractVersion":1,"workspaceId":status.preferences.workspace_id,"unitId":uuid::Uuid::new_v4(),"operationId":OperationId::generate(),"expectedHeadRevision":null,"trustedUi":true}});
+        assert!(ipc(&main, "lesson_create_draft", "tauri://localhost", forged).is_err());
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
     #[test]
     fn authoring_read_is_scoped_to_the_trusted_main_webview() {
         let temp = tempfile::tempdir().unwrap();

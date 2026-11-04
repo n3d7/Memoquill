@@ -15,7 +15,7 @@ use std::{
 };
 
 pub(super) const APPLICATION_ID: i32 = 0x4d514c4c;
-pub(super) const SCHEMA_VERSION: i64 = 4;
+pub(super) const SCHEMA_VERSION: i64 = 5;
 pub(super) const BUSY_MS: u64 = 2000;
 
 pub(super) struct Database {
@@ -314,9 +314,9 @@ mod tests {
             db.connection
                 .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
                 .unwrap(),
-            4
+            SCHEMA_VERSION
         );
-        migrations::validate(&db.connection, 4).unwrap();
+        migrations::validate(&db.connection, SCHEMA_VERSION).unwrap();
         integrity(&db.connection).unwrap();
         let files = std::fs::read_dir(root.join("migration-backups"))
             .unwrap()

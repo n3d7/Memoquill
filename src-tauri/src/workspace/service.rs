@@ -14,6 +14,7 @@ enum Request {
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
+    Lessons(Box<LessonsRequest>),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
     Receipt(RequestContext, OperationId, Reply<Option<OperationReceipt>>),
@@ -67,12 +68,188 @@ enum SourcesRequest {
     Preview(RequestContext, uuid::Uuid, Reply<SourcePreview>),
 }
 
+enum LessonsRequest {
+    Source(
+        RequestContext,
+        String,
+        String,
+        Reply<Option<SourceBindingRevision>>,
+    ),
+    Read(
+        RequestContext,
+        String,
+        Option<String>,
+        Reply<Option<SavedComposition>>,
+    ),
+    Drafts(RequestContext, String, Reply<Vec<LessonDraft>>),
+    Activity(
+        RequestContext,
+        String,
+        String,
+        Reply<Option<ActivityRevision>>,
+    ),
+    Create(RequestContext, CreateLessonDraft, Reply<LessonDraft>),
+    Edit(RequestContext, EditLessonDraft, Reply<LessonDraft>),
+    Preview(RequestContext, LessonDraftScope, Reply<LessonPreview>),
+    Apply(RequestContext, ApplyLessonDraft, Reply<LessonReceipt>),
+    Discard(RequestContext, DiscardLessonDraft, Reply<()>),
+    Receipt(RequestContext, OperationId, Reply<Option<LessonReceipt>>),
+}
 /// Typed application boundary; no connection, SQL, caller path or principal payload.
 #[derive(Clone)]
 pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn lesson_source(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<SourceBindingRevision>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Source(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub fn lesson_discover(context: RequestContext) -> Result<Vec<RegistryDescriptor>> {
+        context.authorize()?;
+        Ok(super::lessons::registry())
+    }
+    pub async fn lesson_read(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: Option<String>,
+    ) -> Result<Option<SavedComposition>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Read(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_list_drafts(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+    ) -> Result<Vec<LessonDraft>> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Drafts(context, unit_id, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_activity(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<ActivityRevision>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Activity(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_create(
+        &self,
+        context: RequestContext,
+        request: CreateLessonDraft,
+    ) -> Result<LessonDraft> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Create(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_edit(
+        &self,
+        context: RequestContext,
+        request: EditLessonDraft,
+    ) -> Result<LessonDraft> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Edit(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_preview(
+        &self,
+        context: RequestContext,
+        request: LessonDraftScope,
+    ) -> Result<LessonPreview> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Preview(context, request, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_apply(
+        &self,
+        context: RequestContext,
+        request: ApplyLessonDraft,
+    ) -> Result<LessonReceipt> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Apply(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_discard(
+        &self,
+        context: RequestContext,
+        request: DiscardLessonDraft,
+    ) -> Result<()> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Discard(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_receipt(
+        &self,
+        context: RequestContext,
+        id: OperationId,
+    ) -> Result<Option<LessonReceipt>> {
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Receipt(context, id, reply))),
+            false,
+        )
+        .await
+    }
+
     pub async fn search_resources(
         &self,
         context: RequestContext,
@@ -336,6 +513,7 @@ impl Store {
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),
             Request::Sources(request) => self.handle_sources(request),
+            Request::Lessons(request) => self.handle_lessons(*request),
             Request::Status(reply) => {
                 let _ = reply.send(self.access(status));
             }
@@ -356,6 +534,41 @@ impl Store {
                 let _ = reply.send(self.access(status));
             }
             Request::Shutdown(_) => unreachable!("shutdown is owned by the worker loop"),
+        }
+    }
+    fn handle_lessons(&mut self, request: LessonsRequest) {
+        match request {
+            LessonsRequest::Source(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_source(c, &id, &revision)));
+            }
+
+            LessonsRequest::Read(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_read(c, &id, revision.as_deref())));
+            }
+            LessonsRequest::Drafts(c, id, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_list_drafts(c, &id)));
+            }
+            LessonsRequest::Activity(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_activity(c, &id, &revision)));
+            }
+            LessonsRequest::Create(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_create(c, &r)));
+            }
+            LessonsRequest::Edit(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_edit(c, &r)));
+            }
+            LessonsRequest::Preview(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_preview(c, &r)));
+            }
+            LessonsRequest::Apply(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_apply(c, &r)));
+            }
+            LessonsRequest::Discard(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_discard(c, &r)));
+            }
+            LessonsRequest::Receipt(c, id, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_receipt(c, &id)));
+            }
         }
     }
     fn handle_sources(&mut self, request: SourcesRequest) {

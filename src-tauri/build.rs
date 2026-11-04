@@ -1,6 +1,17 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "lesson_discover",
+            "lesson_read",
+            "lesson_read_source",
+            "lesson_list_drafts",
+            "lesson_read_activity",
+            "lesson_create_draft",
+            "lesson_edit_draft",
+            "lesson_preview_draft",
+            "lesson_apply_draft",
+            "lesson_discard_draft",
+            "lesson_get_receipt",
             "check_draft",
             "workspace_status",
             "save_reading_preferences",

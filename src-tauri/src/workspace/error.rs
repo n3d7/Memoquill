@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidRequest,
+    InvalidTree,
+    InvalidReference,
+    BudgetExceeded,
+    UnsupportedVersion,
+    CapabilityUnavailable,
     AlreadyOpen,
     Busy,
     OwnerUnavailable,

@@ -4,6 +4,7 @@ mod content;
 mod database;
 mod error;
 mod faults;
+mod lessons;
 mod migrations;
 mod operations;
 mod owner;
@@ -15,6 +16,7 @@ mod types;
 
 pub use content::*;
 pub use error::{AppError, ErrorCode};
+pub use lessons::*;
 pub use search::{SearchHit, SearchPage};
 pub use service::ApplicationService;
 pub use sources::*;

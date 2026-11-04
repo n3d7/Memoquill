@@ -24,6 +24,17 @@
     "allow-sources",
     "allow-save-source",
     "allow-source-preview",
-    "allow-search-resources"
+    "allow-search-resources",
+    "allow-lesson-discover",
+    "allow-lesson-read",
+    "allow-lesson-list-drafts",
+    "allow-lesson-read-activity",
+    "allow-lesson-create-draft",
+    "allow-lesson-edit-draft",
+    "allow-lesson-preview-draft",
+    "allow-lesson-apply-draft",
+    "allow-lesson-discard-draft",
+    "allow-lesson-get-receipt",
+    "allow-lesson-read-source"
   ]
 }
