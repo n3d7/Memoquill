@@ -76,3 +76,12 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 - **Decision:** Cargo pins [the reviewed backport](https://github.com/andrew-wommack-ministries/glib-rustsec-2024-0429-backport/tree/7e91f1a9420fd3e6c58b7913bbbf201888304ea9) at `7e91f1a9420fd3e6c58b7913bbbf201888304ea9`. The normal check command runs an optimized iterator regression as well as debug tests. No API/version relabelling, optimizer workaround or broad advisory suppression.
 - **Consequences:** build-source availability depends on that exact Git revision or its cached copy. Version-only scanners still report 0.18.5; bind the mitigation to the exact source/test evidence and retain unrelated/new advisory visibility. The dependency's original attribution remains separate from any future project-license choice; further licensing work is paused by the user.
 - **Reconsider when:** the framework supports upstream fixed glib, another reviewed compatible correction becomes necessary, or source availability/maintenance fails. Remove the patch with an upstream upgrade only after the optimized regression and Fedora native gates pass. Do not turn a temporary backport into an unreviewed permanent fork.
+
+## ADR-09 — Unit-owned lesson composition and bounded trusted registry
+
+- **Status:** proposed 2026-11-04; pending user agreement, no implementation authority.
+- **Context:** the manual lesson constructor and later MCP author need the same semantic operations without duplicating existing Unit/resource/activity/history identities.
+- **Alternatives:** new Lesson aggregate with copied definitions; Unit-owned immutable composition with a small owned renderer; same domain contract with a json-render adapter.
+- **Proposed decision:** lessonId equals existing unitId; one active immutable composition head per Unit, exact pinned dependencies, application-owned typed registry/actions and shared draft/validate/preview/apply services. Recommend the small owned renderer baseline; no renderer dependency selected. Preserve sources, evaluation semantics, append-only attempts and isolated previews.
+- **Consequences:** screen replacement does not migrate domain data; layouts cannot execute code or authorize access. Explicit migration/unknown-type handling and proposed limits constrain complexity. Actual tables/adapters/tests remain later work.
+- **Contract and agreement points:** [lesson composition](lesson-composition.md). M3 ingestion, M4 real study, M6 MCP and M8 optional gamification keep their phase boundaries.

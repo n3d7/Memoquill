@@ -42,3 +42,7 @@ Assign the user's research-file/book/document library to existing KER-100/M3, wi
 
 KER-105 exposes scoped source/capability/range reads; KER-106 selects and structures relevant source material into content/activities/composition proposals through the shared authoring path; KER-107 enforces source/lesson/destination authority and document-as-data boundaries. KER-101 and core qualification cover source portability/completeness. Importing is not blanket remote-model upload or public redistribution permission. No app feature/GUI work resumes before architecture agreement.
 <!-- research-source-followup:end -->
+
+## Reviewable contract proposal — 2026-11-04
+
+The [concrete KER-117 proposal](../architecture/lesson-composition.md) maps each requested boundary to ownership, typed vocabulary, versions, migration/fallback, service authority, limits and acceptance scenarios. It recommends Unit-owned composition revisions and a small owned renderer, preserves existing identities/history and keeps source ingestion in M3, real study in M4, live MCP in M6 and optional motivation in M8. These are proposed decisions awaiting agreement; no application work resumed.

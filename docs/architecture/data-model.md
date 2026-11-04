@@ -100,3 +100,7 @@ Real attempts pin content/activity/composition versions and retain original eval
 
 Metric definitions retain kind/meaning, units, denominator, rule version and evidence source. A custom reward/task-completion percentage must not overwrite or masquerade as independent competence. These are pending contracts, not new implemented storage. See [screening](../research/composable-learning-screening.md).
 <!-- research-source-followup:end -->
+
+## Concrete KER-117 proposal — 2026-11-04
+
+[Lesson composition contract](lesson-composition.md) now proposes lessonId = existing unitId, one active composition head per Unit, exact pinned dependency revisions, separate node/binding IDs, source-binding revisions, explicit state ownership and preserved attempt snapshots. It specifies migration/unknown-type behavior and proposed budgets. These resolve the earlier open questions as a reviewable proposal; they are not approved or implemented schemas. Existing IDs/codecs and append-only history remain authoritative.

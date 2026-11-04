@@ -182,3 +182,7 @@ Specify pinned content/activity/composition versions and safe regeneration trans
 
 Include lesson-scoped source-reference/bibliography/locator/coverage contracts now; KER-100 supplies real broad-format/book ingestion in M3 and KER-106 future source-to-learning proposals in M6. This is not a circular requirement to implement M3 parsing in M2. Source text cannot grant privileges or imply consent to remote upload. See [bounded screening](../research/composable-learning-screening.md). Application feature/UI/GUI development remains held for architecture agreement.
 <!-- research-source-followup:end -->
+
+## Concrete composition contract proposed — 2026-11-04
+
+[KER-117 contract](../architecture/lesson-composition.md) supplies identity mapping, initial component/activity/action vocabulary, state/authority boundaries, semantic authoring operations, revisions/receipts, migrations, unknown types, budgets and four-subject traces. Earlier open-design lists describe the previous checkpoint; this proposal is the current review artifact. KER-117 stays In Progress pending user agreement. No SQL, runtime dependency, feature/UI work or new native qualification is authorized by this document. After agreement, prepare a plan for the defined first slice; integrated M2 requires the broader acceptance matrix.

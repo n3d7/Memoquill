@@ -106,3 +106,7 @@ Pin content/activity/composition versions during real study attempts; stage rege
 
 Additional literature was screened, not imported wholesale: retain manual/component refinement and these control/measurement boundaries. Learned UI-preference models, adaptive tutors and universal cognitive-load scores are not core requirements. See [screening and source applicability](../research/composable-learning-screening.md).
 <!-- research-source-followup:end -->
+
+## KER-117 architecture proposal — 2026-11-04
+
+The [lesson composition contract](lesson-composition.md) specifies Unit-owned compositions, trusted registry/actions, bounded conditions, shared semantic draft/validate/preview/apply services and controller-owned study policy. Recommend the small owned renderer first; json-render remains an optional translating adapter, with no dependency chosen. Existing RequestContext is not a deployed MCP grant system. KER-118/119/120 and M4/M6 retain their responsibilities; implementation and GUI qualification await architectural agreement.

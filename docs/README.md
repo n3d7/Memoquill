@@ -40,3 +40,7 @@ The roadmap defines implementation order; Linear records its executable backlog 
 Feature/UI development and further GUI qualification are paused pending revised architecture agreement.
 
 - [Bounded scientific screening and lesson-source requirements](research/composable-learning-screening.md): admitted versus future/rejected evidence, pinned study/assistance/metric boundaries and books/files assigned to M3/M6.
+
+## Concrete lesson-constructor architecture
+
+[KER-117 proposal](architecture/lesson-composition.md) covers identities, typed blocks/actions, content/presentation/history boundaries, revisions/migrations, shared manual/MCP authoring and four subject traces. [Evidence delta](research/lesson-contract-evidence.md) records bounded gap checks. Proposal awaits agreement; application work remains paused.

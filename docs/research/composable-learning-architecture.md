@@ -61,3 +61,7 @@ An additional bounded arXiv/Consensus pass checked authoring studies, measuremen
 
 The user also requires lesson-scoped research files/books/documents. Existing KER-100/M3 and KER-106/M6 now cover safe qualified ingestion, immutable source bindings/ranges/coverage and scoped relevance/structure proposals. EPUB is a qualification target rather than a blanket deferral. Current developer tools do not prove product file support; no product implementation was performed.
 <!-- research-source-followup:end -->
+
+## Concrete proposal — 2026-11-04
+
+The next-design questions above are addressed in the [reviewable contract](../architecture/lesson-composition.md), pending user agreement. [The narrow evidence delta](lesson-contract-evidence.md) records reuse, one empty arXiv query, Consensus interoperability screening and new official json-render visibility evidence. No new efficacy claim, universal learner model or renderer dependency is admitted.
