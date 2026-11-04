@@ -46,3 +46,7 @@ KER-105 exposes scoped source/capability/range reads; KER-106 selects and struct
 ## Reviewable contract proposal — 2026-11-04
 
 The [concrete KER-117 proposal](../architecture/lesson-composition.md) maps each requested boundary to ownership, typed vocabulary, versions, migration/fallback, service authority, limits and acceptance scenarios. It recommends Unit-owned composition revisions and a small owned renderer, preserves existing identities/history and keeps source ingestion in M3, real study in M4, live MCP in M6 and optional motivation in M8. These are proposed decisions awaiting agreement; no application work resumed.
+
+## User-confirmed tab isolation — 2026-11-04
+
+Different lesson tabs must remain independent in authored composition, configuration, pinned content and personal interaction/history/progress. Remove the proposed concurrent views/editing of one Unit from current behavior. Retain separate domain/view identities for a possible future feature, without implementing synchronization or shared state. Reopening the same Unit focuses its existing tab. Immutable asset/definition reuse does not authorize cross-lesson updates. See [contract](../architecture/lesson-composition.md).

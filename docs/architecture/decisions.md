@@ -85,3 +85,7 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 - **Proposed decision:** lessonId equals existing unitId; one active immutable composition head per Unit, exact pinned dependencies, application-owned typed registry/actions and shared draft/validate/preview/apply services. Recommend the small owned renderer baseline; no renderer dependency selected. Preserve sources, evaluation semantics, append-only attempts and isolated previews.
 - **Consequences:** screen replacement does not migrate domain data; layouts cannot execute code or authorize access. Explicit migration/unknown-type handling and proposed limits constrain complexity. Actual tables/adapters/tests remain later work.
 - **Contract and agreement points:** [lesson composition](lesson-composition.md). M3 ingestion, M4 real study, M6 MCP and M8 optional gamification keep their phase boundaries.
+
+### ADR-09 clarification — lesson isolation
+
+User correction, 2026-11-04: different lessons have independent mutable configuration and learner state. Concurrent views/editing of one lesson are deferred. Preserve distinct domain/view IDs and immutable revisions as an extension seam only, with no synchronization or shared-state feature. Normal lesson edits rebind only that lesson; reused definitions do not couple lesson progress.

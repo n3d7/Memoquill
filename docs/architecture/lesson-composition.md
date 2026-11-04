@@ -29,8 +29,15 @@ a new revisioned record owned by that Unit, not by a tab or collection placement
 Each Unit has at most one active composition head in contract v1. Variants are
 drafts; separately reusable variants later require their own explicit design.
 
-Tabs are views: `(workspaceId, unitId, viewInstanceId)`. Opening the same lesson
-twice shares the authored composition but has independent focus/selection/scroll.
+Different lesson tabs are independent: composition, configuration, drafts,
+responses, hint/reveal state, attempts and progress are scoped to their own Unit.
+Editing or studying one lesson must not change another lesson's state or pinned
+content. The current contract permits one open lesson tab per Unit; opening it
+again focuses the existing tab rather than creating another editing view.
+Keep domain identity separate from view identity: `(workspaceId, unitId,
+viewInstanceId)`. This is an extension seam only. Concurrent views/editing of the
+same lesson are deferred; no synchronization, shared-draft mode or new API is
+specified or enabled now. Any future feature requires its own design/agreement.
 Moving/renaming a collection entry preserves Unit, composition and history IDs.
 An existing resource opened alone remains a resource view. Creating a lesson from
 it explicitly creates a Unit and a pinned reference, without copying its bytes.
@@ -65,6 +72,12 @@ read authority. A citation is not a grant. Editing a shared resource requires th
 existing logical-object impact rule in [MCP contracts](mcp-contracts.md); lesson
 write alone permits rebinding/forking into its scope, not rewriting shared targets.
 Forking creates new IDs and provenance, never copies mastery or attempts.
+Immutable source/content bytes may be reused without coupling lesson behavior.
+An ordinary lesson edit creates a revision and rebinds only that lesson; every
+other lesson retains its pinned revisions. Updating several lessons is a separate,
+explicitly reviewed operation with authority for every affected lesson, outside
+the ordinary lesson edit. Reusing an activity definition never shares responses,
+assistance, schedule state or progress between lessons.
 
 ## Components, activities and layout
 
@@ -105,8 +118,10 @@ Each activity node is an independent occurrence, even if two nodes bind the same
 activity revision. Session items receive distinct IDs and pin `(compositionRevisionId,
 nodeId, activityRevisionId, occurrenceOrdinal)`. Response/hint/reveal state belongs
 to that item, never just the activity ID. Repeated sessions create new items;
-preview uses the same occurrence rule in its isolated store. Schedule aggregation
-may still reference the logical activity, but cannot conflate item attempts.
+preview uses the same occurrence rule in its isolated store. Schedule state and
+progress are keyed by learner profile, Unit and logical activity; reusing that
+activity in another lesson does not advance this lesson's schedule or progress.
+Within one lesson, item attempts remain distinct.
 
 Appearance uses bounded named tokens (spacing, contrast-safe theme, typography,
 width and emphasis enums), not CSS, selectors, DOM attributes or URLs. Focus and
@@ -151,7 +166,7 @@ restricted view model merely because a node is hidden.
 | State | Key / lifecycle | Export and version behavior |
 | --- | --- | --- |
 | View | view instance + node; focus, selection, expansion | Ephemeral; discarded safely, no history |
-| Reading preferences | profile + resource/revision | Existing preference contract; not composition content |
+| Lesson reading preferences | profile + Unit + resource/revision | Independent per lesson; standalone resource-view preferences remain separate |
 | Author draft | actor + Unit + draft revision | Durable; explicit content proposal export, no response data |
 | Preview | preview ID + pinned draft revision | Isolated disposable store; cannot call real attempt submission |
 | Real response/session | profile + session/item + snapshot | Recoverable typed drafts; M4 atomic submission, not component-local storage |
@@ -291,7 +306,10 @@ as data. They are architecture traces, not product trials or effectiveness evide
 Custom safe methods remain possible without claiming scientific validation.
 
 Implementation acceptance must cover manual/agent equivalent operations and receipts;
-same-lesson concurrent tabs; shared resource denial/fork without disclosure;
+independent lesson tabs/settings/drafts/responses/assistance/schedules/progress;
+reopening the same Unit focuses its existing tab; no concurrent lesson views;
+shared immutable content edits rebind only the edited lesson, with no propagation;
+shared resource denial/fork without disclosure;
 retry-after-lost-reply and changed-payload rejection; revoked grant at apply;
 cycle/depth/byte/condition limits; unknown round-trip/quarantine/migration failure;
 preview isolation; offline save/reopen/export/restore dependency closure; pinned

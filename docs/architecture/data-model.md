@@ -104,3 +104,7 @@ Metric definitions retain kind/meaning, units, denominator, rule version and evi
 ## Concrete KER-117 proposal — 2026-11-04
 
 [Lesson composition contract](lesson-composition.md) now proposes lessonId = existing unitId, one active composition head per Unit, exact pinned dependency revisions, separate node/binding IDs, source-binding revisions, explicit state ownership and preserved attempt snapshots. It specifies migration/unknown-type behavior and proposed budgets. These resolve the earlier open questions as a reviewable proposal; they are not approved or implemented schemas. Existing IDs/codecs and append-only history remain authoritative.
+
+## Lesson isolation clarification — 2026-11-04
+
+Lesson-local reading preferences, responses, assistance, schedules and progress include Unit scope. Reused immutable resources/activities never share mutable lesson state or follow new revisions automatically. Normal edits create a revision and rebind only the edited lesson. The [composition contract](lesson-composition.md) retains separate domain/view IDs as a future seam; concurrent views of one lesson are deferred.

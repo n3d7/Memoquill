@@ -186,3 +186,7 @@ Include lesson-scoped source-reference/bibliography/locator/coverage contracts n
 ## Concrete composition contract proposed — 2026-11-04
 
 [KER-117 contract](../architecture/lesson-composition.md) supplies identity mapping, initial component/activity/action vocabulary, state/authority boundaries, semantic authoring operations, revisions/receipts, migrations, unknown types, budgets and four-subject traces. Earlier open-design lists describe the previous checkpoint; this proposal is the current review artifact. KER-117 stays In Progress pending user agreement. No SQL, runtime dependency, feature/UI work or new native qualification is authorized by this document. After agreement, prepare a plan for the defined first slice; integrated M2 requires the broader acceptance matrix.
+
+## Tab isolation acceptance correction — 2026-11-04
+
+Replace the proposed same-lesson concurrent-tab scenario with independent lesson configuration/drafts/responses/assistance/reading state/schedules/progress, no automatic pinned-content propagation, and reopening an existing Unit tab. Multiple synchronized views of one lesson remain future design work; separate view IDs are only an extension seam. This clarifies [KER-117](../architecture/lesson-composition.md), not current implementation behavior.

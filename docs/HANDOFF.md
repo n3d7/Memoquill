@@ -1,10 +1,10 @@
 # Memoquill architecture-first checkpoint
 
-Updated 2026-11-04 14:53:27 UTC. Authorized phase: KER-117 architecture/research/docs/Linear only.
+Updated 2026-11-04 14:58:43 UTC. Authorized phase: KER-117 architecture/research/docs/Linear only.
 Application feature/UI development and GUI qualification remain paused until user agreement.
 
 - [Concrete contract](architecture/lesson-composition.md) and proposed ADR-09 now specify Unit-owned lessons, exact revisions, registry/actions/conditions, state/history, shared authoring, migrations/unknown types, budgets and four subject traces.
-- Proposed lessonId = existing unitId, one active composition head per Unit; tabs are views. Existing resource/activity/block IDs and append-only personal history remain separate.
+- Proposed lessonId = existing unitId, one active composition head per Unit. Different lesson tabs are independent; reopening a Unit focuses its existing tab. Concurrent views/editing are deferred; separate view IDs remain an extension seam only. Existing resource/activity/block IDs and append-only personal history remain separate.
 - Recommend a small owned renderer first; json-render remains an optional translating adapter. No new dependency, SQL, runtime API or feature was implemented.
 - Independent builder check raised activity-occurrence identity and event/condition editing. Both were specified and reviewer confirmed resolution; no further question from that bounded check.
 - KER-117 remains In Progress, description updated and read back; comment records local commit/review. Architecture agreement, not code completion, is the outstanding criterion.
@@ -20,6 +20,8 @@ Application feature/UI development and GUI qualification remain paused until use
 - Previous application commits cb1d0e6/b1cd960 and historical tests remain bounded evidence only, not proof of the constructor or current integrated acceptance.
 - Physical GNOME/human audible Orca remains unresolved (KER-97 In Review); ADR-02 permits reversible development, not acceptance. Integrated M2/Fedora/release gates remain outstanding.
 - Never capture screenshots or open GUI. Existing native-test workarounds are not authority to reconfigure host/security. Prior scanner evidence does not establish vulnerability freedom.
+
+- User correction: lesson content/configuration/drafts/responses/assistance/reading preferences/schedules/progress stay isolated. Shared immutable definitions do not imply live updates or shared learner state. See [correction report](task-reports/2026-11-04-145843Z-ker117-tab-isolation.md).
 
 Next: obtain user agreement on contract ownership, pinning, registry/limits, renderer direction and first slice; then prepare an implementation plan. No application work is authorized by this checkpoint.
 
