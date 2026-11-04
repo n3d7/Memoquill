@@ -34,3 +34,13 @@ Future registration/login has a guest-first identity/session seam in KER-118. Ac
 
 These are clarified requirements; current M2 fixed forms are not the finished constructor. Implementation is held for revised architecture agreement. See [phase mapping](../planning/lesson-composition-requirements.md).
 <!-- lesson-composition-clarification:end -->
+
+<!-- research-source-followup:start -->
+## Sources attached to a lesson
+
+People can attach research, books and supported files to a chosen lesson and select what should be used. Later an authorized agent can structure relevant material into proposed learning content/activities, with citations back to the originals and visible coverage/uncertainty. Manual reading/source selection remains useful offline without AI.
+
+Support is reported per format and operation: view, extract, partial or original-only. PDF/EPUB books and common documents are M3 qualification targets; broad coverage is a goal, not a promise to read every file. Unread or unextracted sections are never silently presented as processed. Private import is not permission for arbitrary cloud upload or publication.
+
+Lesson edits/regeneration preserve the active learner's pinned version or use an explicit safe transition. Keep user overrides, clear author-preview versus real-study state, and distinguish authoring AI assistance from help during an attempt. See [research/source follow-up](../research/composable-learning-screening.md).
+<!-- research-source-followup:end -->

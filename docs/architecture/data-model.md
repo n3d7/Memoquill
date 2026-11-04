@@ -88,3 +88,15 @@ Shared services validate references, scope, containment/cycles, type/schema/vers
 
 Portable export/recovery must eventually cover the new composition schemas and supported references without exporting grants/account secrets. No current migration is changed by this clarification. See [requirements](../planning/lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md).
 <!-- lesson-composition-clarification:end -->
+
+<!-- research-source-followup:start -->
+## Lesson sources, version pinning and assistance provenance
+
+KER-117 must specify source bindings against existing immutable asset/source revisions rather than duplicate uploaded files per tab. A binding carries owner scope, bibliography, source/normalization version, actual selected/used ranges, format-specific locators and extraction/read coverage. Parser capability and partial/unread states are explicit. KER-100 supplies ingestion; KER-101 covers native backup/portable references and completeness. Exact schema/table names are not frozen by this clarification.
+
+Long-book chunk/index caches remain derived and replaceable. Source text, teaching-method evidence, generated interpretations and real learning outcomes have different provenance. Agent access is to authorized lesson/source/ranges through services; no import-created grant or automatic external upload.
+
+Real attempts pin content/activity/composition versions and retain original evaluation semantics across edits. Define safe live-update boundaries and migration/conflict behavior. Track authoring-assistance provenance separately from observed/declared/unknown learner assistance during an attempt; generated material does not automatically make an unaided response assisted.
+
+Metric definitions retain kind/meaning, units, denominator, rule version and evidence source. A custom reward/task-completion percentage must not overwrite or masquerade as independent competence. These are pending contracts, not new implemented storage. See [screening](../research/composable-learning-screening.md).
+<!-- research-source-followup:end -->

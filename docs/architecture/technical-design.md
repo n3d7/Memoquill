@@ -92,3 +92,17 @@ M8/KER-121 is a final optional per-lesson gamification extension after core M7 q
 
 See [requirements and Linear mapping](../planning/lesson-composition-requirements.md) and [research/applicability](../research/composable-learning-architecture.md). KER-117–120 own contracts, frontend boundaries, persistence and manual composition respectively; M4 owns real study/evaluation/history and M6 the live scoped agent adapter.
 <!-- lesson-composition-clarification:end -->
+
+<!-- research-source-followup:start -->
+## Source-based lesson construction and stable study
+
+Planned requirement from the 2026-11-01 clarification; not implemented behavior. M3/KER-100 supplies a lesson-scoped source library for research files, books and documents. Bind existing immutable assets/source revisions to authorized lessons, with bibliography, format-appropriate locators, actual-used ranges, extraction coverage and partial/unread warnings. M2 defines reference/ownership seams only; it must not depend on M3 parsers.
+
+Target a qualified view/extract matrix including PDF/EPUB books, DOCX, text/Markdown/HTML and supported other document/image types. Preserve originals and report partial/original-only capability explicitly. Safe passive/offline workers, archive/path/type/page/byte/work limits and existing PDF/license gates apply. Do not automatically fetch linked resources, resolve external XML entities, execute macros/scripts or access paths outside staged input. Developer document tools do not automatically become product dependencies. No universal parsing or silent whole-book-reading claim.
+
+Manual viewing/selection remains useful offline. Later MCP reads selected authorized source ranges and proposes relevant source selections/outlines/content/activities/composition for the learner's objective and prerequisites. Preserve citations and distinguish extracted facts, interpretation and educational synthesis. Use the same validation/preview/apply/review-or-delegation path; importing a file does not authorize arbitrary remote-model upload, raw filesystem access or policy changes from document text. Export/recovery preserves bindings/provenance and separates private backups from shareable packs.
+
+Pin content/activity/composition versions during real study attempts; stage regeneration at a defined safe boundary. A presentation proposal cannot silently change a live question, answer policy, anchor, position or focus context. Authoring assistance and assistance actually received by the learner are separate provenance. Metrics declare meaning/units/denominators/source; authoring time, UI preference, task volume and game progress do not become evidence of independent learning.
+
+Additional literature was screened, not imported wholesale: retain manual/component refinement and these control/measurement boundaries. Learned UI-preference models, adaptive tutors and universal cognitive-load scores are not core requirements. See [screening and source applicability](../research/composable-learning-screening.md).
+<!-- research-source-followup:end -->

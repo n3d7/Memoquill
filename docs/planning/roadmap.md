@@ -1,18 +1,18 @@
 # Foundation V1 implementation roadmap
 
-This document is the source of architectural implementation order. The backlog mapping carries exact issue definitions and actual Linear identifiers. The original research/planning assignment did not start implementation; subsequent explicit requests authorized M1.1 and M1.2. Later milestones still require their own execution authority.
+This document records architectural implementation order. Current phase: M2 architecture/research under KER-117; application feature/UI development and further GUI qualification are paused until the revised architecture is agreed. See HANDOFF and current Linear state; historical permissions do not cancel this hold.
 
-Seven milestones deliver the smallest coherent Memoquill experience, rather than a runnable shell. No calendar estimates or artificial urgency are asserted. High priority reflects dependency/data/security impact; a blocked high-priority issue does not authorize bypassing its predecessors.
+Core Foundation spans M1–M7. The user-requested M8 is a final optional per-lesson gamification extension after core qualification, not a prerequisite for the core stage. No release/publication authority follows from the roadmap.
 
-Current execution: M1.1 has a published source baseline and bounded Fedora X11/Wayland/IME/Orca automation; [physical desktop/human acceptance](../quality/fedora-desktop-baseline.md) remains open. M1.2 implements the durable workspace and saved reading preferences; [local qualification](../quality/workspace-qualification.md) is complete and [PR #2](https://github.com/n3d7/Memoquill/pull/2) tracks source integration under explicit user authority. Neither a local candidate nor the planned PR is a release; M2 has not started.
+Historical M1 source/qualification preparation remains in its reports. KER-97 still needs physical GNOME/human Orca acceptance; automated presentation evidence is distinct. M2 has existing bounded implementation commits, but the newly clarified constructor is not implemented or accepted.
 
-M1.2 [technical preparation](m1-2-workspace-preparation.md) is a historical design checkpoint, superseded by explicit implementation/PR-without-merge authority. KER-98 is In Progress. The execution ledger records the G0 disposition: implement the shell-independent storage slice while preserving KER-97 In Review and its manual gate; do not silently rewrite dependencies or claim predecessor acceptance.
+M1.2 [technical preparation](m1-2-workspace-preparation.md) is historical. KER-98 is Done in the inspected tracker; the manual KER-97 gate remains separate. Current M2 contracts and the architecture hold supersede old execution-status paragraphs.
 
 | Order | Milestone | Dependencies | Verifiable capability / exit |
 | --- | --- | --- | --- |
 | M1 | Desktop foundation and durable application services | None | Packaged Fedora feasibility for Tauri/Orca/editor/math/IME; typed Rust/UI/service boundary; workspace/migration/asset/operation foundations, single-instance writer and safe failure. Decision gate before domain expansion. |
 | M2 | Composable lessons, authoring and navigation | M1 | Existing organization/canonical authoring plus KER-117–120: composition/activity/view contracts, replaceable UI/controller/service ports and guest identity seam, shared validated persistence, manual offline composer/renderer. Architecture agreement precedes feature/UI work. |
-| M3 | Ingestion, provenance, search, and ownership | M2 | Core import preview/retry/reimport; preserved originals/anchors/attribution; FTS; portable package and native backup/restore. Resolve bounded PDF gate or ship explicit attachment-only behavior. |
+| M3 | Lesson sources, ingestion, discovery and ownership | M2 | KER-100: lesson-scoped research/books/files, immutable originals and extracted revisions, qualified PDF/EPUB/common-format view/extract matrix, locators/coverage, safe reimport and search. KER-101: portable/native recovery with source bindings and explicit completeness. Retain conditional PDF and resource/security gates. |
 | M4 | Activities, feedback, sessions, and recall review | M2 | Four activity families, assessments, exactly-once durable attempts/drafts, feedback/help evidence, FSRS recall adapter and separate practice reminders. Extend export/recovery with new history records. |
 | M5 | Honest progress, personalization, and workflow completion | M3, M4 | Outcome-specific history/coverage/errors, accessible appearance/shortcuts/settings/saved views, consistent resumption and offline journeys. No universal mastery percentage. |
 | M6 | Capable MCP authoring, scoped autonomy and reviewed changes | M3, M5 | Packaged stdio bridge/shared services, modern/legacy compatibility, discovery/schema/read tools, resumable draft authoring/staging/previews/jobs, explicit grants/revocation, exact transactional review or bounded autonomous apply/undo/audit. Three substantial issues separate transport/read, authoring, and authority/transaction risks. |
@@ -33,7 +33,7 @@ The [additional learning-activity evidence](../research/learning-activities.md) 
 
 ## Deferred work
 
-Other platforms, cloud/sync/accounts/collaboration, autonomous in-app AI, executable programming sandboxes, OCR/EPUB/full web crawling, advanced adaptive/psychometric assessment, a marketplace, and a visual programming/graph editor remain outside V1. A post-V1 idea needs a concrete user need and dependency review rather than being folded into an implementation issue unnoticed.
+Other platforms, cloud/sync/accounts/collaboration, autonomous in-app AI, executable programming sandboxes, unqualified OCR/complex-format extraction and full web crawling, advanced adaptive/psychometric assessment, a marketplace, and a visual programming/graph editor remain outside V1. A post-V1 idea needs a concrete user need and dependency review rather than being folded into an implementation issue unnoticed.
 
 <!-- lesson-composition-clarification:start -->
 ## Architecture-first clarification — 2026-11-01
@@ -42,3 +42,5 @@ Feature/UI development and further GUI qualification are on hold until the revis
 
 Accounts remain future work. KER-118 prepares only a guest-first identity/session adapter seam; actual registration/provider/session design and cloud services are deferred. Core learning remains offline without accounts. See [requirements and task mapping](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md).
 <!-- lesson-composition-clarification:end -->
+
+User clarification, 2026-11-01: EPUB/book reading and extraction are now explicit M3 qualification targets alongside PDF/common documents. Capability is reported honestly; broad formats are not a universal parsing guarantee. M2 defines source seams, M3 ingests, and M6 structures authorized selected sources into learning proposals. See [source/research admission](../research/composable-learning-screening.md).

@@ -174,3 +174,11 @@ M4 supplies real study/evaluation/history, M6 the live scoped agent adapter with
 
 See [requirements](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md). Existing source/provenance, offline, native security and physical GNOME/human Orca gates remain unchanged. No implementation completion, dependency choice or release authority is inferred.
 <!-- lesson-composition-clarification:end -->
+
+<!-- research-source-followup:start -->
+## Follow-up contract constraints
+
+Specify pinned content/activity/composition versions and safe regeneration transitions before real study, with history and question/evaluation semantics retained. Separate AI authoring provenance from actual learner-assistance evidence. Define metrics by meaning/unit/denominator/provenance rather than infer learning from reward totals, generation speed or UI preference.
+
+Include lesson-scoped source-reference/bibliography/locator/coverage contracts now; KER-100 supplies real broad-format/book ingestion in M3 and KER-106 future source-to-learning proposals in M6. This is not a circular requirement to implement M3 parsing in M2. Source text cannot grant privileges or imply consent to remote upload. See [bounded screening](../research/composable-learning-screening.md). Application feature/UI/GUI development remains held for architecture agreement.
+<!-- research-source-followup:end -->

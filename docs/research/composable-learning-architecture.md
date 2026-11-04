@@ -53,3 +53,11 @@ Default off; allow per-lesson enable/disable/reset with explicit history semanti
 - Trace each user requirement and stage boundary to Linear; define a minimal first manual composition/preview vertical slice. M4 still owns durable study behavior/evaluation, M6 the live agent adapter, and M8 optional gamification.
 - Include manual/agent command equivalence, invalid/deep/cyclic payloads, unauthorized cross-lesson refs, unknown-node preservation, exact retry/conflict behavior, revision/anchor/history continuity, offline save/reopen, keyboard/focus/reading order and adapter replacement tests.
 - Reassess the existing native acceptance matrix after architectural agreement; previous screenshots establish the initial fixed UI only. No current code or local test result proves the new constructor exists.
+
+<!-- research-source-followup:start -->
+## Subsequent scientific screening and source-library requirement
+
+An additional bounded arXiv/Consensus pass checked authoring studies, measurement and individual game elements. Only narrow control/measurement consequences were admitted; promising abstract-only personalization/tutor work is parked for future review. [The admission ledger](composable-learning-screening.md) records reading depth, limits and exclusions rather than accumulating papers as requirements.
+
+The user also requires lesson-scoped research files/books/documents. Existing KER-100/M3 and KER-106/M6 now cover safe qualified ingestion, immutable source bindings/ranges/coverage and scoped relevance/structure proposals. EPUB is a qualification target rather than a blanket deferral. Current developer tools do not prove product file support; no product implementation was performed.
+<!-- research-source-followup:end -->

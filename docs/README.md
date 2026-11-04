@@ -38,3 +38,5 @@ The roadmap defines implementation order; Linear records its executable backlog 
 - [Architecture research and evidence applicability](research/composable-learning-architecture.md): trusted registries, learning-component schemas, security/accessibility and conditional gamification evidence.
 
 Feature/UI development and further GUI qualification are paused pending revised architecture agreement.
+
+- [Bounded scientific screening and lesson-source requirements](research/composable-learning-screening.md): admitted versus future/rejected evidence, pinned study/assistance/metric boundaries and books/files assigned to M3/M6.

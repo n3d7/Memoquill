@@ -32,3 +32,13 @@ Dependency: KER-117 precedes KER-118/119; both precede KER-120; KER-116 depends 
 Resolve lesson aggregate ownership, initial activity/component vocabulary and interaction semantics; document serialization/reference/version/fallback and resource budgets; choose the minimal manual vertical slice; specify state/attempt ownership and supported extension trust. Compare an owned renderer with a json-render adapter in a separately approved bounded spike if needed. No new renderer dependency or auth provider has been chosen.
 
 Architecture agreement and an implementation plan come before application feature changes. Preserve the existing offline, untrusted-input, source-provenance, physical GNOME/human Orca and release authorization gates. See [research and source applicability](../research/composable-learning-architecture.md).
+
+<!-- research-source-followup:start -->
+## Admitted follow-up and M3 lesson sources
+
+Additional arXiv/Consensus screening admits only narrow requirements: pinned study versions/safe regeneration boundaries; manual/component refinement; distinct authoring-versus-learner assistance; and explicit metric meaning/provenance. UI preference, authoring speed and task volume are not learning-efficacy proof. Learned UI models/adaptive tutors remain future research pointers, not added dependencies. See [admission decisions](../research/composable-learning-screening.md).
+
+Assign the user's research-file/book/document library to existing KER-100/M3, with source bindings, immutable originals/extraction revisions, bibliography/locators, used ranges and honest partial/unread coverage. Qualify PDF/EPUB books and common document formats; unsupported types retain their original with explicit limitations. M2 defines source-reference/ownership seams only, avoiding an M2→M3 cycle.
+
+KER-105 exposes scoped source/capability/range reads; KER-106 selects and structures relevant source material into content/activities/composition proposals through the shared authoring path; KER-107 enforces source/lesson/destination authority and document-as-data boundaries. KER-101 and core qualification cover source portability/completeness. Importing is not blanket remote-model upload or public redistribution permission. No app feature/GUI work resumes before architecture agreement.
+<!-- research-source-followup:end -->
