@@ -57,7 +57,10 @@ impl Pending {
 }
 fn request_budget(request: &impl Serialize) -> Result<()> {
     if bytes(request)?.len() > 2 * MAX_COMPOSITION {
-        return Err(AppError::new(ErrorCode::BudgetExceeded));
+        return Err(super::diagnostics::envelope(
+            ErrorCode::BudgetExceeded,
+            "request",
+        ));
     }
     Ok(())
 }
@@ -98,8 +101,9 @@ fn head(c: &Connection, id: &str) -> Result<Option<String>> {
     .optional()?)
 }
 fn valid(c: &Composition, unknown: bool) -> Result<()> {
-    validate_composition(&serde_json::to_value(c).map_err(|_| invalid())?, unknown)
+    super::validation::validate_diagnosed(c, unknown)
 }
+
 fn read(c: &Connection, id: &str, revision: Option<&str>) -> Result<Option<SavedComposition>> {
     let reading_head = revision.is_none();
     let revision = match revision {
@@ -209,11 +213,17 @@ fn expected(s: &DraftState, revision: u64) -> Result<()> {
 fn save_draft(c: &Connection, s: &DraftState) -> Result<()> {
     let data = encode(s)?;
     if data.len() > 2 * MAX_COMPOSITION {
-        return Err(AppError::new(ErrorCode::BudgetExceeded));
+        return Err(super::diagnostics::envelope(
+            ErrorCode::BudgetExceeded,
+            "request",
+        ));
     }
     let(count,total):(i64,i64)=c.query_row("SELECT count(*),coalesce(sum(length(CAST(data AS BLOB))),0) FROM lesson_drafts WHERE unit_id=?1 AND actor='local-ui' AND id!=?2",params![s.draft.unit_id,s.draft.id],|r|Ok((r.get(0)?,r.get(1)?)))?;
     if count >= 20 || total + data.len() as i64 > 32 * 1024 * 1024 {
-        return Err(AppError::new(ErrorCode::BudgetExceeded));
+        return Err(super::diagnostics::envelope(
+            ErrorCode::BudgetExceeded,
+            "request",
+        ));
     }
     c.execute("INSERT INTO lesson_drafts VALUES(?1,?2,'local-ui',?3) ON CONFLICT(id) DO UPDATE SET data=excluded.data",params![s.draft.id,s.draft.unit_id,data])?;
     Ok(())
@@ -392,7 +402,10 @@ impl Database {
             return Err(invalid());
         }
         if r.operations.len() > 64 || bytes(r)?.len() > 2 * MAX_COMPOSITION {
-            return Err(AppError::new(ErrorCode::BudgetExceeded));
+            return Err(super::diagnostics::envelope(
+                ErrorCode::BudgetExceeded,
+                "request",
+            ));
         }
         let h = operations::request_hash("lesson.edit", r)?;
         let tx = self
@@ -404,11 +417,14 @@ impl Database {
         unit(&tx, &r.unit_id, true)?;
         let mut s = state(&tx, &r.draft_id, &r.unit_id)?;
         expected(&s, r.expected_draft_revision)?;
-        for op in &r.operations {
-            edit(&tx, &mut s, op)?;
+        for (index, op) in r.operations.iter().enumerate() {
+            edit(&tx, &mut s, op)
+                .map_err(|error| super::diagnostics::for_operation(error, index, op))?;
         }
-        valid(&s.draft.composition, false)?;
-        references(&tx, &s.draft.composition, &s.dependencies)?;
+        valid(&s.draft.composition, true)
+            .map_err(|error| super::diagnostics::attach_operations(error, &r.operations))?;
+        references(&tx, &s.draft.composition, &s.dependencies)
+            .map_err(|error| super::diagnostics::attach_operations(error, &r.operations))?;
         s.draft.revision = s
             .draft
             .revision
@@ -639,3 +655,46 @@ mod source_snapshots;
 use dependencies::{check_bases, closure, dependency_base, publish, references};
 use edits::edit;
 use source_snapshots::{source_snapshot, validate_source};
+
+impl Database {
+    pub(in crate::workspace) fn lesson_validate(
+        &self,
+        context: RequestContext,
+        r: &LessonDraftScope,
+    ) -> Result<LessonValidation> {
+        context.authorize()?;
+        contract(r.contract_version)?;
+        request_budget(r)?;
+        if r.workspace_id != self.id {
+            return Err(AppError::new(ErrorCode::PermissionDenied));
+        }
+        unit(&self.connection, &r.unit_id, false)?;
+        let s = state(&self.connection, &r.draft_id, &r.unit_id)?;
+        expected(&s, r.expected_draft_revision)?;
+        let mut diagnostics = super::validation::diagnose(&s.draft.composition, false);
+        if diagnostics.len() < 16
+            && let Err(error) = references(&self.connection, &s.draft.composition, &s.dependencies)
+        {
+            diagnostics.extend(error.diagnostics);
+        }
+        if diagnostics.len() < 16
+            && (check_bases(&self.connection, &s).is_err()
+                || head(&self.connection, &r.unit_id)? != s.draft.base_head_revision)
+        {
+            diagnostics.push(super::diagnostics::diagnostic(
+                LessonDiagnosticCode::RevisionConflict,
+                "baseHeadRevision",
+                LessonRepair::RefreshBase,
+                None,
+                None,
+            ));
+        }
+        diagnostics.truncate(16);
+        Ok(LessonValidation {
+            draft_id: s.draft.id,
+            draft_revision: s.draft.revision,
+            valid: diagnostics.is_empty(),
+            diagnostics,
+        })
+    }
+}

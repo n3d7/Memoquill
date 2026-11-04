@@ -38,7 +38,7 @@ impl Database {
         let result = self.apply_asset(request, &staged);
         if let Err(error) = &result
             && error.code != ErrorCode::OutcomeUnconfirmed
-            && interrupt(&self.connection, &request.operation_id, *error).is_err()
+            && interrupt(&self.connection, &request.operation_id, error.clone()).is_err()
         {
             return Err(AppError::new(ErrorCode::RecoveryRequired));
         }

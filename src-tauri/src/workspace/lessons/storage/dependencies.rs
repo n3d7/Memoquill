@@ -168,70 +168,103 @@ fn check_references(c: &Connection, composition: &Composition, pending: &[Pendin
         return Err(invalid());
     }
     for b in &composition.bindings {
-        if let Some(p) = pending.iter().find(|p| {
-            p.id() == b.revision_id && p.target() == b.target_id && p.kind() == b.target_kind
-        }) {
-            match p {
-                Pending::Resource { document, .. } => {
-                    resource_locator(document, b, composition)?;
-                    assets(c, document)?;
-                }
-                Pending::Source { snapshot } => {
-                    validate_source(c, snapshot, &composition.unit_id)?;
-                    if snapshot.locator != b.locator {
-                        return Err(invalid());
-                    }
-                }
-                Pending::Activity { definition, .. } => activity_links(definition, composition)?,
+        check_reference(c, composition, pending, b).map_err(|error| {
+            if error.code == ErrorCode::InvalidRequest || error.code == ErrorCode::InvalidReference
+            {
+                AppError::new(ErrorCode::InvalidReference).with_diagnostics(vec![
+                    super::super::diagnostics::diagnostic(
+                        LessonDiagnosticCode::InvalidReference,
+                        "revisionId",
+                        LessonRepair::SelectPinnedRevision,
+                        None,
+                        Some(&b.binding_id),
+                    ),
+                ])
+            } else {
+                error
             }
-            continue;
-        }
-        match b.target_kind.as_str() {
-            "resource" => {
-                let data:Option<(String,String)>=c.query_row("SELECT document,digest FROM resource_revisions WHERE id=?1 AND resource_id=?2",params![b.revision_id,b.target_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-                let (data, digest) = data.ok_or_else(invalid)?;
-                let document =
-                    crate::document::Document::parse(data.as_bytes()).map_err(|_| invalid())?;
-                if document.digest().map_err(|_| invalid())? != digest {
-                    return Err(invalid());
-                }
-                resource_locator(&document, b, composition)?;
-                assets(c, &document)?;
-            }
-            "activity" => {
-                let row:Option<(String,String)>=c.query_row("SELECT definition,digest FROM lesson_activity_revisions WHERE id=?1 AND activity_id=?2",params![b.revision_id,b.target_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-                let (data, digest) = row.ok_or_else(invalid)?;
-                if data.len() > 65536 {
-                    return Err(invalid());
-                }
-                let v: Value = serde_json::from_str(&data).map_err(|_| invalid())?;
-                activity(&v)?;
-                activity_links(&v, composition)?;
-                if hash(&v)? != digest {
-                    return Err(invalid());
-                }
-            }
-            "source" => {
-                let row:Option<(String,String)>=c.query_row("SELECT data,digest FROM lesson_source_bindings WHERE id=?1 AND source_id=?2 AND unit_id=?3",params![b.revision_id,b.target_id,composition.unit_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
-                let (data, digest) = row.ok_or_else(invalid)?;
-                if data.len() > 131072 {
-                    return Err(invalid());
-                }
-                let snapshot: SourceBindingRevision =
-                    serde_json::from_str(&data).map_err(|_| invalid())?;
-                validate_source(c, &snapshot, &composition.unit_id)?;
-                if hash(&snapshot)? != digest
-                    || snapshot.id != b.revision_id
-                    || snapshot.locator != b.locator
-                {
-                    return Err(invalid());
-                }
-            }
-            _ => return Err(invalid()),
-        }
+        })?;
     }
     Ok(())
 }
+fn check_reference(
+    c: &Connection,
+    composition: &Composition,
+    pending: &[Pending],
+    b: &Binding,
+) -> Result<()> {
+    if let Some(p) = pending
+        .iter()
+        .find(|p| p.id() == b.revision_id && p.target() == b.target_id && p.kind() == b.target_kind)
+    {
+        match p {
+            Pending::Resource { document, .. } => {
+                resource_locator(document, b, composition)?;
+                assets(c, document)?;
+            }
+            Pending::Source { snapshot } => {
+                validate_source(c, snapshot, &composition.unit_id)?;
+                if snapshot.locator != b.locator {
+                    return Err(invalid());
+                }
+            }
+            Pending::Activity { definition, .. } => activity_links(definition, composition)?,
+        }
+        return Ok(());
+    }
+    match b.target_kind.as_str() {
+        "resource" => {
+            let data: Option<(String, String)> = c
+                .query_row(
+                    "SELECT document,digest FROM resource_revisions WHERE id=?1 AND resource_id=?2",
+                    params![b.revision_id, b.target_id],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()?;
+            let (data, digest) = data.ok_or_else(invalid)?;
+            let document =
+                crate::document::Document::parse(data.as_bytes()).map_err(|_| invalid())?;
+            if document.digest().map_err(|_| invalid())? != digest {
+                return Err(invalid());
+            }
+            resource_locator(&document, b, composition)?;
+            assets(c, &document)?;
+        }
+        "activity" => {
+            let row:Option<(String,String)>=c.query_row("SELECT definition,digest FROM lesson_activity_revisions WHERE id=?1 AND activity_id=?2",params![b.revision_id,b.target_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+            let (data, digest) = row.ok_or_else(invalid)?;
+            if data.len() > 65536 {
+                return Err(invalid());
+            }
+            let v: Value = serde_json::from_str(&data).map_err(|_| invalid())?;
+            activity(&v)?;
+            activity_links(&v, composition)?;
+            if hash(&v)? != digest {
+                return Err(invalid());
+            }
+        }
+        "source" => {
+            let row:Option<(String,String)>=c.query_row("SELECT data,digest FROM lesson_source_bindings WHERE id=?1 AND source_id=?2 AND unit_id=?3",params![b.revision_id,b.target_id,composition.unit_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+            let (data, digest) = row.ok_or_else(invalid)?;
+            if data.len() > 131072 {
+                return Err(invalid());
+            }
+            let snapshot: SourceBindingRevision =
+                serde_json::from_str(&data).map_err(|_| invalid())?;
+            validate_source(c, &snapshot, &composition.unit_id)?;
+            if hash(&snapshot)? != digest
+                || snapshot.id != b.revision_id
+                || snapshot.locator != b.locator
+            {
+                return Err(invalid());
+            }
+        }
+        _ => return Err(invalid()),
+    }
+
+    Ok(())
+}
+
 fn resource_locator(
     document: &crate::document::Document,
     b: &Binding,

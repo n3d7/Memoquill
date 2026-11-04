@@ -62,6 +62,7 @@ pub fn run() {
             lesson_commands::lesson_create_draft,
             lesson_commands::lesson_edit_draft,
             lesson_commands::lesson_preview_draft,
+            lesson_commands::lesson_validate_draft,
             lesson_commands::lesson_apply_draft,
             lesson_commands::lesson_discard_draft,
             lesson_commands::lesson_get_receipt,
@@ -140,6 +141,40 @@ mod tests {
         webview::InvokeRequest,
     };
 
+    #[test]
+    fn lesson_raw_decoder_rejects_budgets_and_returns_structured_errors_through_ipc() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                lesson_commands::lesson_edit_draft,
+                lesson_commands::lesson_discover
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let too_large = InvokeBody::Raw(
+            format!("{{\"request\":\"{}\"}}", "x".repeat(2 * 1024 * 1024)).into_bytes(),
+        );
+        let error = ipc(&main, "lesson_edit_draft", "tauri://localhost", too_large).unwrap_err();
+        assert_eq!(error["code"], "budget_exceeded");
+        assert_eq!(error["diagnostics"][0]["field"], "request");
+        assert_eq!(error["diagnostics"][0]["repair"], "split_request");
+        let registry = ipc(
+            &main,
+            "lesson_discover",
+            "tauri://localhost",
+            InvokeBody::Raw(b"{}".to_vec()),
+        )
+        .unwrap()
+        .deserialize::<Vec<workspace::RegistryDescriptor>>()
+        .unwrap();
+        assert_eq!(registry.len(), 8);
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
     #[test]
     fn lesson_registry_and_mutations_respect_native_capabilities_and_closed_context() {
         let temp = tempfile::tempdir().unwrap();
@@ -321,10 +356,7 @@ mod tests {
         let error = ipc(&main, "pick_source", "tauri://localhost", foreign).unwrap_err();
         assert_eq!(
             error,
-            serde_json::to_value(AppError {
-                code: workspace::ErrorCode::PermissionDenied
-            })
-            .unwrap()
+            serde_json::to_value(AppError::new(workspace::ErrorCode::PermissionDenied)).unwrap()
         );
         tauri::async_runtime::block_on(service.shutdown()).unwrap();
     }
@@ -413,7 +445,7 @@ mod tests {
         webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
         command: &str,
         origin: &str,
-        body: serde_json::Value,
+        body: impl Into<InvokeBody>,
     ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
         get_ipc_response(
             webview,
@@ -422,7 +454,7 @@ mod tests {
                 callback: CallbackFn(0),
                 error: CallbackFn(1),
                 url: origin.parse().unwrap(),
-                body: InvokeBody::Json(body),
+                body: body.into(),
                 headers: Default::default(),
                 invoke_key: INVOKE_KEY.into(),
             },

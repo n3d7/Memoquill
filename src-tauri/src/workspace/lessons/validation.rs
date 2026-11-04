@@ -30,15 +30,9 @@ fn one(v: &Value, allowed: &[&str]) -> bool {
     v.as_str().is_some_and(|s| allowed.contains(&s))
 }
 pub(super) fn discover() -> Vec<RegistryDescriptor> {
-    [("stack",vec!["body"],vec![],serde_json::json!({"gap":["compact","normal","wide"],"headingLevel":[1,2,3,4,5,6]})),
- ("columns",vec!["primary","secondary"],vec![],serde_json::json!({"ratio":["equal","widePrimary","wideSecondary"]})),
- ("section",vec!["body"],vec!["toggle"],serde_json::json!({"title":"nonemptyString","collapsible":"boolean"})),
- ("content",vec![],vec![],serde_json::json!({"bindingId":"resource","blockRange":"optionalStableBlockRange"})),
- ("source",vec![],vec!["openSource"],serde_json::json!({"bindingId":"source","locator":"optionalLocator"})),
- ("activity",vec![],vec!["response","hint","reveal","submit"],serde_json::json!({"bindingId":"activity","presentation":["default","compact"]})),
- ("button",vec![],vec!["activate"],serde_json::json!({"label":"nonemptyString","style":["primary","secondary"],"action":"actionBinding"})),
- ("status",vec![],vec![],serde_json::json!({"field":view_fields(),"label":"nonemptyString"}))].into_iter().map(|(t,s,e,p)|RegistryDescriptor{type_id:t.into(),type_version:1,slots:s.into_iter().map(String::from).collect(),events:e.into_iter().map(String::from).collect(),props:serde_json::from_value(p).expect("shipped registry")}).collect()
+    super::catalog::discover()
 }
+
 fn view_fields() -> Vec<&'static str> {
     vec![
         "section.expanded",
@@ -461,4 +455,153 @@ fn items(v: &Value) -> Result<()> {
         }
     }
     Ok(())
+}
+
+pub(super) fn diagnose(c: &Composition, allow_unknown: bool) -> Vec<LessonDiagnostic> {
+    use super::diagnostics::{diagnostic, schema_field};
+    let mut found = vec![];
+    if c.nodes.len() > 256
+        || c.bindings.len() > 256
+        || c.source_binding_refs.len() > 64
+        || bytes(c).is_ok_and(|b| b.len() > MAX_COMPOSITION)
+    {
+        return vec![diagnostic(
+            LessonDiagnosticCode::BudgetExceeded,
+            "composition",
+            LessonRepair::SplitRequest,
+            None,
+            None,
+        )];
+    }
+    for node in &c.nodes {
+        if bytes(&node.props).is_ok_and(|b| b.len() > 16384) {
+            found.push(diagnostic(
+                LessonDiagnosticCode::BudgetExceeded,
+                "props",
+                LessonRepair::SplitRequest,
+                Some(&node.node_id),
+                None,
+            ));
+            if found.len() == 16 {
+                break;
+            }
+            continue;
+        }
+        let known = node.type_version == 1
+            && [
+                "stack", "columns", "section", "content", "source", "activity", "button", "status",
+            ]
+            .contains(&node.type_id.as_str());
+        let issue = if !known && !allow_unknown {
+            Some(diagnostic(
+                LessonDiagnosticCode::UnsupportedType,
+                "typeVersion",
+                LessonRepair::RemoveOrReplaceUnsupported,
+                Some(&node.node_id),
+                None,
+            ))
+        } else if known {
+            if let Some(field) = schema_field(
+                &super::catalog::props_schema(&node.type_id),
+                &node.props,
+                "props",
+                0,
+            ) {
+                Some(diagnostic(
+                    LessonDiagnosticCode::InvalidProps,
+                    &field,
+                    LessonRepair::UseDeclaredValue,
+                    Some(&node.node_id),
+                    None,
+                ))
+            } else if let Some(v) = &node.visible
+                && condition(v).is_err()
+            {
+                Some(diagnostic(
+                    LessonDiagnosticCode::InvalidCondition,
+                    if v.get("field").is_some() {
+                        "visible.field"
+                    } else {
+                        "visible"
+                    },
+                    LessonRepair::UseDeclaredField,
+                    Some(&node.node_id),
+                    None,
+                ))
+            } else if node
+                .on
+                .iter()
+                .any(|(event, a)| action(a, c, Some(event)).is_err())
+            {
+                Some(diagnostic(
+                    LessonDiagnosticCode::InvalidAction,
+                    "on",
+                    LessonRepair::UseDeclaredValue,
+                    Some(&node.node_id),
+                    None,
+                ))
+            } else if props(node, c).is_err() {
+                Some(diagnostic(
+                    LessonDiagnosticCode::InvalidProps,
+                    "props",
+                    LessonRepair::SelectPinnedRevision,
+                    Some(&node.node_id),
+                    None,
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(d) = issue {
+            found.push(d);
+        }
+        if found.len() == 16 {
+            break;
+        }
+    }
+    if found.is_empty()
+        && let Err(error) = validate_composition(
+            &serde_json::to_value(c).unwrap_or(Value::Null),
+            allow_unknown,
+        )
+    {
+        found.push(diagnostic(
+            if error.code == ErrorCode::BudgetExceeded {
+                LessonDiagnosticCode::BudgetExceeded
+            } else {
+                LessonDiagnosticCode::InvalidTree
+            },
+            "composition",
+            if error.code == ErrorCode::BudgetExceeded {
+                LessonRepair::SplitRequest
+            } else {
+                LessonRepair::CorrectTree
+            },
+            None,
+            None,
+        ));
+    }
+    found
+}
+pub(super) fn validate_diagnosed(c: &Composition, allow_unknown: bool) -> Result<()> {
+    let diagnostics = diagnose(c, allow_unknown);
+    if diagnostics.is_empty() {
+        return Ok(());
+    }
+    let code = if diagnostics
+        .iter()
+        .any(|d| d.code == LessonDiagnosticCode::UnsupportedType)
+    {
+        ErrorCode::UnsupportedVersion
+    } else if diagnostics
+        .iter()
+        .any(|d| d.code == LessonDiagnosticCode::BudgetExceeded)
+    {
+        ErrorCode::BudgetExceeded
+    } else {
+        ErrorCode::InvalidRequest
+    };
+    Err(AppError::new(code).with_diagnostics(diagnostics))
 }

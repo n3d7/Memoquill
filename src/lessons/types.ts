@@ -32,9 +32,17 @@ export type ActivityDefinition =
   | { family: 'procedure'; version: 1; prompt: string; steps: { id: string; text: string }[]; reflection: string; hints: string[]; evaluation: 'self' };
 export interface ActivityRevision { id: string; activityId: string; unitId: string; definition: ActivityDefinition }
 export type ResourceDocument = Document;
-export interface RegistryDescriptor { typeId: NodeType; typeVersion: 1; slots: string[]; events: string[]; props: Record<string, unknown> }
+export type JsonSchema = Record<string, unknown> | boolean;
+export type LessonDiagnosticCode = 'invalid_props' | 'invalid_condition' | 'invalid_action' | 'invalid_reference' | 'invalid_tree' | 'invalid_operation' | 'unsupported_type' | 'budget_exceeded' | 'invalid_envelope' | 'revision_conflict';
+export type LessonRepair = 'use_declared_value' | 'use_declared_field' | 'select_pinned_revision' | 'remove_or_replace_unsupported' | 'correct_tree' | 'split_request' | 'refresh_base' | 'use_closed_envelope';
+export interface LessonDiagnostic { code: LessonDiagnosticCode; nodeId?: string; bindingId?: string; operationIndex?: number; field: string; repair: LessonRepair }
+export interface LessonError { code: string; diagnostics?: LessonDiagnostic[] }
+export interface LessonValidation { draftId: string; draftRevision: number; valid: boolean; diagnostics: LessonDiagnostic[] }
+export interface ActionDescriptor { actionId: ActionId; version: 1; inputSchema: JsonSchema; resultSchema: JsonSchema; targetKinds: string[]; requiredCapabilities: string[]; validModes: string[]; availability: Record<string, 'available' | 'simulated' | 'capability_unavailable'>; sideEffectClass: string; idempotency: string; eventFieldSources: string[]; errorCodes: string[] }
+export interface RegistryDescriptor { typeId: NodeType; typeVersion: 1; slots: string[]; events: string[]; props: Record<string, unknown>; propsSchema: JsonSchema; defaults: Record<string, unknown>; slotSchemas: Record<string, { minimum: number; maximum: number; ordered: boolean; allowedChildren: string }>; eventSchemas: Record<string, { payloadSchema: JsonSchema; allowedActions: ActionId[]; eventFields: Record<string, JsonSchema>; maximumActions: 1 }>; actions: ActionDescriptor[]; requiredCapabilities: string[]; validModes: string[]; state: { scope: string; schema: JsonSchema; maximumBytes: number; persistent: boolean }; accessibilityContract: string[]; fallback: { mode: 'inertPlaceholder'; preservesOpaquePayload: true; activationAllowed: false; diagnosticCode: 'unsupported_type'; repairs: LessonRepair[] }; supportedMigrations: number[]; schemas: Record<string, JsonSchema> }
 export interface SourceBindingRevision { id: string; unitId: string; sourceId: string; assetDigest: string; filename: string; attribution: string | null; license: string | null; originUrl: string | null; locator?: string; declaredUsedRanges: string[]; extractionCoverage: 'notExtracted'; readCoverage: 'unknown'; warnings: string[] }
 export type LessonOperation =
+  | { kind: 'replaceUnsupportedRoot'; node: LessonNode }
   | { kind: 'insertNode'; parent: string; slot: string; index: number; node: LessonNode }
   | { kind: 'removeNode'; id: string }
   | { kind: 'moveNode'; id: string; parent: string; slot: string; index: number }
@@ -64,6 +72,7 @@ export interface LessonPort {
   readActivity(unitId: string, revisionId: string): Promise<ActivityRevision | null>;
   createDraft(request: CreateLessonDraft): Promise<LessonDraft>;
   editDraft(request: EditLessonDraft): Promise<LessonDraft>;
+  validateDraft(request: DraftScope): Promise<LessonValidation>;
   previewDraft(request: DraftScope): Promise<LessonPreview>;
   applyDraft(request: ApplyLessonDraft): Promise<LessonReceipt>;
   discardDraft(request: DiscardLessonDraft): Promise<void>;

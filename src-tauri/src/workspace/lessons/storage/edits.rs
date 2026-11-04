@@ -13,6 +13,11 @@ fn detach(c: &mut Composition, id: &str) -> Result<()> {
     for n in &mut c.nodes {
         for ch in n.slots.values_mut() {
             if let Some(i) = ch.iter().position(|x| x == id) {
+                if n.type_version != 1
+                    || !["stack", "columns", "section"].contains(&n.type_id.as_str())
+                {
+                    return Err(AppError::new(ErrorCode::UnsupportedVersion));
+                }
                 ch.remove(i);
                 found = true;
             }
@@ -24,7 +29,11 @@ fn detach(c: &mut Composition, id: &str) -> Result<()> {
     Ok(())
 }
 fn attach(c: &mut Composition, id: String, parent: &str, slot: &str, index: usize) -> Result<()> {
-    let children = find(c, parent)?.slots.get_mut(slot).ok_or_else(invalid)?;
+    let parent_node = find(c, parent)?;
+    if !known(parent_node) {
+        return Err(AppError::new(ErrorCode::UnsupportedVersion));
+    }
+    let children = parent_node.slots.get_mut(slot).ok_or_else(invalid)?;
     if index > children.len() || children.len() >= 64 {
         return Err(invalid());
     }
@@ -50,6 +59,29 @@ fn bind(c: &mut Composition, b: Binding) {
 }
 pub(super) fn edit(c: &Connection, s: &mut DraftState, op: &LessonOperation) -> Result<()> {
     match op {
+        LessonOperation::ReplaceUnsupportedRoot { node } => {
+            let root = s
+                .draft
+                .composition
+                .nodes
+                .iter()
+                .find(|n| n.node_id == s.draft.composition.root_node_id)
+                .ok_or_else(invalid)?;
+            if known(root)
+                || !known(node)
+                || s.draft
+                    .composition
+                    .nodes
+                    .iter()
+                    .any(|n| n.node_id == node.node_id)
+            {
+                return Err(invalid());
+            }
+            let old = s.draft.composition.root_node_id.clone();
+            s.draft.composition.nodes.retain(|n| n.node_id != old);
+            s.draft.composition.root_node_id = node.node_id.clone();
+            s.draft.composition.nodes.push(node.clone());
+        }
         LessonOperation::CreateSourceBindingRevision {
             source_id,
             binding_id,
@@ -79,6 +111,9 @@ pub(super) fn edit(c: &Connection, s: &mut DraftState, op: &LessonOperation) -> 
             index,
             node,
         } => {
+            if !known(node) {
+                return Err(AppError::new(ErrorCode::UnsupportedVersion));
+            }
             if s.draft
                 .composition
                 .nodes
@@ -123,10 +158,16 @@ pub(super) fn edit(c: &Connection, s: &mut DraftState, op: &LessonOperation) -> 
         }
         LessonOperation::ConfigureNode { id, props } => {
             let n = find(&mut s.draft.composition, id)?;
+            if !known(n) {
+                return Err(AppError::new(ErrorCode::UnsupportedVersion));
+            }
             n.props = props.clone();
         }
         LessonOperation::ConfigureInteraction { id, on, visible } => {
             let n = find(&mut s.draft.composition, id)?;
+            if !known(n) {
+                return Err(AppError::new(ErrorCode::UnsupportedVersion));
+            }
             n.on = on.clone();
             n.visible = visible.clone();
         }
@@ -212,4 +253,10 @@ pub(super) fn edit(c: &Connection, s: &mut DraftState, op: &LessonOperation) -> 
         return Err(invalid());
     }
     Ok(())
+}
+
+fn known(node: &LessonNode) -> bool {
+    super::super::validation::discover()
+        .iter()
+        .any(|d| d.type_id == node.type_id && d.type_version == node.type_version)
 }

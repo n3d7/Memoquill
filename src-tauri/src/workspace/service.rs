@@ -69,6 +69,7 @@ enum SourcesRequest {
 }
 
 enum LessonsRequest {
+    Validate(RequestContext, LessonDraftScope, Reply<LessonValidation>),
     Source(
         RequestContext,
         String,
@@ -107,6 +108,8 @@ impl ApplicationService {
         unit_id: String,
         revision_id: String,
     ) -> Result<Option<SourceBindingRevision>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
         self.request(
             context,
             |reply| {
@@ -131,6 +134,8 @@ impl ApplicationService {
         unit_id: String,
         revision_id: Option<String>,
     ) -> Result<Option<SavedComposition>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
         self.request(
             context,
             |reply| {
@@ -150,6 +155,8 @@ impl ApplicationService {
         context: RequestContext,
         unit_id: String,
     ) -> Result<Vec<LessonDraft>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&&unit_id)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Drafts(context, unit_id, reply))),
@@ -163,6 +170,8 @@ impl ApplicationService {
         unit_id: String,
         revision_id: String,
     ) -> Result<Option<ActivityRevision>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
         self.request(
             context,
             |reply| {
@@ -182,6 +191,8 @@ impl ApplicationService {
         context: RequestContext,
         request: CreateLessonDraft,
     ) -> Result<LessonDraft> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Create(context, request, reply))),
@@ -194,10 +205,26 @@ impl ApplicationService {
         context: RequestContext,
         request: EditLessonDraft,
     ) -> Result<LessonDraft> {
+        context.authorize()?;
+        super::lessons::admission::admit_edit(&request)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Edit(context, request, reply))),
             true,
+        )
+        .await
+    }
+    pub async fn lesson_validate(
+        &self,
+        context: RequestContext,
+        request: LessonDraftScope,
+    ) -> Result<LessonValidation> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Validate(context, request, reply))),
+            false,
         )
         .await
     }
@@ -206,6 +233,8 @@ impl ApplicationService {
         context: RequestContext,
         request: LessonDraftScope,
     ) -> Result<LessonPreview> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Preview(context, request, reply))),
@@ -218,6 +247,8 @@ impl ApplicationService {
         context: RequestContext,
         request: ApplyLessonDraft,
     ) -> Result<LessonReceipt> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Apply(context, request, reply))),
@@ -230,6 +261,8 @@ impl ApplicationService {
         context: RequestContext,
         request: DiscardLessonDraft,
     ) -> Result<()> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Discard(context, request, reply))),
@@ -242,6 +275,8 @@ impl ApplicationService {
         context: RequestContext,
         id: OperationId,
     ) -> Result<Option<LessonReceipt>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&&id)?;
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Receipt(context, id, reply))),
@@ -495,13 +530,13 @@ impl Store {
             .is_ok_and(|db| db.recovery.blocks_writes());
         let result = match &mut self.database {
             Ok(db) => action(db),
-            Err(error) => Err(*error),
+            Err(error) => Err(error.clone()),
         };
         if let Err(error) = &result
             && (error.code == ErrorCode::OutcomeUnconfirmed
                 || (error.code == ErrorCode::RecoveryRequired && !degraded))
         {
-            self.database = Err(*error); // Close before another operation; caller must explicitly reopen.
+            self.database = Err(error.clone()); // Close before another operation; caller must explicitly reopen.
         }
         result
     }
@@ -538,6 +573,9 @@ impl Store {
     }
     fn handle_lessons(&mut self, request: LessonsRequest) {
         match request {
+            LessonsRequest::Validate(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_validate(c, &r)));
+            }
             LessonsRequest::Source(c, id, revision, reply) => {
                 let _ = reply.send(self.access(|db| db.lesson_source(c, &id, &revision)));
             }
@@ -954,5 +992,45 @@ mod tests {
             receipt.result,
             ReceiptResult::Applied(OperationOutcome::Asset(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod lesson_admission_tests {
+    use super::*;
+    #[test]
+    fn oversized_operation_batch_never_enters_the_writer_queue() {
+        tauri::async_runtime::block_on(async {
+            let (sender, mut receiver) = mpsc::channel(64);
+            let service = ApplicationService { sender };
+            let request = EditLessonDraft {
+                contract_version: 1,
+                workspace_id: WorkspaceId::generate(),
+                unit_id: uuid::Uuid::new_v4().to_string(),
+                draft_id: uuid::Uuid::new_v4().to_string(),
+                expected_draft_revision: 1,
+                operation_id: OperationId::generate(),
+                operations: vec![LessonOperation::RemoveNode { id: "node".into() }; 65],
+            };
+            use std::future::Future;
+            let mut future = Box::pin(service.lesson_edit(RequestContext::local_ui(), request));
+            let response = future
+                .as_mut()
+                .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+            assert!(
+                matches!(
+                    response,
+                    std::task::Poll::Ready(Err(AppError {
+                        code: ErrorCode::BudgetExceeded,
+                        ..
+                    }))
+                ),
+                "invalid payload must fail before waiting for worker"
+            );
+            assert!(matches!(
+                receiver.try_recv(),
+                Err(mpsc::error::TryRecvError::Empty)
+            ));
+        });
     }
 }

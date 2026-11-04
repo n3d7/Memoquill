@@ -776,3 +776,396 @@ fn apply_lost_reply_and_precommit_failure_have_recoverable_exact_outcomes() {
             .is_empty()
     );
 }
+
+fn saved_opaque(
+    db: &mut Database,
+    unit: &str,
+    root_unknown: bool,
+) -> (SavedComposition, Composition) {
+    let d = create(db, unit);
+    let p = db
+        .lesson_preview(RequestContext::local_ui(), &scope(db, &d))
+        .unwrap();
+    let saved = db
+        .lesson_apply(RequestContext::local_ui(), &apply(db, &d, &p))
+        .unwrap()
+        .saved;
+    let mut c = saved.composition.clone();
+    c.nodes[0].type_id = if root_unknown {
+        "future-root"
+    } else {
+        "columns"
+    }
+    .into();
+    c.nodes[0].type_version = if root_unknown { 9 } else { 1 };
+    c.nodes[0].props = if root_unknown {
+        json!({"keep":"opaque-original"})
+    } else {
+        json!({"ratio":"equal"})
+    };
+    c.nodes[0].slots = std::collections::BTreeMap::from([
+        ("primary".into(), vec![]),
+        ("secondary".into(), vec![]),
+    ]);
+    for index in 0..65 {
+        let id = format!("future-{index}");
+        c.nodes[0]
+            .slots
+            .get_mut(if index < 64 { "primary" } else { "secondary" })
+            .unwrap()
+            .push(id.clone());
+        c.nodes.push(LessonNode {
+            node_id: id,
+            type_id: "future-leaf".into(),
+            type_version: 3,
+            props: json!({"opaque":{"value":index}}),
+            slots: Default::default(),
+            on: Default::default(),
+            visible: None,
+        });
+    }
+    let data = serde_json::to_string(&c).unwrap();
+    let digest = crate::workspace::migrations::checksum(data.as_bytes());
+    db.connection
+        .execute(
+            "UPDATE lesson_revisions SET data=?1,digest=?2 WHERE id=?3",
+            rusqlite::params![data, digest, saved.id],
+        )
+        .unwrap();
+    (saved, c)
+}
+#[test]
+fn unsupported_repair_can_span_bounded_batches_without_opaque_payload_edits() {
+    let (_temp, mut db, u) = setup();
+    let (saved, original) = saved_opaque(&mut db, &u, false);
+    let d = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                unit_id: u.clone(),
+                operation_id: OperationId::generate(),
+                expected_head_revision: Some(saved.id.clone()),
+            },
+        )
+        .unwrap();
+    let change = edit(
+        &db,
+        &d,
+        vec![LessonOperation::ConfigureNode {
+            id: "future-0".into(),
+            props: json!({"edited":true}),
+        }],
+    );
+    assert!(db.lesson_edit(RequestContext::local_ui(), &change).is_err());
+    let ops = (0..64)
+        .map(|i| LessonOperation::RemoveNode {
+            id: format!("future-{i}"),
+        })
+        .collect();
+    let partial = db
+        .lesson_edit(RequestContext::local_ui(), &edit(&db, &d, ops))
+        .unwrap();
+    assert_eq!(partial.composition.nodes.len(), 2);
+    assert_eq!(partial.composition.nodes[1].props, original.nodes[65].props);
+    assert!(
+        db.lesson_preview(RequestContext::local_ui(), &scope(&db, &partial))
+            .is_err()
+    );
+    let apply_request = ApplyLessonDraft {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        unit_id: u.clone(),
+        draft_id: partial.id.clone(),
+        expected_draft_revision: partial.revision,
+        expected_head_revision: partial.base_head_revision.clone(),
+        preview_hash: "not-approved".into(),
+        operation_id: OperationId::generate(),
+    };
+    assert!(
+        db.lesson_apply(RequestContext::local_ui(), &apply_request)
+            .is_err()
+    );
+    let repaired = db
+        .lesson_edit(
+            RequestContext::local_ui(),
+            &edit(
+                &db,
+                &partial,
+                vec![LessonOperation::RemoveNode {
+                    id: "future-64".into(),
+                }],
+            ),
+        )
+        .unwrap();
+    let p = db
+        .lesson_preview(RequestContext::local_ui(), &scope(&db, &repaired))
+        .unwrap();
+    db.lesson_apply(RequestContext::local_ui(), &apply(&db, &repaired, &p))
+        .unwrap();
+    assert_eq!(
+        db.lesson_read(RequestContext::local_ui(), &u, Some(&saved.id))
+            .unwrap()
+            .unwrap()
+            .composition,
+        original
+    );
+}
+#[test]
+fn unsupported_root_has_explicit_safe_replacement_preserving_original_revision() {
+    let (_temp, mut db, u) = setup();
+    let (saved, original) = saved_opaque(&mut db, &u, true);
+    let d = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                unit_id: u.clone(),
+                operation_id: OperationId::generate(),
+                expected_head_revision: Some(saved.id.clone()),
+            },
+        )
+        .unwrap();
+    let replacement = json!({"kind":"replaceUnsupportedRoot","node":{"nodeId":"repaired-root","typeId":"columns","typeVersion":1,"props":{"ratio":"equal"},"slots":original.nodes[0].slots,"on":{}}});
+    let op: LessonOperation = serde_json::from_value(replacement).unwrap();
+    let partial = db
+        .lesson_edit(RequestContext::local_ui(), &edit(&db, &d, vec![op]))
+        .unwrap();
+    assert_eq!(partial.composition.root_node_id, "repaired-root");
+    assert!(
+        db.lesson_preview(RequestContext::local_ui(), &scope(&db, &partial))
+            .is_err()
+    );
+    assert_eq!(
+        db.lesson_read(RequestContext::local_ui(), &u, Some(&saved.id))
+            .unwrap()
+            .unwrap()
+            .composition,
+        original
+    );
+}
+
+#[test]
+fn rejected_lesson_edits_return_bounded_safe_field_and_operation_diagnostics() {
+    let (_temp, mut db, u) = setup();
+    let d = create(&mut db, &u);
+    let e = edit(
+        &db,
+        &d,
+        vec![LessonOperation::ConfigureNode {
+            id: d.composition.root_node_id.clone(),
+            props: json!({"gap":"script","headingLevel":1}),
+        }],
+    );
+    let error = db.lesson_edit(RequestContext::local_ui(), &e).unwrap_err();
+    let wire = serde_json::to_value(&error).unwrap();
+    assert_eq!(wire["diagnostics"][0]["nodeId"], d.composition.root_node_id);
+    assert_eq!(wire["diagnostics"][0]["operationIndex"], 0);
+    assert_eq!(wire["diagnostics"][0]["field"], "props.gap");
+    assert_eq!(wire["diagnostics"][0]["repair"], "use_declared_value");
+    let binding = Binding {
+        binding_id: "declared-local-ref".into(),
+        target_kind: "resource".into(),
+        target_id: Uuid::new_v4().to_string(),
+        revision_id: Uuid::new_v4().to_string(),
+        locator: None,
+    };
+    let hidden = binding.target_id.clone();
+    let e = edit(&db, &d, vec![LessonOperation::BindReference { binding }]);
+    let error = db.lesson_edit(RequestContext::local_ui(), &e).unwrap_err();
+    let wire = serde_json::to_value(&error).unwrap();
+    assert_eq!(wire["diagnostics"][0]["bindingId"], "declared-local-ref");
+    assert_eq!(wire["diagnostics"][0]["field"], "revisionId");
+    assert!(!serde_json::to_string(&wire).unwrap().contains(&hidden));
+}
+
+#[test]
+fn offline_catalog_supplies_typed_event_action_state_and_fallback_contracts() {
+    let catalog = validation::discover();
+    assert_eq!(catalog.len(), 8);
+    let button = catalog.iter().find(|d| d.type_id == "button").unwrap();
+    assert_eq!(button.props_schema["additionalProperties"], false);
+    assert_eq!(button.defaults["style"], "secondary");
+    assert_eq!(button.event_schemas["activate"].maximum_actions, 1);
+    let toggle = button
+        .actions
+        .iter()
+        .find(|a| a.action_id == "view.toggleSection")
+        .unwrap();
+    assert_eq!(toggle.input_schema["required"], json!(["expanded"]));
+    assert_eq!(
+        toggle.input_schema["properties"]["expanded"]["type"],
+        "boolean"
+    );
+    assert_eq!(toggle.event_field_sources, vec!["toggle"]);
+    assert_eq!(toggle.target_kinds, vec!["section"]);
+    assert!(toggle.required_capabilities.contains(&"view:write".into()));
+    let submit = button
+        .actions
+        .iter()
+        .find(|a| a.action_id == "study.submit")
+        .unwrap();
+    assert_eq!(submit.availability["study"], "capability_unavailable");
+    assert_eq!(submit.availability["preview"], "simulated");
+    assert_eq!(
+        submit.result_schema["properties"]["evidenceWritten"]["const"],
+        false
+    );
+    let section = catalog.iter().find(|d| d.type_id == "section").unwrap();
+    assert_eq!(
+        section.event_schemas["toggle"].event_fields["value"]["type"],
+        "boolean"
+    );
+    assert_eq!(section.slot_schemas["body"].maximum, 64);
+    assert_eq!(
+        section.state.schema["properties"]["expanded"]["default"],
+        true
+    );
+    let activity = catalog.iter().find(|d| d.type_id == "activity").unwrap();
+    assert_eq!(
+        activity.event_schemas["response"].allowed_actions,
+        vec!["response.update"]
+    );
+    assert!(!activity.state.persistent);
+    assert!(activity.state.scope.contains("Occurrence"));
+    assert_eq!(
+        activity.schemas["activityDefinition"]["oneOf"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    for descriptor in catalog {
+        assert!(descriptor.fallback.preserves_opaque_payload);
+        assert!(!descriptor.fallback.activation_allowed);
+        assert_eq!(descriptor.fallback.mode, "inertPlaceholder");
+        assert_eq!(descriptor.schemas["condition"]["x-maxNodes"], 32);
+        assert!(descriptor.props_schema["required"].is_array());
+    }
+}
+#[test]
+fn scoped_validation_reports_unsupported_nodes_without_mutating_or_disclosing_targets() {
+    let (_temp, mut db, u) = setup();
+    let (saved, _) = saved_opaque(&mut db, &u, false);
+    let d = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                unit_id: u.clone(),
+                operation_id: OperationId::generate(),
+                expected_head_revision: Some(saved.id),
+            },
+        )
+        .unwrap();
+    let result = db
+        .lesson_validate(RequestContext::local_ui(), &scope(&db, &d))
+        .unwrap();
+    assert!(!result.valid);
+    assert_eq!(result.diagnostics.len(), 16);
+    assert!(
+        result
+            .diagnostics
+            .iter()
+            .all(|d| d.code == LessonDiagnosticCode::UnsupportedType
+                && d.node_id.is_some()
+                && d.field == "typeVersion")
+    );
+    assert_eq!(
+        db.lesson_list_drafts(RequestContext::local_ui(), &u)
+            .unwrap(),
+        vec![d.clone()]
+    );
+    let mut foreign = scope(&db, &d);
+    foreign.workspace_id = crate::workspace::WorkspaceId::generate();
+    let denied = db
+        .lesson_validate(RequestContext::local_ui(), &foreign)
+        .unwrap_err();
+    assert_eq!(denied.code, ErrorCode::PermissionDenied);
+    assert!(denied.diagnostics.is_empty());
+}
+
+#[test]
+fn opaque_containment_and_conditions_cannot_be_edited_implicitly() {
+    let (_temp, mut db, u) = setup();
+    let (saved, c) = saved_opaque(&mut db, &u, true);
+    let d = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                unit_id: u.clone(),
+                operation_id: OperationId::generate(),
+                expected_head_revision: Some(saved.id),
+            },
+        )
+        .unwrap();
+    let mut node = c.nodes[0].clone();
+    node.node_id = "known-child".into();
+    node.type_id = "stack".into();
+    node.type_version = 1;
+    node.props = json!({"gap":"normal","headingLevel":1});
+    node.slots = std::collections::BTreeMap::from([("body".into(), vec![])]);
+    assert!(
+        db.lesson_edit(
+            RequestContext::local_ui(),
+            &edit(
+                &db,
+                &d,
+                vec![LessonOperation::InsertNode {
+                    parent: c.root_node_id.clone(),
+                    slot: "secondary".into(),
+                    index: 0,
+                    node
+                }]
+            )
+        )
+        .is_err()
+    );
+    assert!(
+        db.lesson_edit(
+            RequestContext::local_ui(),
+            &edit(
+                &db,
+                &d,
+                vec![LessonOperation::ConfigureInteraction {
+                    id: c.root_node_id,
+                    on: Default::default(),
+                    visible: Some(json!({"kind":"literal","value":false}))
+                }]
+            )
+        )
+        .is_err()
+    );
+}
+#[test]
+fn invalid_condition_diagnostics_echo_only_safe_schema_locations() {
+    let (_temp, mut db, u) = setup();
+    let d = create(&mut db, &u);
+    let secret = "../../unavailable-private-target";
+    let e = edit(
+        &db,
+        &d,
+        vec![LessonOperation::ConfigureInteraction {
+            id: d.composition.root_node_id.clone(),
+            on: Default::default(),
+            visible: Some(json!({"kind":"eq","field":secret,"value":true})),
+        }],
+    );
+    let error = db.lesson_edit(RequestContext::local_ui(), &e).unwrap_err();
+    assert_eq!(
+        error.diagnostics[0].code,
+        LessonDiagnosticCode::InvalidCondition
+    );
+    assert_eq!(
+        error.diagnostics[0].node_id.as_deref(),
+        Some(d.composition.root_node_id.as_str())
+    );
+    assert_eq!(error.diagnostics[0].operation_index, Some(0));
+    assert_eq!(error.diagnostics[0].field, "visible.field");
+    assert!(!serde_json::to_string(&error).unwrap().contains(secret));
+}

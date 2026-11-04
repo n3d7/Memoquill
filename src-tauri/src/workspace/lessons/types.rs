@@ -116,6 +116,9 @@ pub struct ActivityRevision {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum LessonOperation {
+    ReplaceUnsupportedRoot {
+        node: LessonNode,
+    },
     #[serde(rename_all = "camelCase")]
     CreateSourceBindingRevision {
         source_id: String,
@@ -229,6 +232,18 @@ pub struct RegistryDescriptor {
     pub slots: Vec<String>,
     pub events: Vec<String>,
     pub props: BTreeMap<String, Value>,
+    pub props_schema: Value,
+    pub defaults: BTreeMap<String, Value>,
+    pub slot_schemas: BTreeMap<String, SlotDescriptor>,
+    pub event_schemas: BTreeMap<String, EventDescriptor>,
+    pub actions: Vec<ActionDescriptor>,
+    pub required_capabilities: Vec<String>,
+    pub valid_modes: Vec<String>,
+    pub state: StateDescriptor,
+    pub accessibility_contract: Vec<String>,
+    pub fallback: FallbackDescriptor,
+    pub supported_migrations: Vec<u32>,
+    pub schemas: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -248,4 +263,102 @@ pub struct SourceBindingRevision {
     pub extraction_coverage: String,
     pub read_coverage: String,
     pub warnings: Vec<String>,
+}
+
+/// Safe locations identify only records already supplied by or visible to this caller.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LessonDiagnosticCode {
+    InvalidProps,
+    InvalidCondition,
+    InvalidAction,
+    InvalidReference,
+    InvalidTree,
+    InvalidOperation,
+    UnsupportedType,
+    BudgetExceeded,
+    InvalidEnvelope,
+    RevisionConflict,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LessonRepair {
+    UseDeclaredValue,
+    UseDeclaredField,
+    SelectPinnedRevision,
+    RemoveOrReplaceUnsupported,
+    CorrectTree,
+    SplitRequest,
+    RefreshBase,
+    UseClosedEnvelope,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LessonDiagnostic {
+    pub code: LessonDiagnosticCode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub binding_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_index: Option<u32>,
+    pub field: String,
+    pub repair: LessonRepair,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LessonValidation {
+    pub draft_id: String,
+    pub draft_revision: u64,
+    pub valid: bool,
+    pub diagnostics: Vec<LessonDiagnostic>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SlotDescriptor {
+    pub minimum: u32,
+    pub maximum: u32,
+    pub ordered: bool,
+    pub allowed_children: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct EventDescriptor {
+    pub payload_schema: Value,
+    pub allowed_actions: Vec<String>,
+    pub event_fields: BTreeMap<String, Value>,
+    pub maximum_actions: u32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActionDescriptor {
+    pub action_id: String,
+    pub version: u32,
+    pub input_schema: Value,
+    pub result_schema: Value,
+    pub target_kinds: Vec<String>,
+    pub required_capabilities: Vec<String>,
+    pub valid_modes: Vec<String>,
+    pub availability: BTreeMap<String, String>,
+    pub side_effect_class: String,
+    pub idempotency: String,
+    pub event_field_sources: Vec<String>,
+    pub error_codes: Vec<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StateDescriptor {
+    pub scope: String,
+    pub schema: Value,
+    pub maximum_bytes: u32,
+    pub persistent: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FallbackDescriptor {
+    pub mode: String,
+    pub preserves_opaque_payload: bool,
+    pub activation_allowed: bool,
+    pub diagnostic_code: LessonDiagnosticCode,
+    pub repairs: Vec<LessonRepair>,
 }

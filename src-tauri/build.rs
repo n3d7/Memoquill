@@ -9,6 +9,7 @@ fn main() {
             "lesson_create_draft",
             "lesson_edit_draft",
             "lesson_preview_draft",
+            "lesson_validate_draft",
             "lesson_apply_draft",
             "lesson_discard_draft",
             "lesson_get_receipt",

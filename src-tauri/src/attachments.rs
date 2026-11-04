@@ -57,9 +57,7 @@ pub struct SelectedSource {
 }
 
 fn invalid() -> AppError {
-    AppError {
-        code: ErrorCode::InvalidRequest,
-    }
+    AppError::new(ErrorCode::InvalidRequest)
 }
 
 #[tauri::command]
@@ -72,9 +70,7 @@ pub async fn pick_source<R: tauri::Runtime>(
     let selected =
         tauri::async_runtime::spawn_blocking(move || app.dialog().file().blocking_pick_file())
             .await
-            .map_err(|_| AppError {
-                code: ErrorCode::OwnerUnavailable,
-            })?;
+            .map_err(|_| AppError::new(ErrorCode::OwnerUnavailable))?;
     let Some(selected) = selected else {
         return Ok(None);
     };
@@ -91,9 +87,7 @@ async fn validate_selection(
     }
     let status = service.status(RequestContext::local_ui()).await?;
     if status.preferences.workspace_id != request.workspace_id {
-        return Err(AppError {
-            code: ErrorCode::PermissionDenied,
-        });
+        return Err(AppError::new(ErrorCode::PermissionDenied));
     }
     Ok(())
 }
