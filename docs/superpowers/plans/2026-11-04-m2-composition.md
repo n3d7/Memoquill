@@ -1,17 +1,21 @@
 # M2 composition implementation plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Superpowers subagent-driven-development; one implementer then task review, no parallel implementation workers. Follow TDD and commit completed substeps only.
+> **For agentic workers:** Superpowers execution with the explicit user override below. Follow focused TDD and commit completed substeps only; avoid broad repeated checks and per-task review dispatch.
 
 **Goal:** deliver the remaining M2 services, replaceable frontend and isolated offline lesson constructor, then qualify all executable acceptance criteria.
 **Architecture:** existing Unit is lesson identity; immutable composition/activity revisions and durable authoring drafts use the existing single writer. Typed frontend ports isolate native transport; a trusted owned renderer serves authoring and preview. No mutable state is shared between lesson tabs.
 **Tech stack:** current Rust/rusqlite/Tauri and React/TypeScript/Vitest, no new dependency.
 **Spec:** docs/architecture/lesson-composition.md, final user isolation correction; docs/planning/m2-contracts.md and live KER-118/119/120/116 acceptance.
 
+## User process override — 2026-11-05
+
+The user explicitly asks to conserve usage: run focused regressions for changed behavior and type checks for changed interfaces now; defer full suites/build/lint/security and one whole-change review to the end of M2. Do not repeat broad source reads, long reports or per-task review/re-review cycles. Existing concrete data-loss/isolation/security findings still get fixed and covering tests. Preserve test evidence in short logs, no completion claims for deferred gates. This overrides overlapping Superpowers per-task review requirements and prior plan check cadence below. No feature/safety boundary is removed.
+
 ## Global constraints
 
 - Work on existing dev checkout as explicitly requested, preserve unrelated AGENTS/.agents/.gitignore and two tooling reports. No push/merge/PR/release.
 - User 2026-11-04 authorizes continuing all M2 implementation immediately; this supersedes the architecture hold and redundant approval pauses, not security/acceptance gates.
-- No GUI launch or screenshots. Native/physical GNOME/human Orca acceptance must remain explicitly unverified if prohibited.
+- User follow-up authorizes opening the app when needed for visual checks and requesting screenshots from the user. Never capture screenshots ourselves. Native/physical GNOME/human Orca evidence remains separately verified; no host reconfiguration.
 - No M3 parser, real M4 attempts/evaluator, M6 transport/grants or M8 motivation implementation. M2 activity preview is simulated and cannot write study history.
 - One rooted composition tree: 1 MiB JSON, 256 nodes, depth 12, 64 children/slot, 16 KiB props/node, 256 bindings, 64 source bindings. Conditions: 32 nodes/depth 4, no scripts/paths/loops. Batch: 64 operations, 2 MiB envelope, 512 revision closure. Draft caps 20 and 32 MiB per actor/Unit.
 - Different editable lesson tabs cannot alias mutable composition, drafts, response/assistance/preferences/schedule/progress. No future linked-tab seam. Immutable source bytes may be reused; pins never auto-follow target heads.
@@ -63,7 +67,7 @@
 
 ## Task 4: KER-113/114/115/116 integrated qualification
 
-**Files:** focused regressions plus docs/quality acceptance ledger, m2 execution, handoff and task report. Existing native harness only for static changes; do not launch GUI.
+**Files:** focused regressions plus docs/quality acceptance ledger, m2 execution, handoff and task report. Existing native harness may be used only with screenshot capture disabled; open a verified candidate for user-provided screenshots when needed.
 
 - [ ] Map KER-99 and every child acceptance to current implementation, tests and remaining human evidence; do not infer completion from status.
 - [ ] Execute existing full `npm run check` once on final reviewed code; targeted changed-code security/dependency/license checks appropriate to actual edits, no external private-code transfer.
@@ -76,3 +80,18 @@
 - Existing dev checkout is the explicitly requested workspace; a new feature branch/worktree would violate the requested substep commit destination.
 - Keep full architecture target in scope. First-slice tests alone do not satisfy KER-120; remaining registry/types and all executable criteria belong to the same milestone.
 - No new literature retrieval is needed for implementing already-researched contracts; verify library-specific uncertainties only when encountered.
+
+## Task 5: KER-119 staged resource read follow-up (execute before Task3)
+
+**Reason:** interface verification found readActivity/readSource resolve durable Pending definitions but readDocument is published-only; reopened staged resource previews otherwise cannot render. This completes the existing preview/recovery contract, not a new feature.
+**Files:** existing workspace lessons storage/read helper, ApplicationService/native command/ACL registration; src/lessons/types.ts and nativeLessonPort.ts; focused Rust/adapter tests. No migration, renderer, new dependency or source parser.
+**Interfaces:** add `LessonPort.readResource(unitId: string, revisionId: string): Promise<SavedDocument | null>` using existing contentBridge SavedDocument type; native `lesson_read_resource` query. Resolve the requested Unit's durable Pending::Resource revision first, then authorized immutable published dependency closure. Do not use ephemeral frontend caches or global unscoped reads. Preserve exact revision ID/document before and after apply.
+
+- [ ] Write failing test: stage a new resource with createResourceRevision, reopen database/service, read through Unit-scoped public port and get exact staged ID/document while global readDocument remains unpublished.
+- [ ] Write failing tests: another Unit cannot read the staged pin; apply then same scoped read returns same immutable published revision; later edits do not alter it. Denial does not disclose source metadata.
+- [ ] Run focused tests RED, implement read-only resolver through existing actor/service/native boundaries and matching typed frontend adapter.
+- [ ] Align catalog response.update value bound with actual scalar validation:4096 UTF-8 bytes (catalog.rs currently16384 maxLength). Include ASCII4096/4097 and multibyte boundary regression/metadata; document byte semantics so tools do not treat code-point length as sufficient. Keep event/action/state descriptors consistent.
+- [ ] Run focused Rust/adapter tests, fmt/Clippy/build as affected; commit only this independently testable substep and record exact logs/report.
+- [ ] Task-scoped review before Task3 consumes this interface. KER-119 stays unfinished until this gap and review are closed.
+
+Execution order refinement: Task1 fix/review → Task2 → Task5 → Task3 → Task4. Task2 does not depend on resource rendering, so its frontend boundary extraction can proceed first. Task3 must consume the real scoped readResource method.

@@ -106,7 +106,7 @@ controls and authorized agents, including unsupported-type diagnostics.
 | `source@1` | source-binding revision and locator | `openSource` via managed resolver; no arbitrary path/URL fetch |
 | `activity@1` | activity binding; presentation enum | Response, hint, reveal, submit events routed to activity controller; policy comes from activity revision |
 | `button@1` | label, style enum, declared action binding | Keyboard activation and accessible name; no handler text |
-| `status@1` | declared read-only view field, label | Completion/status with explicit meaning, never a claim of universal mastery |
+| `status@1` | declared read-only view field, label, optional same-composition targetNodeId | Completion/status with explicit meaning, never a claim of universal mastery |
 
 Initial activity families reuse [the learning model](../product/learning-model.md):
 recall/cloze, single-choice, constructed response/problem, and procedure/practical
@@ -125,6 +125,12 @@ preview uses the same occurrence rule in its isolated store. Schedule state and
 progress are keyed by learner profile, Unit and logical activity; reusing that
 activity in another lesson does not advance this lesson's schedule or progress.
 Within one lesson, item attempts remain distinct.
+
+`status@1.targetNodeId`, when present, reads one compatible occurrence in the
+same composition and renderer: `section.expanded` targets a section; response,
+help and submitted fields target an activity. It grants no write authority,
+cross-lesson lookup or aggregate progress query. Omission preserves the original
+self-local interpretation; the editor makes an unselected source explicit.
 
 Appearance uses bounded named tokens (spacing, contrast-safe theme, typography,
 width and emphasis enums), not CSS, selectors, DOM attributes or URLs. Focus and
@@ -194,7 +200,7 @@ expectedDraftRevision?, expectedHeadRevision?, operations}`. Context is supplied
 by the trusted caller boundary. Create requires Unit write, or explicit create-Unit
 authority in its destination; it must not be hidden inside a layout-only mutation.
 
-Closed operations: `insertNode(parent, slot, index, node)`, `removeNode(id)`,
+Closed operations: `insertNode(parent, slot, index, node)`, bounded `insertSubtree(parent, slot, index, rootNodeId, nodes, bindings?)` for atomic grouped insertion/undo, `removeNode(id)`,
 `moveNode(id, parent, slot, index)`, `configureNode(id, typedProps)`,
 `bindReference(binding)`, `setAppearance(tokens)`, and explicitly typed
 `createResourceRevision` / `createActivityRevision` with their own bases and grants.
@@ -206,6 +212,12 @@ map (empty clears it), not an arbitrary merge. Initial insert validates these fi
 by the same rules. It cannot change real session policy or an active snapshot.
 Removing a node removes its subtree from this composition only. It does not delete
 resource/activity definitions, sources or attempts. Root removal is rejected.
+`insertSubtree(parent, slot, index, rootNodeId, nodes, bindings?)` restores a known,
+connected subtree in one semantic edit while retaining node identities. It uses the
+same type, tree, reference and Unit checks as insertion/binding. Admission counts
+its nodes and bindings against the existing 256-node/binding bounds; the 64-operation,
+1 MiB composition and 2 MiB envelope limits remain unchanged. New unknown types are
+rejected; opaque root recovery retains the original saved snapshot.
 Moves use indices in the target slot after removal; validate the final tree.
 Undo creates an inverse draft edit/new head revision and rechecks current bases;
 it never erases committed revisions or concurrent edits.
