@@ -131,6 +131,54 @@ pub(super) fn edit(c: &Connection, s: &mut DraftState, op: &LessonOperation) -> 
             )?;
             s.draft.composition.nodes.push(node.clone());
         }
+        LessonOperation::InsertSubtree {
+            parent,
+            slot,
+            index,
+            root_node_id,
+            nodes,
+            bindings,
+        } => {
+            if nodes.is_empty() || nodes.len() > 256 || bindings.len() > 256 {
+                return Err(invalid());
+            }
+            let mut ids = HashSet::new();
+            for node in nodes {
+                if !known(node)
+                    || !ids.insert(node.node_id.clone())
+                    || s.draft
+                        .composition
+                        .nodes
+                        .iter()
+                        .any(|n| n.node_id == node.node_id)
+                {
+                    return Err(invalid());
+                }
+            }
+            let mut visited = HashSet::new();
+            let mut pending = vec![root_node_id.clone()];
+            while let Some(id) = pending.pop() {
+                if !visited.insert(id.clone()) {
+                    return Err(invalid());
+                }
+                let node = nodes.iter().find(|n| n.node_id == id).ok_or_else(invalid)?;
+                pending.extend(node.slots.values().flatten().cloned());
+            }
+            if visited.len() != nodes.len() {
+                return Err(invalid());
+            }
+            for binding in bindings {
+                bind(&mut s.draft.composition, binding.clone());
+            }
+            attach(
+                &mut s.draft.composition,
+                root_node_id.clone(),
+                parent,
+                slot,
+                *index,
+            )?;
+            s.draft.composition.nodes.extend(nodes.iter().cloned());
+        }
         LessonOperation::RemoveNode { id } => {
             detach(&mut s.draft.composition, id)?;
             let mut removed = HashSet::new();

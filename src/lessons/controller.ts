@@ -88,15 +88,22 @@ export function restoreOperations(current: Composition, target: Composition): Le
   const operations: LessonOperation[] = []; const wanted = new Map(target.nodes.map(n => [n.nodeId, n])); const existing = new Set(current.nodes.map(n => n.nodeId));
   const parents = new Map<string, string>(); current.nodes.forEach(n => Object.values(n.slots).flat().forEach(id => parents.set(id, n.nodeId)));
   current.nodes.filter(n => !wanted.has(n.nodeId) && wanted.has(parents.get(n.nodeId) ?? '')).forEach(n => operations.push({ kind: 'removeNode', id: n.nodeId }));
+  const positions = new Map<string, string>(); current.nodes.forEach(n => Object.entries(n.slots).forEach(([slot, ids]) => ids.forEach((id, index) => positions.set(id, JSON.stringify([n.nodeId, slot, index])))));
+  const collect = (id: string): typeof target.nodes => { const node = wanted.get(id); return node ? [node, ...Object.values(node.slots).flat().flatMap(collect)] : []; };
   const visit = (id: string) => {
     const node = wanted.get(id); if (!node) return;
-    if (existing.has(id)) { operations.push({ kind: 'configureNode', id, props: node.props }, { kind: 'configureInteraction', id, on: node.on, ...(node.visible ? { visible: node.visible } : {}) }); }
+    const old = current.nodes.find(n => n.nodeId === id);
+    if (old && JSON.stringify(old.props) !== JSON.stringify(node.props)) operations.push({ kind: 'configureNode', id, props: node.props });
+    if (old && JSON.stringify([old.on, old.visible]) !== JSON.stringify([node.on, node.visible])) operations.push({ kind: 'configureInteraction', id, on: node.on, ...(node.visible ? { visible: node.visible } : {}) });
     Object.entries(node.slots).forEach(([slot, ids]) => ids.forEach((child, index) => {
       const childNode = wanted.get(child); if (!childNode) return;
-      if (!existing.has(child)) operations.push({ kind: 'insertNode', parent: id, slot, index, node: { ...childNode, slots: Object.fromEntries(Object.keys(childNode.slots).map(s => [s, []])) } });
-      else operations.push({ kind: 'moveNode', id: child, parent: id, slot, index });
+      if (!existing.has(child)) {
+        const subtree = collect(child);
+        if (subtree.every(n => !existing.has(n.nodeId))) { operations.push({ kind: 'insertSubtree', parent: id, slot, index, rootNodeId: child, nodes: subtree }); return; }
+        operations.push({ kind: 'insertNode', parent: id, slot, index, node: { ...childNode, slots: Object.fromEntries(Object.keys(childNode.slots).map(s => [s, []])) } });
+      } else if (positions.get(child) !== JSON.stringify([id, slot, index])) operations.push({ kind: 'moveNode', id: child, parent: id, slot, index });
       visit(child);
     }));
   };
-  target.bindings.forEach(binding => operations.push({ kind: 'bindReference', binding })); visit(target.rootNodeId); operations.push({ kind: 'setAppearance', tokens: target.appearance }); return operations;
+  target.bindings.filter(binding => JSON.stringify(current.bindings.find(b => b.bindingId === binding.bindingId)) !== JSON.stringify(binding)).forEach(binding => operations.push({ kind: 'bindReference', binding })); visit(target.rootNodeId); if (JSON.stringify(current.appearance) !== JSON.stringify(target.appearance)) operations.push({ kind: 'setAppearance', tokens: target.appearance }); return operations;
 }

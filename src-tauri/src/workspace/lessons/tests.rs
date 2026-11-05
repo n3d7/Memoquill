@@ -1,5 +1,60 @@
 use super::*;
 use serde_json::json;
+#[test]
+fn subtree_restore_is_one_atomic_bounded_semantic_edit() {
+    let (_temp, mut db, unit) = setup();
+    let draft = create(&mut db, &unit);
+    let mut nodes = vec![
+        json!({"nodeId":"branch","typeId":"columns","typeVersion":1,"props":{"ratio":"equal"},"slots":{"primary":[],"secondary":[]},"on":{}}),
+    ];
+    for i in 0..70 {
+        let id = format!("restored-{i}");
+        let slot = if i < 35 { "primary" } else { "secondary" };
+        nodes[0]["slots"][slot]
+            .as_array_mut()
+            .unwrap()
+            .push(json!(id));
+        nodes.push(json!({"nodeId":id,"typeId":"status","typeVersion":1,"props":{"field":"response.present","label":"Response"},"slots":{},"on":{}}));
+    }
+    let operation: LessonOperation = serde_json::from_value(json!({"kind":"insertSubtree","parent":draft.composition.root_node_id,"slot":"body","index":0,"rootNodeId":"branch","nodes":nodes})).unwrap();
+    let request = edit(&db, &draft, vec![operation]);
+    let restored = db
+        .lesson_edit(RequestContext::local_ui(), &request)
+        .unwrap();
+    assert_eq!(restored.composition.nodes.len(), 72);
+    let removal = edit(
+        &db,
+        &restored,
+        vec![LessonOperation::RemoveNode {
+            id: "branch".into(),
+        }],
+    );
+    let removed = db
+        .lesson_edit(RequestContext::local_ui(), &removal)
+        .unwrap();
+    let mut malformed = serde_json::to_value(&request).unwrap();
+    malformed["expectedDraftRevision"] = json!(removed.revision);
+    malformed["operationId"] = json!(Uuid::new_v4().to_string());
+    malformed["operations"][0]["nodes"][0]["slots"]["primary"] = json!([]);
+    assert!(
+        db.lesson_edit(
+            RequestContext::local_ui(),
+            &serde_json::from_value(malformed).unwrap()
+        )
+        .is_err()
+    );
+    let mut cross_unit = request;
+    cross_unit.unit_id = Uuid::new_v4().to_string();
+    assert!(
+        db.lesson_edit(RequestContext::local_ui(), &cross_unit)
+            .is_err()
+    );
+    assert_eq!(
+        db.lesson_list_drafts(RequestContext::local_ui(), &unit)
+            .unwrap()[0],
+        removed
+    );
+}
 fn composition() -> Value {
     json!({"contractVersion":1,"unitId":"unit","rootNodeId":"root","nodes":[{"nodeId":"root","typeId":"stack","typeVersion":1,"props":{"gap":"normal","headingLevel":1},"slots":{"body":[]},"on":{}}],"bindings":[],"sourceBindingRefs":[],"appearance":{"spacing":"normal","theme":"system","typography":"default","width":"normal","emphasis":"normal"},"authoringProvenance":{"kind":"manual"}})
 }

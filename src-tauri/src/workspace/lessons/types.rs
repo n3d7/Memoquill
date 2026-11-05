@@ -116,6 +116,16 @@ pub struct ActivityRevision {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
 pub enum LessonOperation {
+    #[serde(rename_all = "camelCase")]
+    InsertSubtree {
+        parent: String,
+        slot: String,
+        index: usize,
+        root_node_id: String,
+        nodes: Vec<LessonNode>,
+        #[serde(default)]
+        bindings: Vec<Binding>,
+    },
     ReplaceUnsupportedRoot {
         node: LessonNode,
     },

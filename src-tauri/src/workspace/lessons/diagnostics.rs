@@ -146,6 +146,9 @@ pub(super) fn for_operation(
 ) -> AppError {
     if error.diagnostics.is_empty() {
         let (node, binding, field) = match operation {
+            LessonOperation::InsertSubtree { root_node_id, .. } => {
+                (Some(root_node_id.as_str()), None, "nodes")
+            }
             LessonOperation::ConfigureNode { id, .. } => (Some(id.as_str()), None, "props"),
             LessonOperation::ConfigureInteraction { id, .. } => (Some(id.as_str()), None, "on"),
             LessonOperation::InsertNode { node, .. }
@@ -193,6 +196,14 @@ pub(super) fn attach_operations(mut error: AppError, operations: &[LessonOperati
             .enumerate()
             .rev()
             .find(|(_, op)| match op {
+                LessonOperation::InsertSubtree {
+                    nodes, bindings, ..
+                } => {
+                    nodes.iter().any(|n| d.node_id.as_ref() == Some(&n.node_id))
+                        || bindings
+                            .iter()
+                            .any(|b| d.binding_id.as_ref() == Some(&b.binding_id))
+                }
                 LessonOperation::ConfigureNode { id, .. }
                 | LessonOperation::ConfigureInteraction { id, .. }
                 | LessonOperation::RemoveNode { id }

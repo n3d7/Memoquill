@@ -210,6 +210,31 @@ pub(crate) fn admit_edit(value: &EditLessonDraft) -> Result<()> {
     if value.operations.len() > 64 {
         return Err(budget());
     }
+    let mut inserted = 0usize;
+    let mut bound = 0usize;
+    for operation in &value.operations {
+        match operation {
+            super::types::LessonOperation::InsertNode { .. } => inserted += 1,
+            super::types::LessonOperation::BindReference { .. } => bound += 1,
+            super::types::LessonOperation::InsertSubtree {
+                nodes, bindings, ..
+            } => {
+                inserted += nodes.len();
+                bound += bindings.len();
+            }
+            _ => {}
+        }
+        if let super::types::LessonOperation::InsertSubtree {
+            nodes, bindings, ..
+        } = operation
+            && (nodes.is_empty() || nodes.len() > 256 || bindings.len() > 256)
+        {
+            return Err(budget());
+        }
+    }
+    if inserted > 256 || bound > 256 {
+        return Err(budget());
+    }
     admit(value)
 }
 pub(crate) fn decode<T: DeserializeOwned>(body: &InvokeBody) -> Result<T> {
