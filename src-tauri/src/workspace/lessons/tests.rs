@@ -43,8 +43,19 @@ fn subtree_restore_is_one_atomic_bounded_semantic_edit() {
         )
         .is_err()
     );
-    let mut cross_unit = request;
+    let mut oversized = request.clone();
+    if let LessonOperation::InsertSubtree { nodes, .. } = &mut oversized.operations[0] {
+        nodes.resize(257, nodes[0].clone());
+    }
+    assert!(super::admission::admit_edit(&oversized).is_err());
+    let mut cross_unit = request.clone();
     cross_unit.unit_id = Uuid::new_v4().to_string();
+    db.connection
+        .execute(
+            "INSERT INTO units VALUES(?1,'Other lesson','goal',0)",
+            [&cross_unit.unit_id],
+        )
+        .unwrap();
     assert!(
         db.lesson_edit(RequestContext::local_ui(), &cross_unit)
             .is_err()
@@ -54,9 +65,38 @@ fn subtree_restore_is_one_atomic_bounded_semantic_edit() {
             .unwrap()[0],
         removed
     );
+    let mut restore = request;
+    restore.operation_id = OperationId::generate();
+    restore.expected_draft_revision = removed.revision;
+    let again = db
+        .lesson_edit(RequestContext::local_ui(), &restore)
+        .unwrap();
+    assert_eq!(again.composition, restored.composition);
 }
 fn composition() -> Value {
     json!({"contractVersion":1,"unitId":"unit","rootNodeId":"root","nodes":[{"nodeId":"root","typeId":"stack","typeVersion":1,"props":{"gap":"normal","headingLevel":1},"slots":{"body":[]},"on":{}}],"bindings":[],"sourceBindingRefs":[],"appearance":{"spacing":"normal","theme":"system","typography":"default","width":"normal","emphasis":"normal"},"authoringProvenance":{"kind":"manual"}})
+}
+#[test]
+fn status_read_target_is_optional_and_confined_to_a_compatible_node_in_this_composition() {
+    let mut c = composition();
+    c["nodes"][0]["slots"]["body"] = json!(["section", "status"]);
+    c["nodes"].as_array_mut().unwrap().extend([
+        json!({"nodeId":"section","typeId":"section","typeVersion":1,"props":{"title":"Section","collapsible":true},"slots":{"body":[]},"on":{}}),
+        json!({"nodeId":"status","typeId":"status","typeVersion":1,"props":{"field":"section.expanded","label":"Expanded","targetNodeId":"section"},"slots":{},"on":{}})
+    ]);
+    assert!(validate_composition(&c, false).is_ok());
+    c["nodes"][2]["props"]["targetNodeId"] = json!("foreign-or-missing");
+    assert!(validate_composition(&c, false).is_err());
+    c["nodes"][2]["props"]["targetNodeId"] = json!("root");
+    assert!(validate_composition(&c, false).is_err());
+    c["nodes"][2]["props"]["targetNodeId"] = json!("section");
+    c["nodes"][2]["props"]["field"] = json!("response.present");
+    assert!(validate_composition(&c, false).is_err());
+    c["nodes"][2]["props"]
+        .as_object_mut()
+        .unwrap()
+        .remove("targetNodeId");
+    assert!(validate_composition(&c, false).is_ok());
 }
 #[test]
 fn rejects_cycles_unreachable_unknown_and_duplicate_children() {

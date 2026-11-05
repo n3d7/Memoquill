@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { createElement, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Fragment, Slice } from 'prosemirror-model';
 import { EditorState, NodeSelection, Plugin, TextSelection, type Transaction, type Command } from 'prosemirror-state';
 import { EditorView } from 'prosemirror-view';
 import { baseKeymap, toggleMark } from 'prosemirror-commands';
 import { history, undo, redo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
-import { editorSchema, emptyDocument, fromEditorDoc, toEditorDoc, type Block, type BlockContent, type Document } from './documentModel';
+import { editorSchema, emptyDocument, fromEditorDoc, toEditorDoc, type Block, type BlockContent, type Document, type Inline } from './documentModel';
 import { MathPreview } from './MathPreview';
 import 'prosemirror-view/style/prosemirror.css';
 
@@ -203,6 +203,8 @@ export function DocumentEditor({ document, onChange, readOnly = false, passive =
   const updateBlock = (content: BlockContent) => replaceBlock(view.current!, session.current, selected, content);
   const block = draft.blocks.find(item => item.id === selected) ?? draft.blocks[0];
 
+  if (passive) return <div className="document-reader" aria-label={label}><CanonicalReading blocks={document.blocks} /></div>;
+
   return <div className="document-editor">
     {!passive && <><Formatting view={view} readOnly={readOnly} label={label} />
     <p>Use Ctrl/⌘+B for bold, Ctrl/⌘+I for italic, and Ctrl/⌘+Z to undo. Pasted content is plain text. Drops are disabled.</p></>}
@@ -227,6 +229,34 @@ export function DocumentEditor({ document, onChange, readOnly = false, passive =
       setSelected(added.id);
     }}>Add block</button></>}
   </div>;
+}
+
+/** Passive mode shares the canonical codec and safe previews with the authoring primitive. */
+function CanonicalReading({ blocks }: { blocks: Block[] }) {
+  const inlines = (items: Inline[]) => items.map((inline, index) => {
+    let text: ReactNode = inline.text;
+    for (const mark of inline.marks) {
+      if (mark.type === 'strong') text = <strong>{text}</strong>;
+      if (mark.type === 'emphasis') text = <em>{text}</em>;
+      if (mark.type === 'code') text = <code>{text}</code>;
+      // As in the authoring codec, links remain passive text rather than navigation.
+      if (mark.type === 'link') text = <span className="document-link">{text}</span>;
+    }
+    return <span key={index}>{text}</span>;
+  });
+  return <>{blocks.map(block => {
+    const content = block.content;
+    switch (content.type) {
+      case 'paragraph': return <p key={block.id}>{inlines(content.inlines)}</p>;
+      case 'heading': return createElement(`h${Math.min(6, Math.max(1, content.level))}`, { key: block.id }, inlines(content.inlines));
+      case 'code': return <pre key={block.id}><code>{content.text}</code></pre>;
+      case 'math': return <div key={block.id}><MathPreview source={content.source} /></div>;
+      case 'list': { const items = content.items.map((blocks, index) => <li key={blocks[0]?.id ?? index}><CanonicalReading blocks={blocks} /></li>); return content.ordered ? <ol key={block.id}>{items}</ol> : <ul key={block.id}>{items}</ul>; }
+      case 'table': return <table key={block.id}><tbody>{content.rows.map((row, r) => <tr key={r}>{row.map((blocks, c) => <td key={blocks[0]?.id ?? c}><CanonicalReading blocks={blocks} /></td>)}</tr>)}</tbody></table>;
+      case 'media': return <figure key={block.id}><p>Preserved attachment: {content.alt || content.mime}</p><figcaption>{content.caption}</figcaption></figure>;
+      case 'unsupported': return <aside key={block.id}><p>Unsupported content preserved: {content.reason}</p><pre>{content.original}</pre><SourceLocation source={content.source} /></aside>;
+    }
+  })}</>;
 }
 
 function BlockFields({ block, onChange, readOnly }: { block: Block; onChange: (content: BlockContent) => void; readOnly: boolean }) {

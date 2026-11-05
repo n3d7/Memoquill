@@ -104,7 +104,7 @@ pub(super) fn props_schema(t: &str) -> Value {
             &["label", "style", "action"],
         ),
         "status" => object(
-            json!({"field":enumeration(&view_fields()),"label":string(512)}),
+            json!({"field":enumeration(&view_fields()),"label":string(512),"targetNodeId":string(128)}),
             &["field", "label"],
         ),
         _ => json!(false),

@@ -253,9 +253,25 @@ fn props(n: &LessonNode, c: &Composition) -> Result<()> {
             }
         }
         "status" => {
-            fields(p, &["field", "label"], &[])?;
+            fields(p, &["field", "label"], &["targetNodeId"])?;
             if !field(&p["field"]) || !text(&p["label"], 512) {
                 return Err(invalid());
+            }
+            if let Some(target) = p.get("targetNodeId") {
+                let target = target
+                    .as_str()
+                    .filter(|s| valid_id(s))
+                    .ok_or_else(invalid)?;
+                let expected = if p["field"] == "section.expanded" {
+                    "section"
+                } else {
+                    "activity"
+                };
+                if !c.nodes.iter().any(|node| {
+                    node.node_id == target && node.type_version == 1 && node.type_id == expected
+                }) {
+                    return Err(AppError::new(ErrorCode::InvalidReference));
+                }
             }
         }
         _ => return Err(invalid()),

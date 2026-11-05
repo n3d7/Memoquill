@@ -3,13 +3,13 @@ import type { ApplyLessonDraft, Composition, LessonDraft, LessonOperation, Lesso
 export interface LessonState {
   composition: Composition | null; draft: LessonDraft | null; drafts: LessonDraft[];
   saved: SavedComposition | null; preview: LessonPreview | null; registry: RegistryDescriptor[];
-  busy: boolean; pending: boolean; message: string; error: string; canUndo: boolean; canRedo: boolean;
+  busy: boolean; pending: boolean; conflict: boolean; message: string; error: string; canUndo: boolean; canRedo: boolean;
 }
 interface History { before: Composition; after: Composition }
 const message = (error: unknown) => error instanceof Error ? error.message : typeof error === 'object' && error && 'code' in error ? String(error.code) : 'The lesson change could not be confirmed.';
 /** One durable authoring scope per Unit. Unknown outcomes retain the exact request. */
 export class LessonController {
-  private state: LessonState = { composition: null, draft: null, drafts: [], saved: null, preview: null, registry: [], busy: false, pending: false, message: '', error: '', canUndo: false, canRedo: false };
+  private state: LessonState = { composition: null, draft: null, drafts: [], saved: null, preview: null, registry: [], busy: false, pending: false, conflict: false, message: '', error: '', canUndo: false, canRedo: false };
   private listeners = new Set<() => void>();
   private pending: (() => Promise<void>) | null = null;
   private undoStack: History[] = []; private redoStack: History[] = []; private generation = 0;
@@ -32,8 +32,14 @@ export class LessonController {
   async chooseDraft(id: string) { if (this.state.pending || this.state.busy) return; const draft = this.state.drafts.find(d => d.id === id); if (!draft) return; this.undoStack = []; this.redoStack = []; this.publish({ draft, composition: draft.composition, preview: null, error: '' }); }
   private async execute(work: () => Promise<void>) {
     this.pending = work; this.publish({ pending: true, busy: true, error: '' });
-    try { await work(); this.pending = null; this.publish({ pending: false }); }
-    catch (error) { this.publish({ error: `${message(error)} Your draft is preserved. Retry the same change or check for a conflict.`, message: '' }); }
+    try { await work(); this.pending = null; this.publish({ pending: false, conflict: false }); }
+    catch (error) {
+      const code = typeof error === 'object' && error && 'code' in error ? String(error.code).toLowerCase() : '';
+      const conflict = /revision[_ ]?conflict/i.test(code || message(error));
+      const rejected = ['invalid_request', 'invalid_reference', 'invalid_tree', 'unsupported_version', 'permission_denied', 'budget_exceeded', 'needs_review', 'capability_unavailable'].includes(code);
+      if (rejected) this.pending = null;
+      this.publish({ pending: !rejected, conflict, error: `${message(error)} Your draft is preserved. ${rejected ? 'Correct the form and try again.' : 'Retry the same change or check for a conflict.'}`, message: '' });
+    }
     finally { this.publish({ busy: false }); }
   }
   async retry() { if (!this.pending || this.state.busy) return; await this.execute(this.pending); }
@@ -49,29 +55,34 @@ export class LessonController {
     const request = { ...this.draftScope(), operationId: crypto.randomUUID(), operations: structuredClone(operations) };
     await this.execute(async () => {
       const draft = await this.port.editDraft(request);
-      if (history === 'normal') { this.undoStack.push({ before, after: structuredClone(draft.composition) }); this.redoStack = []; }
+      if (draft.id !== request.draftId || draft.unitId !== request.unitId || draft.revision !== request.expectedDraftRevision + 1) throw new Error('The editing reply does not match the pending lesson change.');
+      if (history === 'normal' && JSON.stringify(before) !== JSON.stringify(draft.composition)) { this.undoStack.push({ before, after: structuredClone(draft.composition) }); this.redoStack = []; }
       if (history === 'undo') { const entry = this.undoStack.pop(); if (entry) this.redoStack.push(entry); }
       if (history === 'redo') { const entry = this.redoStack.pop(); if (entry) this.undoStack.push(entry); }
-      this.publish({ draft, composition: draft.composition, preview: null, message: 'Editing draft saved locally.' });
+      this.publish({ draft, drafts: this.state.drafts.map(d => d.id === draft.id ? draft : d), composition: draft.composition, preview: null, message: 'Editing draft saved locally.' });
     });
   }
-  async undo() { const entry = this.undoStack.at(-1); if (entry && this.state.composition) await this.edit(restoreOperations(this.state.composition, entry.before), 'undo'); }
-  async redo() { const entry = this.redoStack.at(-1); if (entry && this.state.composition) await this.edit(restoreOperations(this.state.composition, entry.after), 'redo'); }
+  async undo() { const entry = this.undoStack.at(-1); if (entry && !this.state.draft) await this.begin(); if (entry && this.state.composition) await this.edit(restoreOperations(this.state.composition, entry.before), 'undo'); }
+  async redo() { const entry = this.redoStack.at(-1); if (entry && !this.state.draft) await this.begin(); if (entry && this.state.composition) await this.edit(restoreOperations(this.state.composition, entry.after), 'redo'); }
   async preview() {
     if (this.state.pending || this.state.busy || !this.state.draft) return;
     const request = this.draftScope(); this.publish({ busy: true, error: '', preview: null });
-    try { const validation = await this.port.validateDraft(request); if (!validation.valid) throw new Error(validation.diagnostics.map(d => `${d.field}: ${d.code} (${d.repair})`).join('; ')); const preview = await this.port.previewDraft(request); this.publish({ preview, message: 'Preview only. Answers here do not record learning progress.' }); }
-    catch (error) { this.publish({ error: message(error) }); } finally { this.publish({ busy: false }); }
+    try { const validation = await this.port.validateDraft(request); if (!validation.valid) throw new Error(validation.diagnostics.map(d => `${d.field}: ${d.code} (${d.repair})`).join('; ')); const preview = await this.port.previewDraft(request); if (preview.draftId !== request.draftId || preview.draftRevision !== request.expectedDraftRevision || preview.composition.unitId !== this.unitId) throw new Error('The preview does not match this editing draft.'); this.publish({ preview, message: 'Preview only. Answers here do not record learning progress.' }); }
+    catch (error) { const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : message(error); this.publish({ error: message(error), conflict: /revision[_ ]?conflict/i.test(code) }); } finally { this.publish({ busy: false }); }
   }
-  private accept(receipt: LessonReceipt) { this.undoStack = []; this.redoStack = []; this.publish({ saved: receipt.saved, composition: receipt.saved.composition, draft: null, preview: null, drafts: this.state.drafts.filter(d => d.id !== this.state.draft?.id), message: 'Lesson saved locally. Existing study snapshots keep their original revisions.' }); }
+  private accept(receipt: LessonReceipt) { this.publish({ saved: receipt.saved, composition: receipt.saved.composition, draft: null, preview: null, drafts: this.state.drafts.filter(d => d.id !== this.state.draft?.id), message: 'Lesson saved locally. Existing study snapshots keep their original revisions.' }); }
   async save() {
     if (this.state.pending || this.state.busy || !this.state.draft) return;
     await this.preview(); const { preview, draft } = this.state; if (!preview || !draft || preview.draftRevision !== draft.revision) return;
     const request: ApplyLessonDraft = { ...this.draftScope(), expectedHeadRevision: draft.baseHeadRevision, previewHash: preview.hash, operationId: crypto.randomUUID() };
     let attempted = false;
+    const accept = (receipt: LessonReceipt) => {
+      if (!receipt.committed || receipt.operationId !== request.operationId || receipt.proposalHash !== request.previewHash || receipt.saved.unitId !== this.unitId || receipt.saved.composition.unitId !== this.unitId) throw new Error('The save receipt does not match the pending lesson change.');
+      this.accept(receipt);
+    };
     await this.execute(async () => {
-      if (attempted) { const receipt = await this.port.getReceipt(request.operationId); if (receipt) { this.accept(receipt); return; } }
-      attempted = true; this.accept(await this.port.applyDraft(request));
+      if (attempted) { const receipt = await this.port.getReceipt(request.operationId); if (receipt) { accept(receipt); return; } }
+      attempted = true; accept(await this.port.applyDraft(request));
     });
   }
   /** Explicit refresh preserves the old durable draft; creating a new draft is a separate action. */
@@ -80,6 +91,16 @@ export class LessonController {
     this.publish({ busy: true, error: '' });
     try { const saved = await this.port.read(this.unitId); this.publish({ saved, message: 'Latest saved lesson checked. Your editing draft is preserved; it has not been rebased or overwritten.' }); }
     catch (error) { this.publish({ error: message(error) }); } finally { this.publish({ busy: false }); }
+  }
+  async startLatestDraft() {
+    if (this.state.busy || this.state.pending && !this.state.conflict) return;
+    this.publish({ busy: true, error: '' });
+    let saved: SavedComposition | null;
+    try { saved = await this.port.read(this.unitId); } catch (error) { this.publish({ busy: false, error: message(error) }); return; }
+    // Explicitly abandon only a confirmed conflict; the original draft remains durable.
+    this.pending = null; this.publish({ pending: false, conflict: false, saved, busy: false });
+    const request = { ...this.scope(), operationId: crypto.randomUUID(), expectedHeadRevision: saved?.id ?? null };
+    await this.execute(async () => { const draft = await this.port.createDraft(request); this.undoStack = []; this.redoStack = []; this.publish({ draft, composition: draft.composition, drafts: [...this.state.drafts.filter(d => d.id !== this.state.draft?.id), ...(this.state.draft ? [this.state.draft] : []), draft], preview: null, message: 'Started a new draft from the latest saved lesson. The earlier draft remains available for comparison; no edits were silently rebased.' }); });
   }
 }
 

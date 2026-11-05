@@ -19,7 +19,7 @@ export interface NodePropsMap {
   source: { bindingId: string; locator?: string };
   activity: { bindingId: string; presentation: 'default' | 'compact' };
   button: { label: string; style: 'primary' | 'secondary'; action: ActionBinding };
-  status: { field: ViewField; label: string };
+  status: { field: ViewField; label: string; targetNodeId?: string };
 }
 export type NodeType = keyof NodePropsMap;
 export interface LessonNode { nodeId: string; typeId: string; typeVersion: number; props: NodePropsMap[NodeType] | Record<string, unknown>; slots: Record<string, string[]>; on: Record<string, ActionBinding>; visible?: Condition }
