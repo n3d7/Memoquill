@@ -28,7 +28,9 @@ it('replaces the material view and transport while preserving exact retry and ne
     return new Promise<SavedDocument>(done => { resolve = done; });
   } };
   const props = { data, resourceId: 'resource', onDirty: vi.fn(), perform: vi.fn(), view: Replacement };
-  render(<ApplicationProvider ports={{ content: port }}><MaterialPanel {...props} /></ApplicationProvider>);
+  const unavailable = async (): Promise<never> => { throw new Error('Unused source action'); };
+  const sources = { sources: async () => ({ revision: 0, sources: [] }), pickSource: unavailable, saveSource: unavailable, sourcePreview: unavailable };
+  render(<ApplicationProvider ports={{ content: port, sources }}><MaterialPanel {...props} /></ApplicationProvider>);
   const user = userEvent.setup();
   const editor = await screen.findByLabelText('Replacement text');
   await screen.findByText('Saved material opened.');

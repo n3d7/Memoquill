@@ -7,7 +7,11 @@ import type { Library, SavedDocument } from './contentBridge';
 
 const bridge = vi.hoisted(() => ({ readDocument: vi.fn(), saveDocument: vi.fn(), readingPosition: vi.fn(), annotations: vi.fn(), saveAnnotation: vi.fn(), saveReadingPosition: vi.fn() }));
 vi.mock('./contentBridge', async load => ({ ...await load<typeof import('./contentBridge')>(), ...bridge }));
-vi.mock('./SourcesPanel', () => ({ SourcesPanel: ({ onPendingChange }: { onPendingChange: (value: boolean) => void }) => <><button onClick={() => onPendingChange(true)}>Simulate pending source</button><button onClick={() => onPendingChange(false)}>Finish attachment</button></> }));
+vi.mock('./sourceBridge', () => ({
+  sources: vi.fn().mockResolvedValue({ revision: 0, sources: [] }),
+  pickSource: vi.fn().mockResolvedValue({ digest: 'a'.repeat(64), byteLength: 12, filename: 'source.txt' }),
+  saveSource: vi.fn(), sourcePreview: vi.fn(),
+}));
 vi.mock('./DocumentEditor', () => ({ DocumentEditor: ({ document, onChange }: { document: import('./documentModel').Document; onChange: (value: import('./documentModel').Document) => void }) => {
   const block = document.blocks[0]; const text = block.content.type === 'paragraph' ? block.content.inlines.map(x => x.text).join('') : '';
   return <label>Document text<textarea value={text} onChange={e => onChange({ ...document, blocks: [{ ...block, content: { type: 'paragraph', inlines: [{ text: e.target.value, marks: [] }] } }] })} /></label>;
@@ -62,13 +66,13 @@ it('protects attachment drafts and keeps document protection after the attachmen
   const onDirty = vi.fn(); const user = userEvent.setup();
   render(<MaterialPanel data={data} resourceId="resource" onDirty={onDirty} perform={vi.fn()} />);
   const editor = await screen.findByLabelText('Document text');
-  await user.click(screen.getByRole('button', { name: 'Simulate pending source' }));
+  await user.click(screen.getByRole('button', { name: 'Choose source file' }));
   expect(onDirty).toHaveBeenLastCalledWith(true);
-  await user.click(screen.getByRole('button', { name: 'Finish attachment' }));
+  await user.click(screen.getByRole('button', { name: 'Discard selected source' }));
   expect(onDirty).toHaveBeenLastCalledWith(false);
   await user.type(editor, 'unsaved document');
-  await user.click(screen.getByRole('button', { name: 'Simulate pending source' }));
-  await user.click(screen.getByRole('button', { name: 'Finish attachment' }));
+  await user.click(screen.getByRole('button', { name: 'Choose source file' }));
+  await user.click(screen.getByRole('button', { name: 'Discard selected source' }));
   expect(onDirty).toHaveBeenLastCalledWith(true);
 });
 
