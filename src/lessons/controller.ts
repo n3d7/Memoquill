@@ -59,7 +59,7 @@ export class LessonController {
   async redo() { const entry = this.redoStack.at(-1); if (entry && this.state.composition) await this.edit(restoreOperations(this.state.composition, entry.after), 'redo'); }
   async preview() {
     if (this.state.pending || this.state.busy || !this.state.draft) return;
-    const request = this.draftScope(); this.publish({ busy: true, error: '' });
+    const request = this.draftScope(); this.publish({ busy: true, error: '', preview: null });
     try { const validation = await this.port.validateDraft(request); if (!validation.valid) throw new Error(validation.diagnostics.map(d => `${d.field}: ${d.code} (${d.repair})`).join('; ')); const preview = await this.port.previewDraft(request); this.publish({ preview, message: 'Preview only. Answers here do not record learning progress.' }); }
     catch (error) { this.publish({ error: message(error) }); } finally { this.publish({ busy: false }); }
   }

@@ -9,7 +9,7 @@ import { editorSchema, emptyDocument, fromEditorDoc, toEditorDoc, type Block, ty
 import { MathPreview } from './MathPreview';
 import 'prosemirror-view/style/prosemirror.css';
 
-interface Props { document: Document; onChange: (document: Document) => void; readOnly?: boolean; label?: string; resume?: { blockId: string; offsetUtf16: number } }
+interface Props { document: Document; onChange: (document: Document) => void; readOnly?: boolean; passive?: boolean; label?: string; resume?: { blockId: string; offsetUtf16: number } }
 type NewBlockType = 'paragraph' | 'heading' | 'code' | 'math' | 'list' | 'table';
 function newBlock(type: NewBlockType): Block {
   const id = crypto.randomUUID();
@@ -196,7 +196,7 @@ function Formatting({ view, readOnly, label }: { view: RefObject<EditorView | nu
   </div>;
 }
 
-export function DocumentEditor({ document, onChange, readOnly = false, label = 'Learning document', resume }: Props) {
+export function DocumentEditor({ document, onChange, readOnly = false, passive = false, label = 'Learning document', resume }: Props) {
   const { host, view, session, draft, selected, setSelected } = useDocumentEditor({ document, onChange, readOnly, label, resume });
   const [adding, setAdding] = useState<NewBlockType>('paragraph');
   const replace = (next: Document) => replaceDocument(view.current!, session.current, next);
@@ -204,10 +204,10 @@ export function DocumentEditor({ document, onChange, readOnly = false, label = '
   const block = draft.blocks.find(item => item.id === selected) ?? draft.blocks[0];
 
   return <div className="document-editor">
-    <Formatting view={view} readOnly={readOnly} label={label} />
-    <p>Use Ctrl/⌘+B for bold, Ctrl/⌘+I for italic, and Ctrl/⌘+Z to undo. Pasted content is plain text. Drops are disabled.</p>
+    {!passive && <><Formatting view={view} readOnly={readOnly} label={label} />
+    <p>Use Ctrl/⌘+B for bold, Ctrl/⌘+I for italic, and Ctrl/⌘+Z to undo. Pasted content is plain text. Drops are disabled.</p></>}
     <div className="prose-editor" ref={host} />
-    <label>{label === 'Learning document' ? 'Selected block' : `${label} selected block`} <select value={block.id} onChange={event => {
+    {!passive && <><label>{label === 'Learning document' ? 'Selected block' : `${label} selected block`} <select value={block.id} onChange={event => {
       setSelected(event.target.value);
       selectBlock(view.current!, event.target.value);
     }}>
@@ -225,7 +225,7 @@ export function DocumentEditor({ document, onChange, readOnly = false, label = '
       const added = newBlock(adding);
       replace({ schemaVersion: 1, blocks: [...session.current.document.blocks, added] });
       setSelected(added.id);
-    }}>Add block</button>
+    }}>Add block</button></>}
   </div>;
 }
 

@@ -6,12 +6,14 @@ import { ReadingPreferencesPanel } from './ReadingPreferencesPanel';
 import { useReadingPreferences } from './useReadingPreferences';
 import { failureMessage, type Collection, type Command, type Entity, type Library, type SearchPage } from './contentBridge';
 
-import { useContentPort, useIdentityPort } from './application/ApplicationProvider';
+import { useContentPort, useIdentityPort, useOptionalLessonPort, useSourcePort } from './application/ApplicationProvider';
+import { LessonTabs } from './lessons/LessonTabs';
 import { StatusMessage } from './application/controls';
 
 type Perform = (command: Command) => Promise<Library | null>;
 type Content = ReturnType<typeof useContentLibrary>;
 export function LibraryApp() {
+  const lessonPort = useOptionalLessonPort(); const sourcePort = useSourcePort();
   const content = useContentLibrary(); const reading = useReadingPreferences();
   const [subjectId, setSubjectId] = useState(''); const [collectionId, setCollectionId] = useState<string | null>(null);
   const [resourceId, setResourceId] = useState(''); const [dirty, setDirty] = useState(false);
@@ -29,6 +31,7 @@ export function LibraryApp() {
       {notice && <p role="alert">{notice}</p>}
       <SubjectNavigation content={content} selected={subjectId} select={id => { setSubjectId(id); setCollectionId(null); }} />
       {data && <LibraryContents data={data} content={content} subjectId={subjectId} collectionId={collectionId} selectCollection={setCollectionId} resourceId={resourceId} openResource={openResource} onDirty={setDirty} />}
+    {data && lessonPort && <LessonTabs data={data} port={lessonPort} sources={sourcePort} perform={content.perform} />}
     </main>
   </div>;
 }

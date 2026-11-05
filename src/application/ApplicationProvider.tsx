@@ -24,6 +24,7 @@ export const useContentPort = () => useContext(ApplicationContext).content;
 export const useSourcePort = () => useContext(ApplicationContext).sources;
 export const useWorkspacePort = () => useContext(ApplicationContext).workspace;
 export const useIdentityPort = () => useContext(ApplicationContext).identity;
+export const useOptionalLessonPort = () => useContext(ApplicationContext).lessons;
 export function useLessonPort(): LessonPort {
   const port = useContext(ApplicationContext).lessons;
   if (!port) throw new Error('A lesson application port must be supplied by the application root');

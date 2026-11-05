@@ -1,0 +1,2 @@
+import type { Composition } from './types';
+export const composition = (unitId = 'english'): Composition => ({ contractVersion: 1, unitId, rootNodeId: 'root', nodes: [{ nodeId: 'root', typeId: 'stack', typeVersion: 1, props: { gap: 'normal', headingLevel: 2 }, slots: { body: [] }, on: {} }], bindings: [], sourceBindingRefs: [], appearance: { spacing: 'normal', theme: 'system', typography: 'default', width: 'normal', emphasis: 'normal' }, authoringProvenance: { kind: 'manual' } });
