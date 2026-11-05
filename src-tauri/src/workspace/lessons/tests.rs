@@ -1417,3 +1417,178 @@ fn scoped_resource_read_survives_reopen_and_preserves_published_pin() {
         Some(staged)
     );
 }
+
+#[test]
+fn scoped_resource_read_resolves_published_pins_in_validated_drafts() {
+    let (temp, mut db, unit) = setup();
+    let resource = crate::organization::ResourceId::try_from(Uuid::new_v4()).unwrap();
+    let document = crate::document::Document {
+        schema_version: 1,
+        blocks: vec![crate::document::Block {
+            id: Uuid::new_v4(),
+            content: crate::document::BlockContent::Code {
+                text: "Published before lesson composition".into(),
+                language: None,
+            },
+        }],
+    };
+    let library = db.library(RequestContext::local_ui()).unwrap();
+    db.apply_content(
+        RequestContext::local_ui(),
+        &crate::workspace::ApplyContent {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: library.revision,
+            command: crate::organization::Command::CreateResource {
+                id: resource,
+                title: "Existing material".into(),
+            },
+        },
+    )
+    .unwrap();
+    let published = db
+        .save_document(
+            RequestContext::local_ui(),
+            &crate::workspace::SaveDocument {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                resource_id: resource,
+                expected_revision: 0,
+                document,
+            },
+        )
+        .unwrap();
+    let other_resource = crate::organization::ResourceId::try_from(Uuid::new_v4()).unwrap();
+    let library = db.library(RequestContext::local_ui()).unwrap();
+    db.apply_content(
+        RequestContext::local_ui(),
+        &crate::workspace::ApplyContent {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: library.revision,
+            command: crate::organization::Command::CreateResource {
+                id: other_resource,
+                title: "Different material".into(),
+            },
+        },
+    )
+    .unwrap();
+    let other_unit = Uuid::new_v4().to_string();
+    db.connection
+        .execute(
+            "INSERT INTO units VALUES(?1,'Other lesson','goal',0)",
+            [&other_unit],
+        )
+        .unwrap();
+    let pin = published.id.to_string();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &unit, &pin)
+            .unwrap(),
+        None
+    );
+    let draft = create(&mut db, &unit);
+    let binding = Binding {
+        binding_id: "published".into(),
+        target_kind: "resource".into(),
+        target_id: resource.to_string(),
+        revision_id: pin.clone(),
+        locator: None,
+    };
+    let request = edit(
+        &db,
+        &draft,
+        vec![
+            LessonOperation::BindReference {
+                binding: binding.clone(),
+            },
+            LessonOperation::InsertNode {
+                parent: draft.composition.root_node_id.clone(),
+                slot: "body".into(),
+                index: 0,
+                node: LessonNode {
+                    node_id: "reading".into(),
+                    type_id: "content".into(),
+                    type_version: 1,
+                    props: json!({"bindingId":"published"}),
+                    slots: Default::default(),
+                    on: Default::default(),
+                    visible: None,
+                },
+            },
+        ],
+    );
+    let draft = db
+        .lesson_edit(RequestContext::local_ui(), &request)
+        .unwrap();
+    assert!(
+        db.lesson_validate(RequestContext::local_ui(), &scope(&db, &draft))
+            .unwrap()
+            .valid
+    );
+    let preview = db
+        .lesson_preview(RequestContext::local_ui(), &scope(&db, &draft))
+        .unwrap();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &unit, &pin)
+            .unwrap(),
+        Some(published.clone())
+    );
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &other_unit, &pin)
+            .unwrap(),
+        None
+    );
+    let other_draft = create(&mut db, &other_unit);
+    for invalid in [
+        Binding {
+            target_id: other_resource.to_string(),
+            ..binding.clone()
+        },
+        Binding {
+            target_kind: "activity".into(),
+            ..binding.clone()
+        },
+    ] {
+        let request = edit(
+            &db,
+            &other_draft,
+            vec![LessonOperation::BindReference { binding: invalid }],
+        );
+        assert!(
+            db.lesson_edit(RequestContext::local_ui(), &request)
+                .is_err()
+        );
+        assert_eq!(
+            db.lesson_resource(RequestContext::local_ui(), &other_unit, &pin)
+                .unwrap(),
+            None
+        );
+    }
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &unit, &pin)
+            .unwrap(),
+        Some(published.clone())
+    );
+    assert_eq!(
+        db.lesson_preview(RequestContext::local_ui(), &scope(&db, &draft))
+            .unwrap(),
+        preview
+    );
+    db.lesson_apply(RequestContext::local_ui(), &apply(&db, &draft, &preview))
+        .unwrap();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &unit, &pin)
+            .unwrap(),
+        Some(published)
+    );
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &other_unit, &pin)
+            .unwrap(),
+        None
+    );
+}

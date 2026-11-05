@@ -587,7 +587,7 @@ impl Database {
             .map(receipt_outcome)
             .transpose()
     }
-    /// Resolve only this Unit's durable proposals or published dependency pins.
+    /// Resolve only this Unit's validated durable draft pins or saved dependency pins.
     pub(in crate::workspace) fn lesson_resource(
         &self,
         context: RequestContext,
@@ -599,6 +599,17 @@ impl Database {
         uuid(revision)?;
         for draft in self.lesson_list_drafts(context, unit_id)? {
             let s = state(&self.connection, &draft.id, unit_id)?;
+            // state() validates the owned composition and every reference's kind,
+            // target, revision, digest and locator before this pin grants a read.
+            let published_target = s
+                .draft
+                .composition
+                .bindings
+                .iter()
+                .find(|binding| {
+                    binding.target_kind == "resource" && binding.revision_id == revision
+                })
+                .map(|binding| binding.target_id.clone());
             let mut staged_counts = BTreeMap::<String, i64>::new();
             for pending in s.dependencies {
                 if let Pending::Resource {
@@ -630,6 +641,17 @@ impl Database {
                         }));
                     }
                 }
+            }
+            if let Some(target) = published_target {
+                let resource = crate::organization::ResourceId::try_from(
+                    Uuid::parse_str(&target).map_err(|_| corrupt())?,
+                )
+                .map_err(|_| corrupt())?;
+                return self.read_document(
+                    context,
+                    resource,
+                    Some(Uuid::parse_str(revision).map_err(|_| corrupt())?),
+                );
             }
         }
         let target: Option<String> = self.connection.query_row(
