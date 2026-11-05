@@ -7,7 +7,7 @@ import { LessonController } from './controller';
 import { NodeEditor } from './NodeEditor';
 import { LessonRenderer, type ResolvedLesson } from './LessonRenderer';
 import { defaultActivity, defaults, nodeLabel, nodeTypes, Select } from './LessonForms';
-import type { ActivityDefinition, Appearance, Composition, LessonNode, LessonOperation, LessonPort, RegistryDescriptor } from './types';
+import type { ActivityDefinition, Appearance, Composition, LessonNode, LessonOperation, LessonPort, RegistryDescriptor, SavedComposition } from './types';
 
 const blankDocument = (): Document => ({ schemaVersion: 1, blocks: [{ id: crypto.randomUUID(), content: { type: 'paragraph', inlines: [] } }] });
 const noResolution: ResolvedLesson = { resources: {}, activities: {}, sources: {} };
@@ -32,9 +32,10 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
   const controller = useMemo(() => new LessonController(workspaceId, unitId, port), [workspaceId, unitId, port]); const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const [selected, setSelected] = useState(''); const [visited, setVisited] = useState<string[]>([]); const [mode, setMode] = useState<'edit' | 'saved'>('edit');
   const [original, setOriginal] = useState<SourcePreview | null>(null); const [sourceError, setSourceError] = useState(''); const sourceRequest = useRef(0);
+  const [historical, setHistorical] = useState<SavedComposition | null>(null); const [historyBusy, setHistoryBusy] = useState(false); const historyRequest = useRef(0);
   const heading = useRef<HTMLHeadingElement>(null); const composition = state.composition;
   useEffect(() => { void controller.load(); }, [controller]);
-  useEffect(() => () => { sourceRequest.current++; }, []);
+  useEffect(() => () => { sourceRequest.current++; historyRequest.current++; }, []);
   const { resolved, error: readError } = useResolvedLesson(port, composition, state.draft?.revision ?? state.saved?.id ?? '');
   function select(id: string) { setSelected(id); setVisited(old => old.includes(id) ? old : [...old, id]); }
   const node = composition?.nodes.find(n => n.nodeId === selected) ?? composition?.nodes.find(n => n.nodeId === composition.rootNodeId);
@@ -50,6 +51,13 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
     if (focus instanceof HTMLElement && focus.isConnected && !focus.closest('[hidden]') && (document.activeElement === document.body || document.activeElement === focus)) focus.focus();
     return controller.getSnapshot().draft?.revision !== revision && !controller.getSnapshot().pending;
   }
+  async function earlierSnapshot() {
+    const revision = (historical ?? state.saved)?.parentRevisionId; if (!revision || historyBusy) return;
+    const token = ++historyRequest.current; setHistoryBusy(true);
+    try { const snapshot = await port.readRevision(unitId, revision); if (!snapshot || snapshot.id !== revision || snapshot.unitId !== unitId) throw new Error('Unavailable snapshot'); if (token === historyRequest.current) setHistorical(snapshot); }
+    catch { if (token === historyRequest.current) setSourceError('This earlier saved snapshot could not be read. The current lesson and editing draft are preserved.'); }
+    finally { if (token === historyRequest.current) setHistoryBusy(false); }
+  }
   return <section className="lesson-workspace" aria-label={title}>
     <h2 ref={heading} tabIndex={-1}>{title}</h2><p>Independent offline lesson · Edits and preview responses belong to this lesson.</p>
     <div className="lesson-toolbar"><button disabled={state.busy || state.pending} onClick={() => void controller.load()}>Reopen lesson draft</button>{!state.draft && <button disabled={state.busy || state.pending} onClick={() => void controller.begin()}>Edit lesson</button>}<button disabled={state.busy || state.pending || !state.canUndo} onClick={() => void controller.undo()}>Undo lesson change</button><button disabled={state.busy || state.pending || !state.canRedo} onClick={() => void controller.redo()}>Redo lesson change</button><button disabled={disabled} onClick={() => void controller.preview()}>Preview draft</button><button disabled={disabled} onClick={() => void controller.save()}>Save lesson</button></div>
@@ -63,20 +71,22 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
       </div>}
       {state.preview && <div className="lesson-surface" {...appearanceAttributes(state.preview.composition.appearance)}><h3>Author preview</h3>{state.preview.warnings.map((warning, i) => <p key={i}>{warning}</p>)}<LessonRenderer key={state.preview.hash} composition={state.preview.composition} {...resolved} onOpenSource={source => void openSource(source)} /></div>}
     </div>
-    <div hidden={mode !== 'saved'}>{state.saved && <SavedLesson saved={state.saved} port={port} openSource={source => void openSource(source)} />}</div>
+    <div hidden={mode !== 'saved'}>{state.saved && <><SavedLesson saved={state.saved} port={port} openSource={source => void openSource(source)} />{state.saved.parentRevisionId && <button disabled={historyBusy || !(historical ?? state.saved).parentRevisionId} onClick={() => void earlierSnapshot()}>View earlier saved snapshot</button>}{historical && <aside><p>Earlier saved content is read only. Unsupported data remains inert; the current lesson and editing draft are unchanged.</p><SavedLesson saved={historical} title="Earlier saved snapshot — read only" port={port} openSource={source => void openSource(source)} /><button onClick={() => { historyRequest.current++; setHistoryBusy(false); setHistorical(null); }}>Close earlier snapshot</button></aside>}</>}</div>
     {sourceError && <p role="alert">{sourceError}</p>}{original && <aside aria-label="Preserved original"><h3>{original.source.filename}</h3><p>{original.source.attribution ?? 'Attribution unavailable'} · {original.source.license ?? 'License unknown'}</p><pre>{original.text ?? original.hex ?? 'Original bytes preserved. Text preview unavailable.'}</pre>{original.truncated && <p>Partial preview only. The original remains preserved.</p>}<button onClick={() => { sourceRequest.current++; setOriginal(null); }}>Close original preview</button></aside>}
   </section>;
 }
 function appearanceAttributes(appearance: Appearance) { return { 'data-theme': appearance.theme, 'data-spacing': appearance.spacing, 'data-typography': appearance.typography, 'data-width': appearance.width, 'data-emphasis': appearance.emphasis }; }
-function SavedLesson({ saved, port, openSource }: { saved: NonNullable<ReturnType<LessonController['getSnapshot']>['saved']>; port: LessonPort; openSource: NonNullable<Parameters<typeof LessonRenderer>[0]['onOpenSource']> }) {
+function SavedLesson({ saved, port, openSource, title = 'Saved lesson' }: { saved: NonNullable<ReturnType<LessonController['getSnapshot']>['saved']>; port: LessonPort; openSource: NonNullable<Parameters<typeof LessonRenderer>[0]['onOpenSource']>; title?: string }) {
   const { resolved, error } = useResolvedLesson(port, saved.composition, saved.id);
-  return <div className="lesson-surface" {...appearanceAttributes(saved.composition.appearance)}><h3>Saved lesson</h3>{error && <p role="alert">{error}</p>}<LessonRenderer key={saved.id} composition={saved.composition} {...resolved} onOpenSource={openSource} /></div>;
+  return <div className="lesson-surface" {...appearanceAttributes(saved.composition.appearance)}><h3>{title}</h3>{error && <p role="alert">{error}</p>}<LessonRenderer key={saved.id} composition={saved.composition} {...resolved} onOpenSource={openSource} /></div>;
 }
 function Tree({ composition: c, selected, select, disabled, edit }: { composition: Composition; selected: string; select: (id: string) => void; disabled: boolean; edit: (ops: LessonOperation[]) => Promise<boolean> }) {
+  const buttons = useRef(new Map<string, HTMLButtonElement>()); const previous = useRef(selected);
+  useEffect(() => { if (previous.current !== selected) { const button = buttons.current.get(selected); if (button && !button.closest('[hidden]')) button.focus(); previous.current = selected; } }, [selected]);
   function render(id: string, path: string[] = [], parent?: LessonNode, slot?: string, index = 0): React.ReactNode {
     const node = c.nodes.find(n => n.nodeId === id); if (!node || path.includes(id)) return null;
     const label = nodeLabel(node, c.nodes.indexOf(node)); const siblings = parent && slot ? parent.slots[slot] : [];
-    return <li key={id}><button aria-pressed={selected === id} onClick={() => select(id)}>{label}</button>{parent && slot && <><button aria-label={`Move ${label} up`} disabled={disabled || index === 0} onClick={() => void edit([{ kind: 'moveNode', id, parent: parent.nodeId, slot, index: index - 1 }])}>Up</button><button aria-label={`Move ${label} down`} disabled={disabled || index === siblings.length - 1} onClick={() => void edit([{ kind: 'moveNode', id, parent: parent.nodeId, slot, index: index + 1 }])}>Down</button><button aria-label={`Remove ${label}`} disabled={disabled} onClick={() => { void edit([{ kind: 'removeNode', id }]).then(() => select(parent.nodeId)); }}>Remove</button></>}{Object.entries(node.slots).map(([name, children]) => children.length > 0 && <div key={name}><p>{name === 'body' ? 'Contents' : name === 'primary' ? 'Primary column' : 'Secondary column'}</p><ol>{children.map((child, i) => render(child, [...path, id], node, name, i))}</ol></div>)}</li>;
+    return <li key={id}><button aria-pressed={selected === id} ref={element => { if (element) buttons.current.set(id, element); else buttons.current.delete(id); }} onClick={() => select(id)}>{label}</button>{parent && slot && <><button aria-label={`Move ${label} up`} disabled={disabled || index === 0} onClick={() => void edit([{ kind: 'moveNode', id, parent: parent.nodeId, slot, index: index - 1 }])}>Up</button><button aria-label={`Move ${label} down`} disabled={disabled || index === siblings.length - 1} onClick={() => void edit([{ kind: 'moveNode', id, parent: parent.nodeId, slot, index: index + 1 }])}>Down</button><button aria-label={`Remove ${label}`} disabled={disabled} onClick={() => { void edit([{ kind: 'removeNode', id }]).then(ok => { if (ok) select(parent.nodeId); }); }}>Remove</button></>}{Object.entries(node.slots).map(([name, children]) => children.length > 0 && <div key={name}><p>{name === 'body' ? 'Contents' : name === 'primary' ? 'Primary column' : 'Secondary column'}</p><ol>{children.map((child, i) => render(child, [...path, id], node, name, i))}</ol></div>)}</li>;
   }
   return <ol className="lesson-tree">{render(c.rootNodeId)}</ol>;
 }

@@ -33,7 +33,7 @@ it('moves, nests, removes and undoes through semantic controls while preserving 
   await waitFor(() => expect(p.editDraft).toHaveBeenCalledWith(expect.objectContaining({ operations: [{ kind: 'moveNode', id: 'b', parent: 'root', slot: 'body', index: 0 }] })));
   fireEvent.click(screen.getByRole('button', { name: '2. Section — Prepare' })); fireEvent.change(screen.getByLabelText('New parent'), { target: { value: 'b' } }); fireEvent.click(screen.getByRole('button', { name: 'Move into selected parent' }));
   await waitFor(() => expect(vi.mocked(p.editDraft).mock.calls[1][0].operations).toEqual([{ kind: 'moveNode', id: 'a', parent: 'b', slot: 'body', index: 0 }]));
-  fireEvent.click(screen.getByRole('button', { name: 'Remove 2. Section — Prepare' })); await waitFor(() => expect(screen.queryByRole('button', { name: '2. Section — Prepare' })).not.toBeInTheDocument());
+  fireEvent.click(screen.getByRole('button', { name: 'Remove 2. Section — Prepare' })); await waitFor(() => expect(screen.queryByRole('button', { name: '2. Section — Prepare' })).not.toBeInTheDocument()); await waitFor(() => expect(screen.getByRole('button', { name: '2. Section — Cook' })).toHaveFocus());
   fireEvent.click(screen.getByRole('button', { name: 'Undo lesson change' })); await screen.findByRole('button', { name: '2. Section — Prepare' }); expect(vi.mocked(p.editDraft).mock.calls[3][0].operations).toContainEqual(expect.objectContaining({ kind: 'insertSubtree', rootNodeId: 'a' }));
 });
 it('retains unfinished forms on tab switches and close/reopen, with keyboard tab navigation', async () => {
@@ -52,4 +52,11 @@ it('preserves a newer local settings form when its saved operation loses the rep
   fireEvent.change(screen.getByLabelText('Stack gap'), { target: { value: 'wide' } }); fireEvent.click(screen.getByRole('button', { name: 'Save component settings' }));
   await screen.findByRole('button', { name: 'Retry exact pending change' }); expect(screen.getByLabelText('Stack gap')).toHaveValue('wide'); expect(screen.getByRole('button', { name: 'Save component settings' })).toBeDisabled();
   const original = vi.mocked(p.editDraft).mock.calls[0][0]; fireEvent.click(screen.getByRole('button', { name: 'Retry exact pending change' })); await waitFor(() => expect(p.editDraft).toHaveBeenCalledTimes(2)); expect(vi.mocked(p.editDraft).mock.calls[1][0]).toEqual(original);
+});
+it('opens an earlier saved snapshot through its exact Unit-scoped revision, retaining inert unsupported payloads', async () => {
+  const p = fixture(); const saved = { id: 'current', unitId: 'english', composition: empty('english'), parentRevisionId: 'original', registryContractVersion: 1 as const, hash: 'hash' }; const original = { ...saved, id: 'original', parentRevisionId: null, composition: empty('english') }; original.composition.nodes[0].typeId = 'future';
+  vi.mocked(p.read).mockResolvedValue(saved); vi.mocked(p.listDrafts).mockResolvedValue([]); p.readRevision = vi.fn(async () => original);
+  render(<LessonComposer workspaceId="w" unitId="english" title="English" port={p} />); fireEvent.click(await screen.findByRole('button', { name: 'Saved lesson' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'View earlier saved snapshot' })); await screen.findByText(/Unsupported component preserved/);
+  expect(p.readRevision).toHaveBeenCalledWith('english', 'original'); expect(screen.getByRole('heading', { name: 'Earlier saved snapshot — read only' })).toBeInTheDocument(); expect(p.editDraft).not.toHaveBeenCalled();
 });
