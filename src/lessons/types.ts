@@ -1,3 +1,4 @@
+import type { SavedDocument } from '../application/contentTypes';
 import type { Document } from '../documentModel';
 /** Offline composition contract. Revision IDs are immutable native-issued pins. */
 export type Scalar = string | number | boolean | null;
@@ -69,6 +70,7 @@ export interface LessonPort {
   read(unitId: string): Promise<SavedComposition | null>;
   readRevision(unitId: string, revisionId: string): Promise<SavedComposition | null>;
   readSource(unitId: string, revisionId: string): Promise<SourceBindingRevision | null>;
+  readResource(unitId: string, revisionId: string): Promise<SavedDocument | null>;
   readActivity(unitId: string, revisionId: string): Promise<ActivityRevision | null>;
   createDraft(request: CreateLessonDraft): Promise<LessonDraft>;
   editDraft(request: EditLessonDraft): Promise<LessonDraft>;

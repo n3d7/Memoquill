@@ -59,6 +59,7 @@ pub fn run() {
             lesson_commands::lesson_read_source,
             lesson_commands::lesson_list_drafts,
             lesson_commands::lesson_read_activity,
+            lesson_commands::lesson_read_resource,
             lesson_commands::lesson_create_draft,
             lesson_commands::lesson_edit_draft,
             lesson_commands::lesson_preview_draft,

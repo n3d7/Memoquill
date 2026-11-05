@@ -1169,3 +1169,156 @@ fn invalid_condition_diagnostics_echo_only_safe_schema_locations() {
     assert_eq!(error.diagnostics[0].field, "visible.field");
     assert!(!serde_json::to_string(&error).unwrap().contains(secret));
 }
+
+#[test]
+fn scoped_resource_read_survives_reopen_and_preserves_published_pin() {
+    let (temp, mut db, u) = setup();
+    let other = Uuid::new_v4().to_string();
+    db.connection
+        .execute("INSERT INTO units VALUES(?1,'Other','goal',0)", [&other])
+        .unwrap();
+    let d = create(&mut db, &u);
+    let resource = Uuid::new_v4();
+    let document = crate::document::Document {
+        schema_version: 1,
+        blocks: vec![crate::document::Block {
+            id: Uuid::new_v4(),
+            content: crate::document::BlockContent::Code {
+                text: "immutable staged text".into(),
+                language: None,
+            },
+        }],
+    };
+    let d = db
+        .lesson_edit(
+            RequestContext::local_ui(),
+            &edit(
+                &db,
+                &d,
+                vec![LessonOperation::CreateResourceRevision {
+                    resource_id: resource.to_string(),
+                    expected_revision_id: None,
+                    title: "Private title".into(),
+                    binding_id: "text".into(),
+                    document: document.clone(),
+                }],
+            ),
+        )
+        .unwrap();
+    let pin = d.composition.bindings[0].revision_id.clone();
+    drop(db);
+    tauri::async_runtime::block_on(async {
+        let service =
+            crate::workspace::ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let staged = service
+            .lesson_resource(RequestContext::local_ui(), u.clone(), pin.clone())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(staged.id.to_string(), pin);
+        assert_eq!(staged.document, document);
+        assert_eq!(
+            service
+                .lesson_resource(RequestContext::local_ui(), other.clone(), pin.clone())
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            service
+                .lesson_resource(
+                    RequestContext::unverified_external(),
+                    u.clone(),
+                    pin.clone()
+                )
+                .await
+                .unwrap_err()
+                .code,
+            crate::workspace::ErrorCode::PermissionDenied
+        );
+        service.shutdown().await.unwrap();
+    });
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    let staged = db
+        .lesson_resource(RequestContext::local_ui(), &u, &pin)
+        .unwrap()
+        .unwrap();
+    assert_eq!(staged.id.to_string(), pin);
+    assert_eq!(staged.document, document);
+    assert!(
+        db.read_document(
+            RequestContext::local_ui(),
+            crate::organization::ResourceId::try_from(resource).unwrap(),
+            Some(Uuid::parse_str(&pin).unwrap())
+        )
+        .is_err()
+    );
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &other, &pin)
+            .unwrap(),
+        None
+    );
+    let preview = db
+        .lesson_preview(RequestContext::local_ui(), &scope(&db, &d))
+        .unwrap();
+    db.lesson_apply(RequestContext::local_ui(), &apply(&db, &d, &preview))
+        .unwrap();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &u, &pin)
+            .unwrap(),
+        Some(staged.clone())
+    );
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &other, &pin)
+            .unwrap(),
+        None
+    );
+    let head = db
+        .lesson_read(RequestContext::local_ui(), &u, None)
+        .unwrap()
+        .unwrap()
+        .id;
+    let d = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                unit_id: u.clone(),
+                operation_id: OperationId::generate(),
+                expected_head_revision: Some(head),
+            },
+        )
+        .unwrap();
+    let mut changed = document;
+    changed.blocks[0].content = crate::document::BlockContent::Code {
+        text: "later edit".into(),
+        language: None,
+    };
+    let d = db
+        .lesson_edit(
+            RequestContext::local_ui(),
+            &edit(
+                &db,
+                &d,
+                vec![LessonOperation::CreateResourceRevision {
+                    resource_id: resource.to_string(),
+                    expected_revision_id: Some(pin.clone()),
+                    title: "Private title".into(),
+                    binding_id: "text".into(),
+                    document: changed,
+                }],
+            ),
+        )
+        .unwrap();
+    let preview = db
+        .lesson_preview(RequestContext::local_ui(), &scope(&db, &d))
+        .unwrap();
+    db.lesson_apply(RequestContext::local_ui(), &apply(&db, &d, &preview))
+        .unwrap();
+    assert_eq!(
+        db.lesson_resource(RequestContext::local_ui(), &u, &pin)
+            .unwrap(),
+        Some(staged)
+    );
+}

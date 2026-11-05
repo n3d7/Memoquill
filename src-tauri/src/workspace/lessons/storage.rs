@@ -587,6 +587,68 @@ impl Database {
             .map(receipt_outcome)
             .transpose()
     }
+    /// Resolve only this Unit's durable proposals or published dependency pins.
+    pub(in crate::workspace) fn lesson_resource(
+        &self,
+        context: RequestContext,
+        unit_id: &str,
+        revision: &str,
+    ) -> Result<Option<crate::workspace::SavedDocument>> {
+        context.authorize()?;
+        unit(&self.connection, unit_id, false)?;
+        uuid(revision)?;
+        for draft in self.lesson_list_drafts(context, unit_id)? {
+            let s = state(&self.connection, &draft.id, unit_id)?;
+            let mut staged_counts = BTreeMap::<String, i64>::new();
+            for pending in s.dependencies {
+                if let Pending::Resource {
+                    id,
+                    target,
+                    document,
+                    ..
+                } = pending
+                {
+                    let count = staged_counts.entry(target.clone()).or_default();
+                    *count += 1;
+                    if id == revision {
+                        let published: i64 = self.connection.query_row(
+                            "SELECT coalesce(max(revision),0) FROM resource_revisions WHERE resource_id=?1",
+                            [&target], |r| r.get(0),
+                        )?;
+                        let number = published
+                            .checked_add(*count)
+                            .filter(|n| *n > 0 && *n <= crate::workspace::types::MAX_REVISION)
+                            .ok_or_else(corrupt)?;
+                        return Ok(Some(crate::workspace::SavedDocument {
+                            id: Uuid::parse_str(&id).map_err(|_| corrupt())?,
+                            resource_id: crate::organization::ResourceId::try_from(
+                                Uuid::parse_str(&target).map_err(|_| corrupt())?,
+                            )
+                            .map_err(|_| corrupt())?,
+                            revision: number as u64,
+                            document,
+                        }));
+                    }
+                }
+            }
+        }
+        let target: Option<String> = self.connection.query_row(
+            "SELECT d.target_id FROM lesson_dependencies d JOIN lesson_revisions r ON r.id=d.composition_id WHERE r.unit_id=?1 AND d.kind='resource' AND d.revision_id=?2 LIMIT 1",
+            params![unit_id, revision], |r| r.get(0),
+        ).optional()?;
+        let Some(target) = target else {
+            return Ok(None);
+        };
+        let resource = crate::organization::ResourceId::try_from(
+            Uuid::parse_str(&target).map_err(|_| corrupt())?,
+        )
+        .map_err(|_| corrupt())?;
+        self.read_document(
+            context,
+            resource,
+            Some(Uuid::parse_str(revision).map_err(|_| corrupt())?),
+        )
+    }
     pub(in crate::workspace) fn lesson_activity(
         &self,
         context: RequestContext,

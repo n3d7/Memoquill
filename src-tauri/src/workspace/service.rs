@@ -83,6 +83,7 @@ enum LessonsRequest {
         Reply<Option<SavedComposition>>,
     ),
     Drafts(RequestContext, String, Reply<Vec<LessonDraft>>),
+    Resource(RequestContext, String, String, Reply<Option<SavedDocument>>),
     Activity(
         RequestContext,
         String,
@@ -160,6 +161,28 @@ impl ApplicationService {
         self.request(
             context,
             |reply| Request::Lessons(Box::new(LessonsRequest::Drafts(context, unit_id, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_resource(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<SavedDocument>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Resource(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
             false,
         )
         .await
@@ -585,6 +608,9 @@ impl Store {
             }
             LessonsRequest::Drafts(c, id, reply) => {
                 let _ = reply.send(self.access(|db| db.lesson_list_drafts(c, &id)));
+            }
+            LessonsRequest::Resource(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_resource(c, &id, &revision)));
             }
             LessonsRequest::Activity(c, id, revision, reply) => {
                 let _ = reply.send(self.access(|db| db.lesson_activity(c, &id, &revision)));

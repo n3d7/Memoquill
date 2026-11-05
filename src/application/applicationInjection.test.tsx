@@ -30,7 +30,7 @@ it('runs the existing workspace screen with injected application services and a 
 it('keeps lesson service and local identity separate from native transport and UI authority', async () => {
   const read = vi.fn().mockResolvedValue(null);
   const unsupported = async (): Promise<never> => { throw new Error('Unused lesson capability'); };
-  const lessons: LessonPort = { read, discover: unsupported, listDrafts: unsupported, createDraft: unsupported, editDraft: unsupported, validateDraft: unsupported, previewDraft: unsupported, applyDraft: unsupported, discardDraft: unsupported, getReceipt: unsupported, readRevision: unsupported, readSource: unsupported, readActivity: unsupported };
+  const lessons: LessonPort = { read, discover: unsupported, listDrafts: unsupported, createDraft: unsupported, editDraft: unsupported, validateDraft: unsupported, previewDraft: unsupported, applyDraft: unsupported, discardDraft: unsupported, getReceipt: unsupported, readRevision: unsupported, readSource: unsupported, readResource: unsupported, readActivity: unsupported };
   function Consumer() { const lesson = useLessonPort(); const guest = useIdentityPort().session('workspace'); return <button onClick={() => void lesson.read('unit')}>{guest.kind}</button>; }
   render(<ApplicationProvider ports={{ lessons, identity: createGuestIdentityPort('profile') }}><Consumer /></ApplicationProvider>);
   await userEvent.setup().click(screen.getByRole('button', { name: 'localGuest' }));

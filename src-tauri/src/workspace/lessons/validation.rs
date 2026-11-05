@@ -605,3 +605,15 @@ pub(super) fn validate_diagnosed(c: &Composition, allow_unknown: bool) -> Result
     };
     Err(AppError::new(code).with_diagnostics(diagnostics))
 }
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+    #[test]
+    fn response_scalar_uses_utf8_bytes_at_ascii_and_multibyte_boundaries() {
+        for value in ["a".repeat(4096), "é".repeat(2048), "🙂".repeat(1024)] {
+            assert!(scalar(&Value::String(value.clone())));
+            assert!(!scalar(&Value::String(value + "a")));
+        }
+    }
+}

@@ -6,6 +6,7 @@ fn main() {
             "lesson_read_source",
             "lesson_list_drafts",
             "lesson_read_activity",
+            "lesson_read_resource",
             "lesson_create_draft",
             "lesson_edit_draft",
             "lesson_preview_draft",

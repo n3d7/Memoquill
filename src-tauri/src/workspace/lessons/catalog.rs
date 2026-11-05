@@ -8,6 +8,10 @@ pub(super) fn object(properties: Value, required: &[&str]) -> Value {
 fn string(max: usize) -> Value {
     json!({"type":"string","minLength":1,"maxLength":max,"x-maxUtf8Bytes":max,"x-whitespaceOnly":false})
 }
+// JSON Schema maxLength counts code points; native scalar validation counts UTF-8 bytes.
+fn response_value() -> Value {
+    json!({"type":"string","maxLength":4096,"x-maxUtf8Bytes":4096,"description":"At most 4096 UTF-8 bytes; code-point length alone is insufficient."})
+}
 fn enumeration(values: &[&str]) -> Value {
     json!({"type":"string","enum":values})
 }
@@ -122,10 +126,7 @@ pub(super) fn actions() -> Vec<ActionDescriptor> {
         let study = id.starts_with("study.") || id == "response.update";
         let input = match id {
             "view.toggleSection" => object(json!({"expanded":{"type":"boolean"}}), &["expanded"]),
-            "response.update" => object(
-                json!({"value":{"type":"string","maxLength":16384}}),
-                &["value"],
-            ),
+            "response.update" => object(json!({"value":response_value()}), &["value"]),
             _ => object(json!({}), &[]),
         };
         let modes = if study {
@@ -212,9 +213,40 @@ pub(super) fn discover() -> Vec<RegistryDescriptor> {
     ["stack","columns","section","content","source","activity","button","status"].into_iter().map(|t|{
  let slots:Vec<String>=match t{"stack"|"section"=>vec!["body".into()],"columns"=>vec!["primary".into(),"secondary".into()],_=>vec![]};
  let events:Vec<String>=match t{"section"=>vec!["toggle"],"source"=>vec!["openSource"],"activity"=>vec!["response","hint","reveal","submit"],"button"=>vec!["activate"],_=>vec![]}.into_iter().map(String::from).collect();
- let event_schemas=events.iter().map(|e|{let allowed=match e.as_str(){"toggle"=>vec!["view.toggleSection","view.focusNode"],"openSource"=>vec!["source.open"],"response"=>vec!["response.update"],"hint"=>vec!["study.hint"],"reveal"=>vec!["study.reveal"],"submit"=>vec!["study.submit"],_=>vec![]};let allowed=if e=="activate"{actions().into_iter().map(|a|a.action_id).collect()}else{allowed.into_iter().map(String::from).collect()};let field=match e.as_str(){"response"=>Some(json!({"type":"string","maxLength":4096})),"toggle"=>Some(json!({"type":"boolean"})),_=>None};let event_fields=field.as_ref().map(|f|BTreeMap::from([("value".into(),f.clone())])).unwrap_or_default();let payload=if let Some(f)=field{object(json!({"value":f}),&["value"])}else{object(json!({}),&[])};(e.clone(),EventDescriptor{payload_schema:payload,allowed_actions:allowed,event_fields,maximum_actions:1})}).collect();
+ let event_schemas=events.iter().map(|e|{let allowed=match e.as_str(){"toggle"=>vec!["view.toggleSection","view.focusNode"],"openSource"=>vec!["source.open"],"response"=>vec!["response.update"],"hint"=>vec!["study.hint"],"reveal"=>vec!["study.reveal"],"submit"=>vec!["study.submit"],_=>vec![]};let allowed=if e=="activate"{actions().into_iter().map(|a|a.action_id).collect()}else{allowed.into_iter().map(String::from).collect()};let field=match e.as_str(){"response"=>Some(response_value()),"toggle"=>Some(json!({"type":"boolean"})),_=>None};let event_fields=field.as_ref().map(|f|BTreeMap::from([("value".into(),f.clone())])).unwrap_or_default();let payload=if let Some(f)=field{object(json!({"value":f}),&["value"])}else{object(json!({}),&[])};(e.clone(),EventDescriptor{payload_schema:payload,allowed_actions:allowed,event_fields,maximum_actions:1})}).collect();
  let defaults=json!(match t{"stack"=>json!({"gap":"normal","headingLevel":1}),"columns"=>json!({"ratio":"equal"}),"section"=>json!({"title":"Section","collapsible":false}),"activity"=>json!({"presentation":"default"}),"button"=>json!({"label":"Continue","style":"secondary"}),"status"=>json!({"field":"response.present","label":"Status"}),_=>json!({})});
  let props_schema=props_schema(t);let props=props_schema["properties"].as_object().unwrap().iter().map(|(k,v)|(k.clone(),v.clone())).collect();
- RegistryDescriptor{type_id:t.into(),type_version:1,slots:slots.clone(),events,props,props_schema,defaults:serde_json::from_value(defaults).expect("shipped defaults"),slot_schemas:slots.into_iter().map(|s|(s,SlotDescriptor{minimum:0,maximum:64,ordered:true,allowed_children:"shippedOrPreservedOpaqueNodes;oneParent".into()})).collect(),event_schemas,actions:actions(),required_capabilities:vec!["lesson:read".into()],valid_modes:vec!["authoring".into(),"preview".into(),"reading".into()],state:StateDescriptor{scope:if t=="activity"{"previewInstance+nodeOccurrence"}else{"viewInstance+node"}.into(),schema:if t=="section"{object(json!({"expanded":{"type":"boolean","default":true}}),&["expanded"])}else if t=="activity"{object(json!({"response":{"oneOf":[{"type":"string","maxLength":16384},{"type":"array","maxItems":64,"items":{"type":"string","maxLength":128}}]},"hintShown":{"type":"boolean","default":false},"revealed":{"type":"boolean","default":false},"submitted":{"type":"boolean","default":false}}),&["hintShown","revealed","submitted"])}else{object(json!({}),&[])},maximum_bytes:65536,persistent:false},accessibility_contract:vec!["semantic reading order follows slot order".into(),"keyboard alternative for every authoring action".into(),"named controls and focus restoration".into()],fallback:FallbackDescriptor{mode:"inertPlaceholder".into(),preserves_opaque_payload:true,activation_allowed:false,diagnostic_code:LessonDiagnosticCode::UnsupportedType,repairs:vec![LessonRepair::RemoveOrReplaceUnsupported]},supported_migrations:vec![],schemas:BTreeMap::from([("condition".into(),condition()),("actionBinding".into(),action_binding()),("appearance".into(),appearance()),("activityDefinition".into(),activity_definition())])}
+ RegistryDescriptor{type_id:t.into(),type_version:1,slots:slots.clone(),events,props,props_schema,defaults:serde_json::from_value(defaults).expect("shipped defaults"),slot_schemas:slots.into_iter().map(|s|(s,SlotDescriptor{minimum:0,maximum:64,ordered:true,allowed_children:"shippedOrPreservedOpaqueNodes;oneParent".into()})).collect(),event_schemas,actions:actions(),required_capabilities:vec!["lesson:read".into()],valid_modes:vec!["authoring".into(),"preview".into(),"reading".into()],state:StateDescriptor{scope:if t=="activity"{"previewInstance+nodeOccurrence"}else{"viewInstance+node"}.into(),schema:if t=="section"{object(json!({"expanded":{"type":"boolean","default":true}}),&["expanded"])}else if t=="activity"{object(json!({"response":{"oneOf":[response_value(),{"type":"array","maxItems":64,"items":{"type":"string","maxLength":128}}]},"hintShown":{"type":"boolean","default":false},"revealed":{"type":"boolean","default":false},"submitted":{"type":"boolean","default":false}}),&["hintShown","revealed","submitted"])}else{object(json!({}),&[])},maximum_bytes:65536,persistent:false},accessibility_contract:vec!["semantic reading order follows slot order".into(),"keyboard alternative for every authoring action".into(),"named controls and focus restoration".into()],fallback:FallbackDescriptor{mode:"inertPlaceholder".into(),preserves_opaque_payload:true,activation_allowed:false,diagnostic_code:LessonDiagnosticCode::UnsupportedType,repairs:vec![LessonRepair::RemoveOrReplaceUnsupported]},supported_migrations:vec![],schemas:BTreeMap::from([("condition".into(),condition()),("actionBinding".into(),action_binding()),("appearance".into(),appearance()),("activityDefinition".into(),activity_definition())])}
  }).collect()
+}
+
+#[cfg(test)]
+mod response_tests {
+    use super::*;
+    #[test]
+    fn response_metadata_declares_utf8_byte_bound_consistently() {
+        let activity = discover()
+            .into_iter()
+            .find(|d| d.type_id == "activity")
+            .unwrap();
+        let action = activity
+            .actions
+            .iter()
+            .find(|a| a.action_id == "response.update")
+            .unwrap();
+        let expected = json!({"type":"string","maxLength":4096,"x-maxUtf8Bytes":4096,"description":"At most 4096 UTF-8 bytes; code-point length alone is insufficient."});
+        assert_eq!(action.input_schema["properties"]["value"], expected);
+        assert_eq!(
+            activity.event_schemas["response"].event_fields["value"],
+            expected
+        );
+        assert_eq!(
+            activity.event_schemas["response"].payload_schema["properties"]["value"],
+            expected
+        );
+        assert_eq!(
+            activity.state.schema["properties"]["response"]["oneOf"][0],
+            expected
+        );
+    }
 }

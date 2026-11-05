@@ -10,6 +10,7 @@ export const nativeLessonPort: LessonPort = {
   read: (unitId) => invoke('lesson_read', { unitId, revisionId: null }),
   readRevision: (unitId, revisionId) => invoke('lesson_read', { unitId, revisionId }),
   readSource: (unitId, revisionId) => invoke('lesson_read_source', { unitId, revisionId }),
+  readResource: (unitId, revisionId) => invoke('lesson_read_resource', { unitId, revisionId }),
   readActivity: (unitId, revisionId) => invoke('lesson_read_activity', { unitId, revisionId }),
   createDraft: (request) => invoke('lesson_create_draft', body(request)),
   editDraft: (request) => invoke('lesson_edit_draft', body(request)),

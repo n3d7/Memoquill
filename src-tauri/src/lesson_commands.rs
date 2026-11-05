@@ -54,6 +54,16 @@ pub async fn lesson_list_drafts(
         .await
 }
 #[tauri::command]
+pub async fn lesson_read_resource(
+    service: State<'_, ApplicationService>,
+    request: Request<'_>,
+) -> Result<Option<SavedDocument>, AppError> {
+    let args: Revision = lesson_admission::decode(request.body())?;
+    service
+        .lesson_resource(RequestContext::local_ui(), args.unit_id, args.revision_id)
+        .await
+}
+#[tauri::command]
 pub async fn lesson_read_activity(
     service: State<'_, ApplicationService>,
     request: Request<'_>,

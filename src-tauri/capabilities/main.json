@@ -29,6 +29,7 @@
     "allow-lesson-read",
     "allow-lesson-list-drafts",
     "allow-lesson-read-activity",
+    "allow-lesson-read-resource",
     "allow-lesson-create-draft",
     "allow-lesson-edit-draft",
     "allow-lesson-preview-draft",

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import { nativeLessonPort } from './nativeLessonPort';
+import type { SavedDocument } from '../application/contentTypes';
 import type { CreateLessonDraft, EditLessonDraft, LessonError } from './types';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 describe('lesson native transport', () => {
@@ -23,4 +24,16 @@ describe('lesson native transport', () => {
     try { await nativeLessonPort.editDraft(request); } catch (failure) { caught = failure; }
     expect(caught).toEqual(error);
   });
+});
+
+it('reads a resource pin with its Unit scope and preserves null denial', async () => {
+  vi.mocked(invoke).mockResolvedValue(null);
+  expect(await nativeLessonPort.readResource('unit', 'pin')).toBeNull();
+  expect(invoke).toHaveBeenCalledWith('lesson_read_resource', { unitId: 'unit', revisionId: 'pin' });
+});
+
+it('returns the immutable resource snapshot without transforming it', async () => {
+  const saved: SavedDocument = { id: 'pin', resourceId: 'resource', revision: 1, document: { schemaVersion: 1, blocks: [] } };
+  vi.mocked(invoke).mockResolvedValue(saved);
+  expect(await nativeLessonPort.readResource('unit', 'pin')).toBe(saved);
 });
