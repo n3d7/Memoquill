@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { applyContent, failureMessage, isConfirmedRejection, library, type ApplyContent, type Command, type Library } from './contentBridge';
+import { failureMessage, isConfirmedRejection, type ApplyContent, type Command, type Library } from './contentBridge';
+
+import { useContentPort } from './application/ApplicationProvider';
 
 export function useContentLibrary() {
+  const { library, applyContent } = useContentPort();
   const [snapshot, setSnapshot] = useState<Library | null>(null);
   const current = useRef<Library | null>(null);
   const pending = useRef<ApplyContent | null>(null);

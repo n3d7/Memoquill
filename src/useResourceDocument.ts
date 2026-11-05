@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { failureMessage, isConfirmedRejection, readDocument, saveDocument, type SaveDocument, type SavedDocument } from './contentBridge';
+import { failureMessage, isConfirmedRejection, type SaveDocument, type SavedDocument } from './contentBridge';
+import { useContentPort } from './application/ApplicationProvider';
 import { emptyDocument, type Document } from './documentModel';
 
 export function useResourceDocument(workspaceId: string, resourceId: string) {
+  const { readDocument, saveDocument } = useContentPort();
   const [document, setDocument] = useState<Document>(emptyDocument);
   const current = useRef(document);
   const [saved, setSaved] = useState<SavedDocument | null>(null);

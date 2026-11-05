@@ -1,36 +1,44 @@
 import { useEffect, useRef, useState } from 'react';
-import { annotations, failureMessage, isConfirmedRejection, readingPosition, saveAnnotation, saveReadingPosition, type Annotation, type Command, type Library, type ReadingPosition, type SavedDocument } from './contentBridge';
+import { failureMessage, isConfirmedRejection, type Annotation, type Command, type Library, type ReadingPosition, type SavedDocument } from './contentBridge';
 import { DocumentEditor } from './DocumentEditor';
-import { useResourceDocument } from './useResourceDocument';
+import { useMaterialController } from './application/useMaterialController';
 import { NameForm } from './OrganizationForms';
 import { SourcesPanel } from './SourcesPanel';
 
+import { useContentPort } from './application/ApplicationProvider';
+import type { ContentPort } from './application/ports';
+import { ActionButton, StatusMessage } from './application/controls';
+import type { ComponentType } from 'react';
+
 type Perform = (command: Command) => Promise<Library | null>;
-export function MaterialPanel({ data, resourceId, onDirty, perform }: { data: Library; resourceId: string; onDirty: (dirty: boolean) => void; perform: Perform }) {
-  const material = useResourceDocument(data.workspaceId, resourceId);
-  const [resume, setResume] = useState<{ blockId: string; offsetUtf16: number }>();
-  const [sourcePending, setSourcePending] = useState(false);
-  const [contextPending, setContextPending] = useState(false);
-  useEffect(() => { onDirty(material.dirty || material.hasPending || sourcePending || contextPending); return () => onDirty(false); }, [material.dirty, material.hasPending, sourcePending, contextPending, onDirty]);
+export interface MaterialPanelProps { data: Library; resourceId: string; onDirty: (dirty: boolean) => void; perform: Perform; view?: ComponentType<MaterialViewProps> }
+export type MaterialViewProps = MaterialPanelProps & ReturnType<typeof useMaterialController>;
+export function MaterialPanel(props: MaterialPanelProps) {
+  const controller = useMaterialController(props.data.workspaceId, props.resourceId, props.onDirty);
+  const View = props.view ?? MaterialView;
+  return <View {...props} {...controller} />;
+}
+export function MaterialView({ data, resourceId, perform, material, resume, setResume, contextPending, setContextPending, setSourcePending }: MaterialViewProps) {
   return <section aria-label="Material authoring"><h2>{data.resources[resourceId].title}</h2>
     <p>Shared material: changes apply to every placement. Content revisions and original sources are retained.</p>
     <NameForm label="New material title" action="Rename material" onSubmit={title => perform({ type: 'renameResource', id: resourceId, title })} />
     <NameForm label="Tag for this material" action="Add tag" onSubmit={title => { const existing = Object.values(data.tags).find(x => x.title === title); return perform({ type: 'setTag', id: existing?.id ?? crypto.randomUUID(), title, resourceIds: [...new Set([...(existing?.resourceIds ?? []), resourceId])] }); }} />
-    <p role="status" aria-live="polite">{material.dirty ? 'Unsaved changes. ' : ''}{material.message}</p>
+    <StatusMessage>{material.dirty ? 'Unsaved changes. ' : ''}{material.message}</StatusMessage>
     {material.error && <p role="alert">{material.message}</p>}
     {!material.loading && <DocumentEditor key={resourceId} document={material.document} onChange={material.change} resume={resume} />}
     {contextPending && <p>Finish or clear the annotation draft and resolve pending reading changes before saving a new material revision.</p>}
-    <div className="actions"><button disabled={material.loading || material.busy || material.hasPending || contextPending} onClick={() => void material.save()}>Save material</button>
-      <button disabled={material.busy || material.hasPending || !material.dirty} onClick={material.discard}>Discard unsaved changes</button>
-      {material.error && <button disabled={material.busy} onClick={() => void material.retry()}>Retry same save</button>}
-      {material.error && !material.hasPending && <button disabled={material.busy || contextPending} onClick={() => void material.reloadSaved()}>Reload saved revision; keep draft</button>}
+    <div className="actions"><ActionButton disabled={material.loading || material.busy || material.hasPending || contextPending} onClick={() => void material.save()}>Save material</ActionButton>
+      <ActionButton disabled={material.busy || material.hasPending || !material.dirty} onClick={material.discard}>Discard unsaved changes</ActionButton>
+      {material.error && <ActionButton disabled={material.busy} onClick={() => void material.retry()}>Retry same save</ActionButton>}
+      {material.error && !material.hasPending && <ActionButton disabled={material.busy || contextPending} onClick={() => void material.reloadSaved()}>Reload saved revision; keep draft</ActionButton>}
     </div>
     {material.saved && <SavedContext key={material.saved.id} saved={material.saved} workspaceId={data.workspaceId} onResume={setResume} onDirty={setContextPending} locked={material.busy || material.hasPending} />}
     <SourcesPanel key={`sources:${resourceId}`} workspaceId={data.workspaceId} resourceId={resourceId} onPendingChange={setSourcePending} />
   </section>;
 }
-type ContextRequest = { kind: 'position'; request: Parameters<typeof saveReadingPosition>[0] } | { kind: 'annotation'; request: Parameters<typeof saveAnnotation>[0] };
+type ContextRequest = { kind: 'position'; request: Parameters<ContentPort['saveReadingPosition']>[0] } | { kind: 'annotation'; request: Parameters<ContentPort['saveAnnotation']>[0] };
 function SavedContext({ saved, workspaceId, onResume, onDirty, locked }: { saved: SavedDocument; workspaceId: string; onResume: (value: { blockId: string; offsetUtf16: number }) => void; onDirty: (value: boolean) => void; locked: boolean }) {
+  const { readingPosition, annotations, saveReadingPosition, saveAnnotation } = useContentPort();
   const [blockId, setBlockId] = useState(saved.document.blocks[0]?.id ?? '');
   const [position, setPosition] = useState<ReadingPosition | null>(null);
   const [notes, setNotes] = useState<Annotation[]>([]); const [body, setBody] = useState('');

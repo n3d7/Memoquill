@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { failureMessage } from './contentBridge';
-import { pickSource, saveSource, sources, sourcePreview } from './sourceBridge';
+import { useSourcePort } from './application/ApplicationProvider';
+import type { SourcePort } from './application/ports';
 import type { OriginalSource, SaveSource, SelectedSource, SourceList, SourcePreview } from './sourceBridge';
 import { usePickerFocus } from './usePickerFocus';
 
@@ -25,13 +26,13 @@ function useSourceSession<T>(workspaceId: string, resourceId: string, initial: T
   return { state, setState, generation };
 }
 
-function useSourceList(workspaceId: string, resourceId: string) {
+function useSourceList(port: SourcePort, workspaceId: string, resourceId: string) {
   const [list, setList] = useState<SourceList | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
     setList(null); setError('');
-    sources(resourceId).then(value => {
+    port.sources(resourceId).then(value => {
       if (active) setList(value);
     }, failure => {
       if (active) setError(`Sources unavailable. ${failureMessage(failure)}`);
@@ -61,11 +62,11 @@ function usePendingProtection(pending: boolean, onPendingChange?: (pending: bool
   }, [pending]);
 }
 
-async function chooseSource(workspaceId: string, session: Session<AttachmentState>, requestFocus: () => void) {
+async function chooseSource(port: SourcePort, workspaceId: string, session: Session<AttachmentState>, requestFocus: () => void) {
   const current = session.generation.current;
   session.setState(value => ({ ...value, busy: 'picking', error: '', status: '' }));
   try {
-    const selected = await pickSource({ contractVersion: 1, workspaceId, operationId: crypto.randomUUID() });
+    const selected = await port.pickSource({ contractVersion: 1, workspaceId, operationId: crypto.randomUUID() });
     if (session.generation.current === current && selected !== null) {
       session.setState(value => ({ ...value, draft: { attribution: '', license: '', originUrl: '', ...value.draft, selection: selected } }));
     }
@@ -87,7 +88,7 @@ function attachmentRequest(workspaceId: string, resourceId: string, revision: nu
   };
 }
 
-async function attachSource(workspaceId: string, resourceId: string, list: SourceList | null,
+async function attachSource(port: SourcePort, workspaceId: string, resourceId: string, list: SourceList | null,
   session: Session<AttachmentState>, acknowledge: (saved: OriginalSource) => void) {
   const { draft, pending } = session.state;
   if (!draft || !list) return;
@@ -95,7 +96,7 @@ async function attachSource(workspaceId: string, resourceId: string, list: Sourc
   const current = session.generation.current;
   session.setState(value => ({ ...value, pending: request, busy: 'saving', error: '', status: '' }));
   try {
-    const saved = await saveSource(request);
+    const saved = await port.saveSource(request);
     if (session.generation.current !== current) return;
     acknowledge(saved);
     session.setState({ ...emptyAttachment, status: 'Attached original source.' });
@@ -104,11 +105,11 @@ async function attachSource(workspaceId: string, resourceId: string, list: Sourc
   }
 }
 
-async function previewSource(sourceId: string, session: Session<PreviewState>) {
+async function previewSource(port: SourcePort, sourceId: string, session: Session<PreviewState>) {
   const current = session.generation.current;
   session.setState({ ...emptyPreview, busy: true });
   try {
-    const preview = await sourcePreview(sourceId);
+    const preview = await port.sourcePreview(sourceId);
     if (session.generation.current === current) session.setState({ preview, busy: false, error: '' });
   } catch (failure) {
     if (session.generation.current === current) session.setState({ ...emptyPreview, error: `Preview unavailable. ${failureMessage(failure)}` });
@@ -164,7 +165,8 @@ function SourceMessages({ errors, status, loading }: { errors: string[]; status:
 export function SourcesPanel({ workspaceId, resourceId, onPendingChange }: {
   workspaceId: string; resourceId: string; onPendingChange?: (pending: boolean) => void;
 }) {
-  const library = useSourceList(workspaceId, resourceId);
+  const port = useSourcePort();
+  const library = useSourceList(port, workspaceId, resourceId);
   const attachment = useSourceSession(workspaceId, resourceId, emptyAttachment);
   const preview = useSourceSession(workspaceId, resourceId, emptyPreview);
   const { state } = attachment;
@@ -176,13 +178,13 @@ export function SourcesPanel({ workspaceId, resourceId, onPendingChange }: {
     <p>Keep original files with their attribution and license. Originals are preserved separately from editable material.</p>
     <SourceMessages errors={[library.error, state.error, preview.state.error]} status={state.status} loading={!library.list && !library.error} />
     <button ref={pickerFocus.trigger} disabled={!library.list || busy || state.pending !== null}
-      onClick={() => void chooseSource(workspaceId, attachment, pickerFocus.requestFocus)}>Choose source file</button>
+      onClick={() => void chooseSource(port, workspaceId, attachment, pickerFocus.requestFocus)}>Choose source file</button>
     {state.draft && <SourceDraftForm draft={state.draft} pending={state.pending !== null} busy={busy}
       onChange={(field, value) => updateDraft(attachment, field, value)}
-      onAttach={() => void attachSource(workspaceId, resourceId, library.list, attachment, library.acknowledge)}
+      onAttach={() => void attachSource(port, workspaceId, resourceId, library.list, attachment, library.acknowledge)}
       onDiscard={() => attachment.setState(emptyAttachment)} />}
     {library.list && <ul>{library.list.sources.map(source => <SourceRecord key={source.id} source={source} busy={preview.state.busy}
-      onPreview={sourceId => void previewSource(sourceId, preview)} />)}</ul>}
+      onPreview={sourceId => void previewSource(port, sourceId, preview)} />)}</ul>}
     {preview.state.preview && <OriginalPreview preview={preview.state.preview} />}
   </section>;
 }

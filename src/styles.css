@@ -1,3 +1,5 @@
+@import './application/controls.css';
+
 :root { font-family: system-ui, sans-serif; color-scheme: light dark; line-height: 1.6; }
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -24,14 +26,7 @@ table { border-collapse: collapse; max-width: 100%; }
 td, th { border: 1px solid var(--line); padding: .5rem; }
 fieldset { border: 1px solid var(--line); border-radius: .4rem; padding: 1rem; margin-block: 1.5rem; }
 label { display: block; font-weight: 600; }
-input, textarea, select, button { font: inherit; color: inherit; background: var(--field); border: 1px solid var(--line); border-radius: .3rem; padding: .55rem .75rem; }
-input, textarea { width: 100%; min-width: 0; }
-select { display: block; }
-textarea { resize: vertical; }
-button { cursor: pointer; min-height: 2.75rem; }
-button:disabled { cursor: wait; opacity: .65; }
 a { color: var(--accent); }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .skip-link { position: absolute; top: -6rem; }
 .skip-link:focus { top: .5rem; background: var(--field); padding: .5rem; z-index: 2; }
 .prose-editor .ProseMirror { background: var(--field); border: 1px solid var(--line); border-radius: .3rem; min-height: 10rem; padding: .75rem; overflow-wrap: anywhere; }
@@ -42,4 +37,3 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid; padding
 dialog { color: inherit; background: var(--bg); border: 2px solid var(--line); border-radius: .5rem; width: min(60rem, 95vw); max-height: 90vh; padding: 1.5rem; overflow: auto; }
 dialog::backdrop { background: rgb(0 0 0 / 55%); }
 [role="alert"] { border: 2px solid var(--accent); padding: .75rem; }
-@media (forced-colors: active) { :focus-visible { outline-color: Highlight; } }

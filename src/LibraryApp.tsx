@@ -4,7 +4,10 @@ import { GoalForm, NameForm, Options, PathForms, ReorderControls, UnitForms } fr
 import { MaterialPanel } from './MaterialPanel';
 import { ReadingPreferencesPanel } from './ReadingPreferencesPanel';
 import { useReadingPreferences } from './useReadingPreferences';
-import { failureMessage, searchResources, type Collection, type Command, type Entity, type Library, type SearchPage } from './contentBridge';
+import { failureMessage, type Collection, type Command, type Entity, type Library, type SearchPage } from './contentBridge';
+
+import { useContentPort, useIdentityPort } from './application/ApplicationProvider';
+import { StatusMessage } from './application/controls';
 
 type Perform = (command: Command) => Promise<Library | null>;
 type Content = ReturnType<typeof useContentLibrary>;
@@ -14,9 +17,12 @@ export function LibraryApp() {
   const [resourceId, setResourceId] = useState(''); const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
   const data = content.snapshot;
+  const identity = useIdentityPort();
+  const session = data ? identity.session(data.workspaceId) : null;
   function openResource(id: string) { if (dirty && id !== resourceId) { setNotice('Save or discard the current draft before opening another material.'); return; } setResourceId(id); setNotice(''); }
   return <div className="app" data-theme={reading.preferences.theme}>
     <a className="skip-link" href="#main">Skip to workspace</a><header><p className="eyebrow">Your local learning workspace</p><h1>Memoquill</h1><p>Create subjects, organize shared materials and author your own learning paths.</p></header>
+    <p aria-label="Local identity">{session ? 'Local guest · Offline workspace' : 'Local guest'}</p>
     <ReadingPreferencesPanel reading={reading} />
     <main id="main" tabIndex={-1}>
       <OrganizationStatus content={content} />
@@ -27,7 +33,7 @@ export function LibraryApp() {
   </div>;
 }
 function OrganizationStatus({ content }: { content: Content }) {
-  return <><p role="status" aria-live="polite" aria-atomic="true">{content.busy ? 'Saving organization…' : content.message}</p>{(content.error || content.hasPending) && <div role="alert"><p>{content.message}</p><button onClick={() => void content.retry()}>Retry last change</button><button onClick={() => void content.reload()}>Reload organization</button></div>}</>;
+  return <><StatusMessage>{content.busy ? 'Saving organization…' : content.message}</StatusMessage>{(content.error || content.hasPending) && <div role="alert"><p>{content.message}</p><button onClick={() => void content.retry()}>Retry last change</button><button onClick={() => void content.reload()}>Reload organization</button></div>}</>;
 }
 function SubjectNavigation({ content, selected, select }: { content: Content; selected: string; select: (id: string) => void }) {
   const subjects = Object.values(content.snapshot?.subjects ?? {}).filter(subject => !subject.archived);
@@ -47,6 +53,7 @@ function SubjectPanel({ data, subjectId, collectionId, selectCollection, perform
   return <fieldset disabled={subject.archived}><legend>{subject.title}</legend><p>Current subject: {subject.title}{subject.archived ? ' (archived)' : ''}</p><GoalForm key={subjectId} subjectId={subjectId} perform={perform} /><ul>{Object.values(data.goals).filter(goal => goal.subjectId === subjectId && !goal.archived).map(goal => <li key={goal.id}>{goal.title}{goal.criteria && <p>{goal.criteria}</p>}</li>)}</ul><CollectionPanel data={data} subjectId={subjectId} selected={collectionId} select={selectCollection} perform={perform} openResource={openResource} /></fieldset>;
 }
 function useMaterialSearch(libraryRevision: number) {
+  const { searchResources } = useContentPort();
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchPage | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const request = useRef(0); const revision = useRef(libraryRevision); revision.current = libraryRevision;

@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
-import { checkDraft } from './bridge';
+import { checkDraft, pickQualificationSource } from './bridge';
 import type { QualificationDraft } from './bridge';
 import { ProseEditor } from './ProseEditor';
 import { Preview } from './Preview';
@@ -61,7 +60,7 @@ export function QualificationApp() {
   async function chooseFile() {
     pickerFocus.requestFocus();
     await runAction(async () => {
-      const path = await open({ multiple: false, directory: false, title: 'Choose a source (name only; no import)' });
+      const path = await pickQualificationSource();
       return path ? `Selected ${path.split('/').pop()}. Contents were not read or executed.` : 'No file selected. Your edits are unchanged.';
     });
   }
