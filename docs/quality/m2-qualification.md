@@ -1,22 +1,24 @@
 # M2 qualification ledger
 
-Application source: 5c72fdb on dev. M2 implementation and integration fixes are
-committed; KER-99/KER-116 remain open for platform/manual acceptance. No push,
+Current scope amendment,2026-11-06: [ADR-10](../architecture/decisions.md#adr-10--x11-first-core-and-deferred-platform-adapters) targets only X11 during M1–M8. References below to Wayland/physical GNOME as integrated M2 blockers are superseded by the new scope; the evidence itself remains unchanged. Wayland is deferred under KER-124. Deferred KER-97 manual evidence is not accepted; full X11 AT/reflow remains a release concern in M7. Current app work is paused for docs/Linear planning; no status is closed by this amendment. See the [portability contract](../architecture/platform-portability.md) and [retained Wayland diagnosis](wayland-deferred-diagnostic.md).
+
+Application source: b67f0fd on dev. M2 implementation and integration fixes are
+committed; KER-99/KER-116 remain open pending revised X11 exit review after user resume. No push,
 merge, remote CI or release is implied.
 
 | Acceptance area | Current evidence | Remaining gate |
 | --- | --- | --- |
-| KER-109 readiness/contracts | Contracts and explicit development-only desktop deferral | Physical GNOME / human audible Orca, KER-97 |
-| KER-110 organization | Domain move/reuse/archive/DAG tests; native X11 subject/collection workflow | Integrated Wayland/Orca acceptance |
-| KER-111 canonical documents | Versioned codec, stable anchors, passive unsupported data; adapter/document tests; native X11 prose/math/code/IME | Integrated platform/manual acceptance |
-| KER-112 persistence | Upgrade/recovery/receipt tests; native X11 restart restores documents, notes and exact pins | Integrated platform acceptance |
-| KER-113 authoring | Editor/material tests and packaged X11 save/undo/redo/real IBus/reopen | Wayland/Orca; physical reflow assessment |
-| KER-114 originals | Managed byte/provenance tests; packaged chooser/cancel and literal HTML preview survive restart | Integrated platform acceptance |
-| KER-115 navigation/search | Domain/component tests; packaged offline search/focus/results and four subject workflows | Integrated platform/manual acceptance |
+| KER-109 readiness/contracts | Contracts and explicit development-only desktop deferral | KER-97 manual follow-up deferred; no non-X11 main-development gate |
+| KER-110 organization | Domain move/reuse/archive/DAG tests; native X11 subject/collection workflow | Revised X11 exit review; release-level X11 AT remains M7 |
+| KER-111 canonical documents | Versioned codec, stable anchors, passive unsupported data; adapter/document tests; native X11 prose/math/code/IME | Revised X11 functional/manual exit review (paused) |
+| KER-112 persistence | Upgrade/recovery/receipt tests; native X11 restart restores documents, notes and exact pins | Revised X11 exit review (paused) |
+| KER-113 authoring | Editor/material tests and packaged X11 save/undo/redo/real IBus/reopen | X11 functional/reflow exit review; full X11 AT remains M7 |
+| KER-114 originals | Managed byte/provenance tests; packaged chooser/cancel and literal HTML preview survive restart | Revised X11 exit review (paused) |
+| KER-115 navigation/search | Domain/component tests; packaged offline search/focus/results and four subject workflows | Revised X11 functional/manual exit review (paused) |
 | KER-117 contracts | Unit ownership, closed registry/actions, budgets, versions/history boundary | Done for execution; live M6 remains outside M2 |
-| KER-118 frontend ports | Injection/replacement/state-boundary tests; single integration review and corrected view-state ownership | Done; full M2 platform acceptance is separate |
+| KER-118 frontend ports | Injection/replacement/state-boundary tests; single integration review and corrected view-state ownership | Done; revised M2 X11 exit acceptance is separate |
 | KER-119 compositions | Schema5/durable drafts/pins/validation/preview/apply/receipts; unknown repair and subtree undo; published-pin lifecycle regression | Done; integrated acceptance remains KER-116 |
-| KER-120 constructor | Eight components/four activity families; isolation/recovery/forms/controller tests; native X11 independent tabs/save/reopen; actual-host exercise/preview/save | In Review pending integrated platform/manual acceptance |
+| KER-120 constructor | Eight components/four activity families; isolation/recovery/forms/controller tests; native X11 independent tabs/save/reopen; actual-host exercise/preview/save | In Review pending revised X11 exit review (paused) |
 | Preview/history boundary | Occurrence-local answers/help, pinned earlier snapshots, explicit simulation labels; no real M4 writes | Actual M4 study/history is outside M2 |
 
 Passed automated gates:118 frontend tests/23 files with coverage;157 Rust library tests
@@ -56,12 +58,16 @@ Further actual-host constructor acceptance on the rebuilt focus-fix candidate:
 See [native constructor report](../task-reports/2026-11-06-185702Z-m2-native-constructor.md).
 M1.1 desktop setup/physical speech acceptance is explicitly user-deferred; no host install.
 
-Unaccepted: nested Wayland WebKit self-SIGABRT at first input; its cause is not
-established by adjacent graphics warnings. The saved Orca speech audit failed all
+Deferred Wayland evidence: WebKit self-SIGABRT is now narrowed to a text-attribute
+query on the application label; the [saved diagnosis](wayland-deferred-diagnostic.md)
+records its stack, controls and limits. No fix or application-independent
+reproduction is established; adjacent graphics warnings are not proof of cause. The saved Orca speech audit failed all
 five expectations. One cold-readiness probe then timed out140 seconds before app launch;
 its journey/audit were NOT RUN. The experimental candidate is retained ignored,
 not shipped. This does not establish the cause of the cold-start failure.
-Physical GNOME, human listening and full visual/reflow acceptance are still open.
+Historical physical GNOME/Wayland evidence remains unaccepted and is outside the
+main development target. Full supported-X11 listening/reflow acceptance remains a
+M7 release concern; no failed or unrun check becomes a pass.
 
 Linux/NVIDIA startup 5c72fdb fixes a locally reproduced GBM white window via early,
 process-local re-exec; explicit environment overrides remain intact. Potential

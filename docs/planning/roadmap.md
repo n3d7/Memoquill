@@ -1,46 +1,88 @@
 # Foundation V1 implementation roadmap
 
-This document records architectural implementation order. Current phase: M2 architecture/research under KER-117; application feature/UI development and further GUI qualification are paused until the revised architecture is agreed. See HANDOFF and current Linear state; historical permissions do not cancel this hold.
+Current user decision,2026-11-06: the main M1–M8 cycle builds the working application
+for Linux/X11 only. Future Windows, macOS, Linux/Wayland, iPhone/iOS and Android
+work is standalone and inactive after that cycle. Every main stage still preserves
+its explicit portability boundary. See the [platform contract](../architecture/platform-portability.md)
+and ADR-10 in [decisions](../architecture/decisions.md).
 
-Core Foundation spans M1–M7. The user-requested M8 is a final optional per-lesson gamification extension after core qualification, not a prerequisite for the core stage. No release/publication authority follows from the roadmap.
+Current authorized phase: documentation/Linear planning only. Application
+implementation, builds and GUI qualification are paused by the user's latest
+instruction. The roadmap never supplies execution, SDK/device setup or publication
+authority. Source b67f0fd contains the implemented M2 constructor and native X11
+focus fix; [qualification](../quality/m2-qualification.md) records evidence and gaps.
+M2's revised X11 exit criteria remain to be reviewed after implementation resumes.
 
-Historical M1 source/qualification preparation remains in its reports. KER-97 still needs physical GNOME/human Orca acceptance; automated presentation evidence is distinct. M2 has existing bounded implementation commits, but the newly clarified constructor is not implemented or accepted.
+Core Foundation spans M1–M7. M8 remains the final optional lesson-local extension
+and does not block the core M7 release. Other platforms do not start automatically
+at M7 or M8 completion. No main issue depends on the deferred platform tasks.
 
-M1.2 [technical preparation](m1-2-workspace-preparation.md) is historical. KER-98 is Done in the inspected tracker; the manual KER-97 gate remains separate. Current M2 contracts and the architecture hold supersede old execution-status paragraphs.
+| Order | Milestone | Dependencies | X11 capability / exit | Portability preserved in this stage |
+| --- | --- | --- | --- | --- |
+| M1 | Desktop foundation and durable services | None | Supported Fedora X11 RPM/runtime, typed services, durable SQLite/assets/migrations and safe failure. KER-97's manual evidence remains unaccepted; the user-approved development deferral is distinct from M7 release acceptance. | Native roots, locking, lifecycle and errors behind the application/native boundary; record Linux assumptions. |
+| M2 | Composable lessons, authoring and navigation | M1 service/storage baseline | Organization, canonical editing, passive originals/search and KER-117–120: trusted composition contracts, replaceable UI/controllers, durable drafts/receipts, isolated lessons and offline composer/preview. Qualify current X11 functionality; no other-platform matrix. | Stable lesson/content/activity/history formats; no X11/window identity in domain data; typed UI/IPC/service seams. |
+| M3 | Lesson sources, ingestion, discovery and ownership | M2 | KER-100 preserved research/books/files, qualified PDF/EPUB/common-format intake, locators/coverage, safe reimport/search; KER-101 package/recovery completeness. Retain PDF/resource/security gates. | Provider/file selection and native safe I/O separated; immutable bytes and portable manifests/IDs, versioned package round-trips without absolute host paths. |
+| M4 | Activities, feedback, sessions and recall review | M2 | Four families, exactly-once durable attempts/drafts, feedback/help, scoped assessments, FSRS recall adapter and separate practice reminders; extend recovery with history. | UI-independent learning services and checkpoints; isolate clocks and process/window lifecycle from study policy. |
+| M5 | Progress, personalization and workflow completion | M3,M4 | Honest outcome-specific history/coverage/errors, accessible settings/navigation and consistent offline resumption; no universal mastery percentage. | Semantic commands/view models and logical settings; input/layout/window details cannot become learning state. |
+| M6 | Capable MCP authoring, scoped autonomy and reviewed changes | M3,M5 | KER-105–107: desktop stdio bridge, shared scoped services, discovery/schema/reads, durable drafts/previews/jobs, grants/revocation and review or delegated reversible apply/audit. | Separate desktop transport/native authority from portable services/DTOs; explicit capabilities, not an assumption that mobile can spawn stdio/server processes. |
+| M7 | Fedora X11 release qualification | M1–M6 | Supported RPM, X11 offline/keyboard/IME/focus/reflow/assistive-technology, scale/security/crash/migration/recovery, four subjects, reviewed examples and notices. Local checks do not authorize publication. | Audit native assumptions and produce the contract/adapter/capability/test handoff for later ports; do not run foreign-target builds now. |
+| M8 | Optional per-lesson gamification | M7;shared M4–M6 contracts | KER-121: default-off lesson-local achievements, levels, scores/ratings, percentages/scales and bounded custom rules; transparent metrics and evidence. X11 only; no global XP/account level. | Versioned UI-independent rules/metrics; no platform data fork or linked mutable lessons. |
 
-| Order | Milestone | Dependencies | Verifiable capability / exit |
-| --- | --- | --- | --- |
-| M1 | Desktop foundation and durable application services | None | Packaged Fedora feasibility for Tauri/Orca/editor/math/IME; typed Rust/UI/service boundary; workspace/migration/asset/operation foundations, single-instance writer and safe failure. Decision gate before domain expansion. |
-| M2 | Composable lessons, authoring and navigation | M1 | Existing organization/canonical authoring plus KER-117–120: composition/activity/view contracts, replaceable UI/controller/service ports and guest identity seam, shared validated persistence, manual offline composer/renderer. Architecture agreement precedes feature/UI work. |
-| M3 | Lesson sources, ingestion, discovery and ownership | M2 | KER-100: lesson-scoped research/books/files, immutable originals and extracted revisions, qualified PDF/EPUB/common-format view/extract matrix, locators/coverage, safe reimport and search. KER-101: portable/native recovery with source bindings and explicit completeness. Retain conditional PDF and resource/security gates. |
-| M4 | Activities, feedback, sessions, and recall review | M2 | Four activity families, assessments, exactly-once durable attempts/drafts, feedback/help evidence, FSRS recall adapter and separate practice reminders. Extend export/recovery with new history records. |
-| M5 | Honest progress, personalization, and workflow completion | M3, M4 | Outcome-specific history/coverage/errors, accessible appearance/shortcuts/settings/saved views, consistent resumption and offline journeys. No universal mastery percentage. |
-| M6 | Capable MCP authoring, scoped autonomy and reviewed changes | M3, M5 | Packaged stdio bridge/shared services, modern/legacy compatibility, discovery/schema/read tools, resumable draft authoring/staging/previews/jobs, explicit grants/revocation, exact transactional review or bounded autonomous apply/undo/audit. Three substantial issues separate transport/read, authoring, and authority/transaction risks. |
-| M7 | Fedora release qualification and Foundation V1 | M1–M6 | Reproducible supported RPM, full backup/migration/crash/security/accessibility/scale/offline qualification, four-subject scenarios, reviewed English/Python example packs, notices and release documentation. No release/publication implied by passing local tests. |
-| M8 | Optional per-lesson gamification | M7; shared M4–M6 contracts | KER-121: default-off lesson-local achievements, levels, scores/ratings, percentages/scales and bounded custom rules; transparent metrics, applicable evidence and learning/time/autonomy/accessibility checks. No global XP/account level; does not block core M7. |
+Readiness is a design/acceptance criterion within normal X11 work, not a separate
+multi-platform implementation project. Keep existing native implementations until
+their replacement is needed; do not add unused adapters, SDKs or speculative crates.
+The [stage/issue matrix](../architecture/platform-portability.md) specifies the
+required boundary in each main issue. Data/schema/service checks still run on the
+current supported environment; they are not Windows/mobile qualification.
 
-M3 and M4 can proceed independently after M2 when ownership is separated; integration/format changes must stay compatible. M5 joins them. MCP contracts and authorization boundaries are designed now and considered in M1–M3 services, while the working adapter follows stable user workflows in M6. This prevents exposing unfinished raw storage as an integration shortcut.
-
-The [additional learning-activity evidence](../research/learning-activities.md) refines M4/M5/M6 acceptance rather than adding milestones: shared instructional phases/presets, suitable feedback/error repair, clear observed/declared/unknown assistance and honest independent-check reporting. The four-family architecture and dependency order remain unchanged. A full native drawing engine, a separate teach-back service or universal pedagogical lockout is not added by these findings.
+M3 and M4 can proceed independently after M2 when authorized and ownership is
+separate; M5 joins them. MCP contracts are considered early but working external
+transport follows stable user workflows in M6. Never expose raw storage as a shortcut.
+The [learning-activity evidence](../research/learning-activities.md) continues to
+refine M4/M5/M6 without changing the four-family architecture or inventing subject
+special cases, a drawing engine or universal pedagogical lockouts.
 
 ## Qualification decisions
 
-- **M1 hard gate:** real Fedora packaged accessibility/runtime checks. If Tauri 2 cannot support core workflows after a bounded investigation, update ADR-02 before expansion; evaluate Electron/native alternatives with the same tasks.
-- **M3 conditional gate:** passive PDF extraction/viewing with maintained licensed dependencies, resource limits, source anchors, and no active content. A failed gate reduces PDF to preserved/explicitly opened attachment and must update release messaging/journey C.
-- **M4 gate:** preserve learning history across revision/schedule changes; FSRS applies only to recall. An algorithm test is not proof of educational efficacy.
-- **M6 hard gate:** useful end-to-end course authoring plus service-level scope enforcement, default review and user-delegated reversible autonomy. Sensitive changes escalate; no unrestricted localhost API, permission self-grant or direct DB fallback.
-- **M7 hard gates:** lossless included-data recovery, acknowledged-attempt durability, offline operation, core keyboard/Orca workflows, untrusted-input handling and correct licensing. Other usability/performance budgets require measured results and explicit disposition, never fabricated passes.
+- M1's actual packaged baseline and deferred manual evidence remain distinct. The
+  earlier physical GNOME/Wayland gate is superseded as a main-development prerequisite
+  by the user's X11-first decision; failures and unrun tests are retained, not passed.
+- Core X11 keyboard/semantic/focus, offline, data integrity, recovery, security and
+  licensing requirements remain. Full X11 assistive-technology/reflow acceptance
+  belongs in M7 before a supported release claim; KER-97 remains In Review.
+- M3's conditional PDF gate still requires passive licensed/resource-bounded
+  extraction/viewing and anchors. Failure reduces capability honestly.
+- M4 preserves history across revisions/schedule changes. FSRS applies only to
+  recall; algorithm tests are not learning-efficacy evidence.
+- M6 requires useful authoring and service-level scopes, default review or explicit
+  bounded delegation. No unrestricted listener, self-grant or direct DB fallback.
+- Non-X11 failures are tracked in the deferred platform work. Common data/security
+  defects or failures on supported X11 remain main-cycle issues.
 
-## Deferred work
+## Deferred standalone platform work
 
-Other platforms, cloud/sync/accounts/collaboration, autonomous in-app AI, executable programming sandboxes, unqualified OCR/complex-format extraction and full web crawling, advanced adaptive/psychometric assessment, a marketplace, and a visual programming/graph editor remain outside V1. A post-V1 idea needs a concrete user need and dependency review rather than being folded into an implementation issue unnoticed.
+Milestone: **Later — platform ports after M8 (inactive)**. Backlog, no parent/core
+blocking or related links, no dates/cycles/automatic execution:
 
-<!-- lesson-composition-clarification:start -->
-## Architecture-first clarification — 2026-11-01
+| Issue | Future target |
+| --- | --- |
+| KER-122 | Windows desktop |
+| KER-123 | macOS desktop |
+| KER-124 | Linux/Wayland |
+| KER-125 | iPhone/iOS |
+| KER-126 | Android |
 
-Feature/UI development and further GUI qualification are on hold until the revised architecture is agreed. KER-117–120 extend M2; KER-116 cannot close against the earlier fixed-form scope. M4 retains real study/evaluation/history and M6 exposes the same authoring operations to agents. M8/KER-121 is the user-requested final optional extension after core M7 qualification, with its own validation; no release/publication authority follows from this ordering.
+Detailed boundaries and links: [portability contract](../architecture/platform-portability.md).
+Current Wayland failure evidence is [retained separately](../quality/wayland-deferred-diagnostic.md).
+Cloud/sync/accounts/collaboration, autonomous in-app AI, executable sandboxes,
+unqualified OCR/complex formats, full web crawling, advanced psychometrics and a
+marketplace remain outside the core cycle. New ideas require explicit scope review.
 
-Accounts remain future work. KER-118 prepares only a guest-first identity/session adapter seam; actual registration/provider/session design and cloud services are deferred. Core learning remains offline without accounts. See [requirements and task mapping](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md).
-<!-- lesson-composition-clarification:end -->
+## Historical clarification records
 
-User clarification, 2026-11-01: EPUB/book reading and extraction are now explicit M3 qualification targets alongside PDF/common documents. Capability is reported honestly; broad formats are not a universal parsing guarantee. M2 defines source seams, M3 ingests, and M6 structures authorized selected sources into learning proposals. See [source/research admission](../research/composable-learning-screening.md).
+The November1 architecture hold was superseded by the November4 execution authority
+and completed KER-117 contracts; the current pause is the user's November6 docs-only
+instruction. Historical research/reports remain evidence, not current execution policy.
+The [lesson requirements](lesson-composition-requirements.md), [source admission](../research/composable-learning-screening.md)
+and [execution ledger](m2-execution.md) retain their valid ownership, science,
+source/provenance and subject-independence decisions.

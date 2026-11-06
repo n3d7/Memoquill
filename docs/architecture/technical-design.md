@@ -6,7 +6,7 @@
 
 Use **Rust, TypeScript, React, Tauri 2, and SQLite** as a local modular monolith. Tauri 2 is the deliberately selected stable family, not a claim that no newer previews exist. Exact compatible releases are pinned in the manifests/lockfiles. M1.1 provides the published qualification fixture; M1.2 implements the [workspace runtime](workspace-runtime.md), including local preferences, storage/asset safety and typed application boundaries. Its [execution ledger](../planning/m1-2-execution.md) records current qualification; broader subjects/imports/learning/MCP components below remain planned. [Technical alternatives and inspected versions](../research/technical-options.md) provide the comparison; [ADRs](decisions.md) define reconsideration conditions.
 
-Tauri avoids a separate backend service and reuses Linux WebKitGTK; Rust suits validated domain/IO logic and the FSRS dependency; SQLite fits transactions, local ownership, and FTS5. TypeScript/React provide a mature interface ecosystem. These are practical judgments, not measured Memoquill footprint/performance results. A mandatory **M1 packaged Fedora/Orca/AT-SPI feasibility gate** tests the actual webview, editor, focus, and math/code workflows. If it fails without a bounded fix, revisit Electron or a native shell before domain expansion. Tauri 3 alpha is not a Foundation dependency.
+Tauri avoids a separate backend service and reuses Linux WebKitGTK; Rust suits validated domain/IO logic and the FSRS dependency; SQLite fits local transactions and FTS5. These are practical judgments, not measured footprint/performance results. Current delivery targets Linux/X11 through the main M1–M8 cycle under ADR-10. Keep portable core/contracts and platform adapters; qualify actual X11 behavior, with full X11 assistive-technology/reflow release acceptance in M7. Other-platform matrices are deferred and do not block main development. The latest user instruction pauses application work for docs/Linear planning only. Tauri 3 alpha is not a Foundation dependency.
 
 ## Components
 
@@ -65,7 +65,7 @@ Workspace preferences have schema/defaults and per-subject overrides. Message ca
 
 ## Linux delivery and future evolution
 
-M1 validates an actual Fedora RPM build; a development run may supplement but never replace the packaged gate. M7 qualifies **RPM as the initial supported Fedora artifact**, including WebKitGTK dependencies and Wayland/keyboard/Orca workflows. AppImage is conditional after testing the same workflows and dependency baseline; Flatpak is post-V1 unless portals/IPC and maintenance cost justify it. Avoid supporting several unqualified package types.
+M1 validates an actual supported Fedora X11 RPM; a dev run does not replace the packaged gate. M7 qualifies that X11 artifact, runtime dependencies and offline/keyboard/IME/focus/reflow/assistive-technology workflows. Native Wayland and Windows/macOS/iPhone/Android implementation/builds/qualification are inactive after M8, with separate tasks. AppImage remains conditional on its own qualification and Flatpak is outside the current supported artifact; do not advertise unqualified package/platform support.
 
 For V1, use signed release metadata/checksums and explicit manual updates; do not add a custom auto-updater. When installing through a package manager, follow that channel's update policy. Verify backup/migration compatibility before a new version activates a workspace. Update delivery/signing keys and release automation require separate publication authority; none is configured now.
 
@@ -109,4 +109,15 @@ Additional literature was screened, not imported wholesale: retain manual/compon
 
 ## KER-117 architecture proposal — 2026-11-04
 
-The [lesson composition contract](lesson-composition.md) specifies Unit-owned compositions, trusted registry/actions, bounded conditions, shared semantic draft/validate/preview/apply services and controller-owned study policy. Recommend the small owned renderer first; json-render remains an optional translating adapter, with no dependency chosen. Existing RequestContext is not a deployed MCP grant system. KER-118/119/120 and M4/M6 retain their responsibilities; implementation and GUI qualification await architectural agreement.
+The [lesson composition contract](lesson-composition.md) specifies Unit-owned compositions, trusted registry/actions, bounded conditions, shared semantic draft/validate/preview/apply services and controller-owned study policy. Recommend the small owned renderer first; json-render remains an optional translating adapter, with no dependency chosen. Existing RequestContext is not a deployed MCP grant system. KER-118/119/120 and M4/M6 retain their responsibilities. KER-117 was accepted for M2 execution and the constructor is implemented through b67f0fd. The current pause is the user's docs-only platform-planning instruction, not a missing KER-117 agreement.
+
+## X11-first delivery and later platform adapters — 2026-11-06
+
+[ADR-10](decisions.md#adr-10--x11-first-core-and-deferred-platform-adapters) and the
+[platform contract](platform-portability.md) define concrete portability criteria
+for every M1–M8 stage. Keep one versioned model, shared application services and
+typed frontend/controller/native seams; isolate source providers, safe native I/O,
+permissions, lifecycle and optional transports. Existing rustix/Linux safe-I/O
+assumptions are recorded debt, not proof of Windows/mobile support. No SDKs,
+foreign-target builds or native/mobile adapter implementations belong in this cycle.
+Current work is docs/Linear only; application development is paused.

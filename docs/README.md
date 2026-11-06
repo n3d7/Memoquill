@@ -2,7 +2,7 @@
 
 M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
 
-Status: M2 implementation is authorized on dev with local substep commits only. The constructor, service boundaries and Linux/NVIDIA startup fix are implemented; platform/manual qualification remains incomplete. No push, merge or release is authorized. See the [M2 qualification ledger](quality/m2-qualification.md) and [current checkpoint](HANDOFF.md).
+Status (2026-11-06): current authority is documentation/Linear planning for future platform adaptation only; application implementation, builds and GUI checks are paused. Main M1–M8 delivery remains Linux/X11-only on resume, with explicit portability criteria in each stage. Windows, macOS, Wayland, iPhone/iOS and Android are standalone inactive work after M8. See the [platform contract](architecture/platform-portability.md), [roadmap](planning/roadmap.md) and [current checkpoint](HANDOFF.md). No push/merge/release is authorized.
 
 Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
 
@@ -46,3 +46,11 @@ The later user instruction authorizes completing M2 and its substeps, including 
 ## Concrete lesson-constructor architecture
 
 [KER-117 contract](architecture/lesson-composition.md) covers identities, typed blocks/actions, content/presentation/history boundaries, revisions/migrations, shared manual/MCP authoring and four subject traces. KER-117 is Done for M2 execution. [Evidence delta](research/lesson-contract-evidence.md) records bounded gap checks; it is reused without duplicate collection.
+
+## X11-first delivery and future platforms
+
+- [Portability contract and per-main-stage criteria](architecture/platform-portability.md), with ADR-10 in [decisions](architecture/decisions.md).
+- [Sequencing design](superpowers/specs/2026-11-06-x11-first-platforms-design.md): planning only; no target implementation before the deferred phase.
+- [Standalone later backlog](planning/linear-backlog.md): KER-122–126, after M8, inactive and unrelated to the main dependency graph.
+- [Retained Wayland diagnosis](quality/wayland-deferred-diagnostic.md); no CSS workaround applied or failure converted to a pass.
+- [Platform-planning report](task-reports/2026-11-06-193756Z-x11-first-platform-adaptation.md).

@@ -1,5 +1,7 @@
 # Architecture decisions
 
+Current phase/platform amendment: [ADR-10](#adr-10--x11-first-core-and-deferred-platform-adapters) supersedes earlier non-X11/main-development gate wording. Current work is docs/Linear only; M1–M8 implementation remains X11-only when authorized. Recorded failed/unrun evidence is not converted to a pass.
+
 Status: **recommended for Foundation V1**, with explicit implementation-time qualification gates. ADR-02's M1.1 candidate has passing bounded native automation and remains subject to manual desktop/Orca acceptance and user review; ADR-08 is applied locally. This is not release qualification or a learning/performance benchmark. Material reconsideration updates this record and the roadmap rather than quietly adding a second architecture. See the [actual Fedora baseline](../quality/fedora-desktop-baseline.md).
 
 ## ADR-01 — A local Linux modular monolith
@@ -89,3 +91,34 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 ### ADR-09 clarification — lesson isolation
 
 User correction, 2026-11-04: different lessons have independent mutable configuration and learner state. Linked-tab editing and synchronization are excluded entirely, including the proposed future-view seam. Distinct editable lesson tabs must not alias mutable Unit/composition/draft or learner state. Normal lesson edits rebind only that lesson; reused definitions do not couple lesson progress.
+
+
+## ADR-10 — X11-first core and deferred platform adapters
+
+- **Authority/context:** user instructions of2026-11-06: first build the working
+  X11 application, preserve future portability in every main stage, defer Windows,
+  macOS, Linux/Wayland, iPhone/iOS and Android to independent later work. The latest
+  instruction authorizes only documenting/planning this adaptation; app work is paused.
+- **Decision:** main M1–M8 changes and qualification target X11 only. Retain M8's
+  optional lesson-local scope. Five standalone Backlog tasks in an inactive milestone
+  after M8 have no parent/core blocking/related links, dates or automatic start.
+- **Core criteria now:** shared versioned domain/content/history/package contracts;
+  typed UI/controller/application ports; OS I/O, permissions, lifecycle, IPC and
+  capability discovery at adapters. Each main stage/issue has a specific readiness
+  criterion in the [platform contract](platform-portability.md).
+- **Known debt:** native rustix/openat2/safe-open/rename/locking/error conversion
+  remains Linux/Unix-specific work to adapt. Tauri/plugin mobile support is not
+  proof that this application builds or behaves correctly on another target.
+  No alternate core/data fork, unused adapter hierarchy or pre-M8 SDK/cross-build work.
+- **Gate amendment:** physical GNOME/native Wayland/foreign-OS matrices no longer
+  block main development. KER-97 manual evidence stays deferred/In Review; X11
+  keyboard/semantics/focus, integrity and security remain required. M7 retains full
+  X11 release-level assistive-technology/reflow acceptance. Do not disable accessibility
+  or label failures as passes. An actual common/X11 defect remains a core issue.
+- **Alternatives:** parallel platform delivery violates the user's sequencing;
+  separate domain/schema forks multiply migration/history/authority risk. Keep the
+  modular monolith and current shell, with later native/UI adapter qualification.
+- **Consequences/reconsideration:** [roadmap](../planning/roadmap.md) and Linear
+  criteria govern current scope; explicit user instruction is required to resume
+  application work or activate later ports. Other signing/distribution/system-change
+  permissions are unchanged. No publication or blanket platform support is implied.

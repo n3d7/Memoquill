@@ -1,5 +1,7 @@
 # M2 contracts and entry-gate disposition
 
+Current platform/phase amendment,2026-11-06: [ADR-10](../architecture/decisions.md#adr-10--x11-first-core-and-deferred-platform-adapters) scopes main M1–M8 work to X11 and requires portability at the shared-core/native boundaries. Current authority is docs/Linear planning only; app work is paused. Earlier physical GNOME/Wayland prerequisites below are historical and superseded as main-development gates, not passed checks. KER-97 manual evidence remains deferred; M7 retains full X11 release acceptance. See [platform contract](../architecture/platform-portability.md).
+
 > Current architecture clarification: see the composition section below. New feature/UI development is on hold pending architectural agreement.
 
 Status: KER-109 contract baseline frozen; development-only desktop deferral explicitly dispositioned under the user's delegated judgment.
@@ -142,7 +144,7 @@ M2 does not implement M4 activities, attempts, scheduling or assessments.
 | ApplicationService | Receipt/retry/conflict, nested references, atomic graph updates, schema1/2 migration and rollback; no source/history loss. |
 | Native attachment adapter | Selected handles, size/hash, path/type spoofing, passive original access, missing/corrupt bytes and publication failpoints. |
 | User authoring/navigation | T10 save/error/draft retention, focus/selection/undo/IME, shared impact, tags/search, result pagination, restart reading resume. |
-| Packaged Fedora desktop | Keyboard/Orca names/roles/status/editing, math/code/table alternatives, physical GNOME/human listening and Wayland runtime evidence. |
+| Packaged Fedora X11 | Current X11 keyboard/semantic/focus/editing, safe math/code/table alternatives and durable workflows. Full X11 release-level AT/reflow remains M7; Wayland is deferred to KER-124 after M8. |
 | Changed-code security | Targeted SAST, dependency/secrets/license review when relevant, all paste/drop/restore/render routes, native capabilities/CSP and denial budgets. |
 
 ## 7. Tool and workflow selection
@@ -172,7 +174,7 @@ Acceptance includes four-subject manual composition, isolated lesson tabs/settin
 
 M4 supplies real study/evaluation/history, M6 the live scoped agent adapter with manual/agent parity. Only a guest identity seam is prepared now; actual registration and cloud services remain future work. M8/KER-121 is a final default-off per-lesson gamification extension after core M7 qualification and does not block the core stage.
 
-See [requirements](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md). Existing source/provenance, offline, native security and physical GNOME/human Orca gates remain unchanged. No implementation completion, dependency choice or release authority is inferred.
+See [requirements](lesson-composition-requirements.md) and [research](../research/composable-learning-architecture.md). Source/provenance, offline and native security requirements remain. ADR-10 scopes main work to X11, preserves unaccepted manual evidence and moves non-X11 matrices off the main development path. No implementation completion, dependency choice or release authority is inferred.
 <!-- lesson-composition-clarification:end -->
 
 <!-- research-source-followup:start -->

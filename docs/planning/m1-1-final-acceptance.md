@@ -30,10 +30,6 @@ Concrete package proposal (not applied):
 - This changes the host OS beyond interacting with Memoquill; obtain explicit
   approval before installing. Recheck any materially changed transaction first.
 
-Then: enter an intended GNOME/Wayland session when the user is ready; launch the
-qualified RPM offline, perform keyboard/IME/dialog/focus/reflow checks and have
-the user confirm actual Orca speech. Record exact candidate/environment/results.
-Close KER-97 only against accepted evidence or an explicitly approved ADR change;
-never turn unrun checks into passes.
+Current disposition: the package/session proposal above is historical and remains unapplied. ADR-10 selects X11-only main delivery; native GNOME/Wayland work is not the next task and belongs to later KER-124 where applicable. Keep KER-97 In Review with unaccepted manual evidence, and account for full X11 AT/reflow before a supported M7 release claim. Current authority is docs/Linear planning only; do not install packages, switch sessions or begin GUI qualification.
 
 Read-only preparation and package logs: .qualification/m11-followup/.

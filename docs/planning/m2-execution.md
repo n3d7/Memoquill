@@ -1,6 +1,6 @@
 # M2 execution ledger
 
-Current authority: finish M2/all substeps on dev with local completed-substep commits only. No push/merge/PR/release. The user permits app interaction and supplies screenshots; agents capture none.
+Current authority (2026-11-06): docs/Linear planning for future adaptation only. Application implementation, builds and GUI checks are paused. Main M1–M8 remains X11-only on resume, with explicit portability criteria; later platform tasks are inactive after M8. Local completed-substep commits on dev only; no push/merge/PR/release.
 Superpowers owns execution. The user defers broad checks to the milestone boundary; focused regressions accompany fixes and unchanged checks are reused. Platform/manual acceptance remains separate from implementation.
 Historical start: feat/ker-99-authoring from main8405103cae7bcafdeec15caebf2516bfcf0a035e; later user instructions supersede that branch/publication policy.
 
@@ -39,3 +39,5 @@ Pre-existing this execution: preparation/HANDOFF documents from prior authorized
 | 2026-11-06 / explicit failed readiness probe | One isolated cold-Orca readiness attempt timed out140 seconds before app launch; journey/audit NOT RUN. Candidate retained ignored, not shipping. | KER-113/114/115/120 In Review; KER-116/99 In Progress. User is using the PC; host GUI control returned. |
 
 | 2026-11-06 18:57 UTC / M2 native constructor | Completed actual-host four-family/eight-component checks, isolated tab state, earlier snapshots and save/restart. Fixed loss of keyboard focus when closing an original from a lesson; red-to-green regression and real RPM retest pass. |47 affected UI tests/8 files; types/Vite/RPM passed. [Report](../task-reports/2026-11-06-185702Z-m2-native-constructor.md). M1.1 host setup explicitly deferred; no installation. KER-120 In Review, KER-116/99 In Progress; no push/merge/release. |
+
+| 2026-11-06 / X11-first platform rephase | User selected working X11 core through the main M1–M8 cycle and required portability in the main steps; later platforms are standalone/inactive after M8. Current authority is docs/Linear only, app work paused. | ADR-10; [platform contract](../architecture/platform-portability.md); KER-122–126 Backlog with no main dependency links. Historical Wayland failure evidence retained, not fixed/passed; current issue states unchanged. |

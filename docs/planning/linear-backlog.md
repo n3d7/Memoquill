@@ -1,5 +1,37 @@
 # Linear backlog mapping
 
+## Current platform/phase amendment — 2026-11-06
+
+The latest user instruction authorizes docs/Linear planning only; application
+implementation, builds and GUI qualification are paused. When resumed, M1–M8
+implements and qualifies Linux/X11 only. Other-platform/timing wording in the
+historical issue definitions below is superseded by ADR-10 and the
+[platform contract](../architecture/platform-portability.md), not treated as passed evidence.
+Common offline, integrity/security, learning and X11 requirements remain.
+
+Each main issue KER-97–108 and KER-121 now carries its own portability acceptance
+criterion; the contract's stage/issue matrix is the canonical concise mapping.
+Eight main milestones and five current M2 review/integration issues carry the same
+X11/docs-only scope. Statuses are unchanged by this planning amendment.
+
+Standalone later milestone: **Later — platform ports after M8 (inactive)**.
+Verified after M8 in milestone order; all five issues Backlog, unassigned,
+without parent, cycle/date, blockedBy, blocks or relatedTo links. Do not start
+these tasks automatically or make them prerequisites for the main steps.
+
+| Issue | Deferred target |
+| --- | --- |
+| [KER-122](https://linear.app/kerigan/issue/KER-122/deferred-after-m8-windows-desktop-port) | Windows desktop |
+| [KER-123](https://linear.app/kerigan/issue/KER-123/deferred-after-m8-macos-desktop-port) | macOS desktop |
+| [KER-124](https://linear.app/kerigan/issue/KER-124/deferred-after-m8-linux-wayland-support-and-qualification) | Linux/Wayland |
+| [KER-125](https://linear.app/kerigan/issue/KER-125/deferred-after-m8-iphone-ios-port) | iPhone/iOS |
+| [KER-126](https://linear.app/kerigan/issue/KER-126/deferred-after-m8-android-port) | Android |
+
+Future signing/distribution/SDK/device/system changes require their normal later
+authority. Core portability criteria do not authorize early target work.
+
+## Historical issue definitions
+
 M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](../quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
 
 Roadmap authority: [roadmap.md](roadmap.md). Dedicated project: [Memoquill — Foundation V1](https://linear.app/kerigan/project/memoquill-foundation-v1-05143f79bda3), `P-KER-3`, Kerigan team (`KER`). Project, seven milestones and twelve issues were successfully created and their returned IDs/URLs recorded below; no unrelated project/issue was modified. KER-97 remains In Review with manual acceptance open. The later user request authorized KER-98, now In Progress with [implementation/qualification](m1-2-execution.md) and a final PR and merge after completed qualification. Other issues remain outside this execution. PR #1 published the Foundation/M1.1 baseline; local M1.2 work is not yet published.

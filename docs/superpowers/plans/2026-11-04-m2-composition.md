@@ -1,5 +1,7 @@
 # M2 composition implementation plan
 
+Current user authority,2026-11-06: docs/Linear portability planning only; application implementation/builds/GUI checks are paused. When resumed, qualify main M1–M8 on X11 only and retain [per-stage portability](../../architecture/platform-portability.md). Non-X11 matrices, including Wayland, are deferred under ADR-10/KER-122–126; historical unchecked criteria below are not converted into passes. Review revised X11 exit criteria before closing M2.
+
 > **For agentic workers:** Superpowers execution with the explicit user override below. Follow focused TDD and commit completed substeps only; avoid broad repeated checks and per-task review dispatch.
 
 **Goal:** deliver the remaining M2 services, replaceable frontend and isolated offline lesson constructor, then qualify all executable acceptance criteria.
