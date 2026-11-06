@@ -1,25 +1,27 @@
 # Memoquill continuation checkpoint
 
-Updated 2026-11-06 10:27 UTC. App source 5c72fdb, dev. Finish M2/all substeps; local completed-substep commits only. No push/merge/PR/release.
+Updated 2026-11-06 18:57 UTC. Branch dev, base e84dca6; this substep fixes original-preview focus and completes native constructor checks. Finish M2/all substeps; local completed-substep commits only. No push/merge/PR/release or M3 start.
 
-- Latest user instruction: finish KER-97/M1.1 after this M2 implementation/qualification checkpoint. This is explicitly authorized follow-up, then return to the outstanding M2 acceptance gates; no M3 start.
-- User is using the PC. Host GUI control has been returned; warn before any future focus/typing. App is on workspace5. App interaction is authorized; screenshots only from the user, never captured by agents.
-- Respect reduced cadence: focused regressions during fixes; one consolidated suite/security/integration review; reuse unchanged evidence.
-- Different editable lessons are fully isolated. No linked mutable views or future linked-tab seam. Immutable byte reuse never propagates edits.
-- Implemented: typed ports/controllers/guest seam, schema5 scoped drafts/pins/preview/apply/receipts; eight components/four activity families; semantic undo, independent tabs, saved/earlier snapshots and passive canonical reading.
-- Single integration review2 Important fixed in3b1c5a4/1c1fb43: dirty forms stay on their original pin; durable draft pins can read published resources before apply. Reports in ignored task workspace.
-- 5c72fdb fixes confirmed NVIDIA/GBM white startup through early Linux re-exec; preserves explicit overrides, args/cwd/env/PID. No unsafe global env mutation, new dependency or host configuration change.
-- Passed:118 frontend/23 files;157 Rust-library tests (3 ignored);4 startup bin tests;build/RPM, affected fmt/Clippy. Unchanged optimized glib regression1 passed reused.
-- Security scans:52 TS/JS +2 post-fix frontend files with two Semgrep rules,79 changed +4 fix files Trivy secrets:0 findings in bounded scopes. Manifests/locks unchanged; no full Rust SAST/vulnerability-free claim.
-- Native X11 source 1c1fb43:60 main+9 reopen passed across retained runs. New5c72fdb default host launch without exported renderer flag was confirmed by user.
-- Actual host test: saved lesson/draft/activity forms, exact preview, two hints, isolated tab state, durable save and published-answer semantics pass. Normal100% scale is saved in the synthetic profile.
-- Host app remains in .qualification/m2-composition/user-preview- 5c72fdb; launch.json identifies observed PID97858/window33554435. Verify process/profile identity before future control, especially after reboot; never reuse a stale PID blindly.
-- Saved native Wayland self-SIGABRT remains unresolved; nearby MESA warnings are not confirmed cause. Saved Orca audit5 expectations failed. One cold-readiness probe timed out140 seconds BEFORE app launch, so journey/audit NOT RUN; experimental candidate retained ignored, not shipping.
-- Physical GNOME/human audible Orca and complete visual/reflow acceptance remain open (KER-97). M2/KER-99 and KER-116 are not Done.
-- Linear synced: KER-118/119 Done; KER-113/114/115/120 In Review; KER-116/99 In Progress; KER-97 last verified In Review.
-- Source/artifact digest: newest RPM SHA256f9d77199107d508a9f71d7a136ee27b139720a7c57457e4033ce09d93531227f. Executable sections match release binary; expected Tauri bundle marker UNK→RPM accounts for read-only-data difference. See linux-startup-candidate/candidate.json.
-- Scientific research was reused. SOFA read-only search/post supplied environment timing advice; its Delphi API differs. Firecrawl Cloud primary Tauri issue9304 supports the workaround/performance caveat. No SOFA contribution or private source upload.
-- Preserve unrelated .agents/skills/memoquill-task-workflow/SKILL.md, .gitignore, AGENTS.md and two November1 tooling reports. Only owned docs/qualification changes belong in the checkpoint commit.
-- Read docs/quality/m2-qualification.md and the latest task report for evidence/limits. Local logs: .superpowers/sdd/2026-11-04-m2-composition/ and .qualification/m2-composition/.
+- Latest user steering: M1.1 desktop setup/acceptance is deferred; continue M2. No GNOME/Orca host installation was approved or performed. Container evidence does not establish physical GNOME/human speech acceptance.
+- App interaction remains authorized on workspace5; warn before focus/typing. Screenshots only from the user, never captured by agents. On stop, immediately stop owned work.
+- Reduced cadence remains: focused regressions for fixes, one consolidated suite/security/integration review, reuse unchanged evidence.
+- Different editable lessons are fully isolated. No linked mutable views or future linked-tab seam. Immutable bytes/pins never propagate edits.
+- Implemented: frontend ports/controllers/local guest seam; schema5 scoped drafts, exact pins, preview/apply/receipts; eight components/four activity families; semantic undo/recovery, independent tabs, saved/earlier snapshots and passive reading.
+- Integration review2 Important fixed in3b1c5a4/1c1fb43: dirty payloads stay on their original pin; durable draft pins can read published resources before apply. No repeat broad review.
+- 5c72fdb fixes confirmed NVIDIA/GBM white startup via early Linux re-exec, preserving explicit overrides and process context. User confirmed ordinary launch. No host config/dependency change.
+- Prior broad gates:118 frontend/23 files;157 Rust-library tests (3 ignored);4 startup bin tests;types/build/RPM, fmt/Clippy. Unchanged optimized glib regression1 passed reused.
+- Prior bounded Semgrep/Trivy checks had0 findings within their documented scopes. Manifests/locks unchanged; no full Rust SAST or vulnerability-free claim. No new scan for this focus-only patch.
+- Native X11 baseline1c1fb43:60 main+9 reopen passed. Actual-host English exercise/answer/100% scale survived restart on5c72fdb.
+- Further actual-host checks cover recall/single choice/constructed/procedure; all eight components; correct/wrong keys, authored guidance, column content, passive original/provenance and section action/local status.
+- Tab-local prompts/answers/hints/checklist/reflection, earlier exact snapshots and current-content preservation passed. Saved definitions/layout/action/status survived restart; transient preview responses reset rather than becoming study history.
+- Real defect fixed in LessonComposer: closing an original lost keyboard focus. Capture only this lesson's opener; restore it or the visible lesson heading. Hidden lessons cannot receive restored focus.
+- Red regression reproduced focus on body;11 targeted tests passed after fix. Final affected lesson suite47 tests/8 files passed;TypeScript/Vite/RPM passed. New RPM payload passed the original native focus case and saved family/component checks.
+- Current RPM SHA256 d2c55cf523f97c5728ce63c9d673f98526ceb7f2e5bd2326236949ff5a12b9db; payload92639334369726e9cc9ae9dcdbe3394cd306d040bd5c713e0531ce7e36203ec8. Exact source/candidate hashes: .qualification/m2-composition/focus-fix-candidate/candidate.json.
+- Host app uses the synthetic user-preview-5c72fdb profile with the newer focus-fix RPM payload. Its launch.json identifies the current process/window; always verify live identity after a pause/reboot. Do not reuse a literal PID/window ID.
+- Some revisited select options disappeared from AT-SPI; Space/keyboard choices were confirmed by actual fields and durable/rendered outcomes. Snapshot assertions use their reading segment because generic ancestors are flattened. No complete screen-reader claim.
+- Still open: saved nested-Wayland WebKit self-SIGABRT; failed5-expectation Orca audit. One cold-readiness probe timed out140 seconds before app launch; its journey/audit NOT RUN. Experimental tooling stays ignored, not shipping; do not repeat without a new diagnostic reason.
+- Physical GNOME/human speech and full visual/reflow acceptance remain open/deferred. KER-97 In Review; KER-120 In Review; KER-116/99 In Progress. Implementation and X11 success do not mark M2 Done.
+- Preserve unrelated .agents/skills/memoquill-task-workflow/SKILL.md, .gitignore, AGENTS.md and the two November1 tooling reports.
+- Read docs/quality/m2-qualification.md and docs/task-reports/2026-11-06-185702Z-m2-native-constructor.md. Local assertions: .qualification/m2-composition/host-journey.json; focused test/build logs alongside it. Earlier evidence: .superpowers/sdd/2026-11-04-m2-composition/.
 
-Next: complete the owned qualification/docs commit, inspect live KER-97 and relevant M1.1 acceptance sources; finish its real checks without status-only closure. Host focus/typing remains paused while user uses the PC.
+Next: remaining platform acceptance, starting with an actual isolated Wayland crash backtrace if work resumes there; M1.1 setup remains deferred. Do not add product scope or repeat passed constructor journeys.

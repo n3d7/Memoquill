@@ -33,7 +33,7 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
   const [selected, setSelected] = useState(''); const [visited, setVisited] = useState<string[]>([]); const [mode, setMode] = useState<'edit' | 'saved'>('edit');
   const [original, setOriginal] = useState<SourcePreview | null>(null); const [sourceError, setSourceError] = useState(''); const sourceRequest = useRef(0);
   const [historical, setHistorical] = useState<SavedComposition | null>(null); const [historyBusy, setHistoryBusy] = useState(false); const historyRequest = useRef(0);
-  const heading = useRef<HTMLHeadingElement>(null); const composition = state.composition;
+  const heading = useRef<HTMLHeadingElement>(null); const originalOpener = useRef<HTMLElement | null>(null); const composition = state.composition;
   useEffect(() => { void controller.load(); }, [controller]);
   useEffect(() => () => { sourceRequest.current++; historyRequest.current++; }, []);
   const { resolved, error: readError } = useResolvedLesson(port, composition, state.draft?.revision ?? state.saved?.id ?? '');
@@ -41,9 +41,17 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
   const node = composition?.nodes.find(n => n.nodeId === selected) ?? composition?.nodes.find(n => n.nodeId === composition.rootNodeId);
   const disabled = state.busy || state.pending || !state.draft;
   async function openSource(source: Parameters<NonNullable<Parameters<typeof LessonRenderer>[0]['onOpenSource']>>[0]) {
+    const active = document.activeElement;
+    originalOpener.current = active instanceof HTMLElement && heading.current?.parentElement?.contains(active) ? active : null;
     const token = ++sourceRequest.current; setOriginal(null); setSourceError('');
     if (!sourcePort) { setSourceError('The original viewer is unavailable.'); return; }
     try { const preview = await sourcePort.sourcePreview(source.sourceId); if (preview.source.digest !== source.assetDigest) throw new Error('Pinned original changed'); if (token === sourceRequest.current) setOriginal(preview); } catch { if (token === sourceRequest.current) setSourceError('The pinned original could not be opened. Its saved identity is preserved.'); }
+  }
+  function closeOriginal() {
+    sourceRequest.current++; setOriginal(null);
+    const opener = originalOpener.current; originalOpener.current = null;
+    const target = opener?.isConnected && !opener.closest('[hidden]') ? opener : heading.current;
+    if (target && !target.closest('[hidden]')) target.focus();
   }
   async function edit(ops: LessonOperation[]) {
     const focus = document.activeElement; const revision = controller.getSnapshot().draft?.revision;
@@ -72,7 +80,7 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
       {state.preview && <div className="lesson-surface" {...appearanceAttributes(state.preview.composition.appearance)}><h3>Author preview</h3>{state.preview.warnings.map((warning, i) => <p key={i}>{warning}</p>)}<LessonRenderer key={state.preview.hash} composition={state.preview.composition} {...resolved} onOpenSource={source => void openSource(source)} /></div>}
     </div>
     <div hidden={mode !== 'saved'}>{state.saved && <><SavedLesson saved={state.saved} port={port} openSource={source => void openSource(source)} />{state.saved.parentRevisionId && <button disabled={historyBusy || !(historical ?? state.saved).parentRevisionId} onClick={() => void earlierSnapshot()}>View earlier saved snapshot</button>}{historical && <aside><p>Earlier saved content is read only. Unsupported data remains inert; the current lesson and editing draft are unchanged.</p><SavedLesson saved={historical} title="Earlier saved snapshot — read only" port={port} openSource={source => void openSource(source)} /><button onClick={() => { historyRequest.current++; setHistoryBusy(false); setHistorical(null); }}>Close earlier snapshot</button></aside>}</>}</div>
-    {sourceError && <p role="alert">{sourceError}</p>}{original && <aside aria-label="Preserved original"><h3>{original.source.filename}</h3><p>{original.source.attribution ?? 'Attribution unavailable'} · {original.source.license ?? 'License unknown'}</p><pre>{original.text ?? original.hex ?? 'Original bytes preserved. Text preview unavailable.'}</pre>{original.truncated && <p>Partial preview only. The original remains preserved.</p>}<button onClick={() => { sourceRequest.current++; setOriginal(null); }}>Close original preview</button></aside>}
+    {sourceError && <p role="alert">{sourceError}</p>}{original && <aside aria-label="Preserved original"><h3>{original.source.filename}</h3><p>{original.source.attribution ?? 'Attribution unavailable'} · {original.source.license ?? 'License unknown'}</p><pre>{original.text ?? original.hex ?? 'Original bytes preserved. Text preview unavailable.'}</pre>{original.truncated && <p>Partial preview only. The original remains preserved.</p>}<button onClick={closeOriginal}>Close original preview</button></aside>}
   </section>;
 }
 function appearanceAttributes(appearance: Appearance) { return { 'data-theme': appearance.theme, 'data-spacing': appearance.spacing, 'data-typography': appearance.typography, 'data-width': appearance.width, 'data-emphasis': appearance.emphasis }; }

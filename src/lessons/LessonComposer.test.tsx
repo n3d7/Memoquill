@@ -5,6 +5,7 @@ import type { Composition, LessonDraft, LessonPort } from './types';
 import { LessonTabs } from './LessonTabs';
 import type { SourcePort } from '../application/ports';
 import type { Library } from '../application/contentTypes';
+import type { SourcePreview } from '../application/sourceTypes';
 const empty = (unitId: string): Composition => ({ contractVersion: 1, unitId, rootNodeId: 'root', nodes: [{ nodeId: 'root', typeId: 'stack', typeVersion: 1, props: { gap: 'normal', headingLevel: 2 }, slots: { body: [] }, on: {} }], bindings: [], sourceBindingRefs: [], appearance: { spacing: 'normal', theme: 'system', typography: 'default', width: 'normal', emphasis: 'normal' }, authoringProvenance: { kind: 'manual' } });
 function fixture() {
   const drafts = new Map<string, LessonDraft>();
@@ -59,4 +60,34 @@ it('opens an earlier saved snapshot through its exact Unit-scoped revision, reta
   render(<LessonComposer workspaceId="w" unitId="english" title="English" port={p} />); fireEvent.click(await screen.findByRole('button', { name: 'Saved lesson' }));
   fireEvent.click(await screen.findByRole('button', { name: 'View earlier saved snapshot' })); await screen.findByText(/Unsupported component preserved/);
   expect(p.readRevision).toHaveBeenCalledWith('english', 'original'); expect(screen.getByRole('heading', { name: 'Earlier saved snapshot — read only' })).toBeInTheDocument(); expect(p.editDraft).not.toHaveBeenCalled();
+});
+
+function savedSourceFixture() {
+  const p = fixture(); const composition = empty('english');
+  composition.nodes[0].slots.body = ['source'];
+  composition.nodes.push({ nodeId: 'source', typeId: 'source', typeVersion: 1, props: { bindingId: 'original' }, slots: {}, on: {} });
+  composition.bindings.push({ bindingId: 'original', targetKind: 'source', targetId: 'source-id', revisionId: 'snapshot' });
+  vi.mocked(p.read).mockResolvedValue({ id: 'saved', unitId: 'english', composition, parentRevisionId: null, registryContractVersion: 1, hash: 'hash' });
+  vi.mocked(p.listDrafts).mockResolvedValue([]);
+  vi.mocked(p.readSource).mockResolvedValue({ id: 'snapshot', unitId: 'english', sourceId: 'source-id', assetDigest: 'digest', filename: 'original.html', attribution: null, license: null, originUrl: null, declaredUsedRanges: [], extractionCoverage: 'notExtracted', readCoverage: 'unknown', warnings: [] });
+  const preview: SourcePreview = { source: { id: 'source-id', resourceId: 'resource', digest: 'digest', filename: 'original.html', mediaType: 'text/html', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 13 }, text: '<p>Source</p>', hex: null, truncated: false };
+  const sourcePreview = vi.fn(async () => preview);
+  return { p, preview, sourcePreview, sources: { sourcePreview } as unknown as SourcePort };
+}
+it('returns keyboard focus to the lesson original opener after closing its passive preview', async () => {
+  const { p, sources } = savedSourceFixture();
+  render(<LessonComposer workspaceId="w" unitId="english" title="English" port={p} sourcePort={sources} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Saved lesson' }));
+  const opener = await screen.findByRole('button', { name: 'Open original original.html' }); opener.focus(); fireEvent.click(opener);
+  const close = await screen.findByRole('button', { name: 'Close original preview' }); close.focus(); fireEvent.click(close);
+  expect(opener).toHaveFocus(); expect(screen.queryByText('<p>Source</p>')).not.toBeInTheDocument();
+});
+it('does not steal focus when a pending original resolves after its lesson becomes hidden', async () => {
+  const { p, sources, sourcePreview, preview } = savedSourceFixture(); let resolve!: (value: SourcePreview) => void;
+  sourcePreview.mockImplementationOnce(() => new Promise<SourcePreview>(done => { resolve = done; }));
+  const view = (hidden: boolean) => <><div hidden={hidden}><LessonComposer workspaceId="w" unitId="english" title="English" port={p} sourcePort={sources} /></div><button>Other lesson control</button></>;
+  const { rerender } = render(view(false)); fireEvent.click(await screen.findByRole('button', { name: 'Saved lesson' }));
+  const opener = await screen.findByRole('button', { name: 'Open original original.html' }); opener.focus(); fireEvent.click(opener);
+  rerender(view(true)); const other = screen.getByRole('button', { name: 'Other lesson control' }); other.focus(); resolve(preview);
+  await waitFor(() => expect(screen.getByText('<p>Source</p>')).toBeInTheDocument()); expect(other).toHaveFocus();
 });

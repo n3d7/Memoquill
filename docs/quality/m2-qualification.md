@@ -31,8 +31,30 @@ Native X11 on1c1fb43:60 main checks plus9 reopen checks passed across retained r
 Test selection/AT-SPI button roles were corrected; initial failed runs are preserved.
 Actual host on5c72fdb: default launch without an exported renderer flag was confirmed
 by the user. Native UI exercise editing, exact-key preview, two hints, tab isolation
-and durable save/published-answer semantics passed. Host restart after that new
-exercise was not repeated after control was returned to the user.
+and durable save/published-answer semantics passed. The saved exercise/answer and100%
+text scale subsequently survived an actual host process restart.
+
+Further actual-host constructor acceptance on the rebuilt focus-fix candidate:
+
+- All four activity families were authored and exercised. Single choice distinguishes
+  wrong/right keys; constructed/procedure guidance remains self assessment.
+- All eight components were exercised. Canonical material and passive original
+  provenance render in columns; a named section action and one-hop status agree.
+- Cross-tab prompt/form/answer/hint/checklist isolation, earlier pinned content,
+  durable save and process restart passed. Transient preview answers reset at restart.
+- A native keyboard defect was reproduced and fixed: Close original preview now
+  restores its exact lesson opener, with a visible lesson-heading fallback. The
+  rebuilt RPM payload passed the original native case;47 affected tests/8 files,
+  TypeScript/Vite and RPM build passed. Unchanged earlier broad gates are reused.
+- This candidate RPM SHA256 is d2c55cf523f97c5728ce63c9d673f98526ceb7f2e5bd2326236949ff5a12b9db;
+  its payload/source hashes are in focus-fix-candidate/candidate.json. The earlier
+  linux-startup-candidate remains retained separately.
+- Revisited select options were sometimes missing from AT-SPI; explicit Space and
+  ordinary keyboard selection were checked against rendered/durable outcomes.
+  This is not a claim of complete screen-reader support or visual acceptance.
+
+See [native constructor report](../task-reports/2026-11-06-185702Z-m2-native-constructor.md).
+M1.1 desktop setup/physical speech acceptance is explicitly user-deferred; no host install.
 
 Unaccepted: nested Wayland WebKit self-SIGABRT at first input; its cause is not
 established by adjacent graphics warnings. The saved Orca speech audit failed all
