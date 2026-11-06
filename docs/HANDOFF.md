@@ -1,28 +1,25 @@
-# Memoquill architecture-first checkpoint
+# Memoquill continuation checkpoint
 
-Updated 2026-11-04 14:58:43 UTC. Authorized phase: complete M2 and all substeps with local dev substep commits only.
-User follow-up explicitly authorizes M2 application development after the final isolation correction. GUI/screenshots/push/merge remain prohibited.
+Updated 2026-11-06 10:27 UTC. App source 5c72fdb, dev. Finish M2/all substeps; local completed-substep commits only. No push/merge/PR/release.
 
-- [Concrete contract](architecture/lesson-composition.md) and proposed ADR-09 now specify Unit-owned lessons, exact revisions, registry/actions/conditions, state/history, shared authoring, migrations/unknown types, budgets and four subject traces.
-- Proposed lessonId = existing unitId, one active composition head per Unit. Different lesson tabs are independent and cannot alias mutable composition/draft/learner state. Linked-tab editing/synchronization and its future-view seam are excluded entirely. Existing resource/activity/block IDs and append-only personal history remain separate.
-- Recommend a small owned renderer first; json-render remains an optional translating adapter. No new dependency, SQL, runtime API or feature was implemented.
-- Independent builder check raised activity-occurrence identity and event/condition editing. Both were specified and reviewer confirmed resolution; no further question from that bounded check.
-- KER-117 remains In Progress, description updated and read back; comment records local commit/review. Architecture agreement, not code completion, is the outstanding criterion.
-- KER-118 owns replaceable UI/controller/adapters and local guest identity seam; real auth deferred. KER-119 persistence; KER-120 composer/renderer; KER-116 integrated qualification. These are not completed by the proposal.
-- M3/KER-100 still owns actual book/file ingestion; KER-101 source portability. M2 source bindings do not imply parsers exist or authorize source uploads.
-- M4/KER-102 owns real study/evaluation; M6/KER-105/106/107 scoped agent reads/authoring/security. Runtime preview cannot create real attempts. M8/KER-121 remains last, optional per lesson, default off and independent of core M7.
-- Existing scientific screening and primary sources reused. [Evidence delta](research/lesson-contract-evidence.md) records narrow arXiv/Consensus gap checks and Firecrawl Cloud visibility documentation; no new learning-effect claim.
-- User prefers native arXiv/Consensus for research and Firecrawl Cloud for web. Cloud credits checked before calls. No new service/configuration or private source upload.
-- Graph Tier 2 checks are best effort, not a repository-wide completeness/security audit. Current RequestContext flag must not be described as an existing agent-grant system.
-- Validation: 85 local links in nine architecture/docs files, whitespace and empty application source/test/config diff passed. No application tests or GUI qualification run during this hold.
-- Branch dev began ea04fbd, 13 ahead of local origin/dev; architecture committed 3892fb9. Report/handoff are a separate local checkpoint. No push, PR, merge, remote CI or release performed.
-- Preserve pre-existing modifications: .agents/skills/memoquill-task-workflow/SKILL.md, .gitignore, AGENTS.md; untracked reports 2026-11-01-143719Z-engineering-skill.md and 2026-11-01-155430Z-tool-catalog.md.
-- Previous application commits cb1d0e6/b1cd960 and historical tests remain bounded evidence only, not proof of the constructor or current integrated acceptance.
-- Physical GNOME/human audible Orca remains unresolved (KER-97 In Review); ADR-02 permits reversible development, not acceptance. Integrated M2/Fedora/release gates remain outstanding.
-- Never capture screenshots or open GUI. Existing native-test workarounds are not authority to reconfigure host/security. Prior scanner evidence does not establish vulnerability freedom.
+- Latest user instruction: finish KER-97/M1.1 after this M2 implementation/qualification checkpoint. This is explicitly authorized follow-up, then return to the outstanding M2 acceptance gates; no M3 start.
+- User is using the PC. Host GUI control has been returned; warn before any future focus/typing. App is on workspace5. App interaction is authorized; screenshots only from the user, never captured by agents.
+- Respect reduced cadence: focused regressions during fixes; one consolidated suite/security/integration review; reuse unchanged evidence.
+- Different editable lessons are fully isolated. No linked mutable views or future linked-tab seam. Immutable byte reuse never propagates edits.
+- Implemented: typed ports/controllers/guest seam, schema5 scoped drafts/pins/preview/apply/receipts; eight components/four activity families; semantic undo, independent tabs, saved/earlier snapshots and passive canonical reading.
+- Single integration review2 Important fixed in3b1c5a4/1c1fb43: dirty forms stay on their original pin; durable draft pins can read published resources before apply. Reports in ignored task workspace.
+- 5c72fdb fixes confirmed NVIDIA/GBM white startup through early Linux re-exec; preserves explicit overrides, args/cwd/env/PID. No unsafe global env mutation, new dependency or host configuration change.
+- Passed:118 frontend/23 files;157 Rust-library tests (3 ignored);4 startup bin tests;build/RPM, affected fmt/Clippy. Unchanged optimized glib regression1 passed reused.
+- Security scans:52 TS/JS +2 post-fix frontend files with two Semgrep rules,79 changed +4 fix files Trivy secrets:0 findings in bounded scopes. Manifests/locks unchanged; no full Rust SAST/vulnerability-free claim.
+- Native X11 source 1c1fb43:60 main+9 reopen passed across retained runs. New5c72fdb default host launch without exported renderer flag was confirmed by user.
+- Actual host test: saved lesson/draft/activity forms, exact preview, two hints, isolated tab state, durable save and published-answer semantics pass. Normal100% scale is saved in the synthetic profile.
+- Host app remains in .qualification/m2-composition/user-preview- 5c72fdb; launch.json identifies observed PID97858/window33554435. Verify process/profile identity before future control, especially after reboot; never reuse a stale PID blindly.
+- Saved native Wayland self-SIGABRT remains unresolved; nearby MESA warnings are not confirmed cause. Saved Orca audit5 expectations failed. One cold-readiness probe timed out140 seconds BEFORE app launch, so journey/audit NOT RUN; experimental candidate retained ignored, not shipping.
+- Physical GNOME/human audible Orca and complete visual/reflow acceptance remain open (KER-97). M2/KER-99 and KER-116 are not Done.
+- Linear synced: KER-118/119 Done; KER-113/114/115/120 In Review; KER-116/99 In Progress; KER-97 last verified In Review.
+- Source/artifact digest: newest RPM SHA256f9d77199107d508a9f71d7a136ee27b139720a7c57457e4033ce09d93531227f. Executable sections match release binary; expected Tauri bundle marker UNK→RPM accounts for read-only-data difference. See linux-startup-candidate/candidate.json.
+- Scientific research was reused. SOFA read-only search/post supplied environment timing advice; its Delphi API differs. Firecrawl Cloud primary Tauri issue9304 supports the workaround/performance caveat. No SOFA contribution or private source upload.
+- Preserve unrelated .agents/skills/memoquill-task-workflow/SKILL.md, .gitignore, AGENTS.md and two November1 tooling reports. Only owned docs/qualification changes belong in the checkpoint commit.
+- Read docs/quality/m2-qualification.md and the latest task report for evidence/limits. Local logs: .superpowers/sdd/2026-11-04-m2-composition/ and .qualification/m2-composition/.
 
-- User correction: lesson content/configuration/drafts/responses/assistance/reading preferences/schedules/progress stay isolated. Shared immutable definitions do not imply live updates or shared learner state. See [correction report](task-reports/2026-11-04-145843Z-ker117-tab-isolation.md).
-
-Next: execute [M2 plan](superpowers/plans/2026-11-04-m2-composition.md) Task1 persistence, then frontend ports and composer, with per-task review/local commits. Preserve unverified physical/native acceptance; do not close M2 from unit tests alone.
-
-Resume: [report](task-reports/2026-11-04-145327Z-ker117-lesson-contract.md), [requirements](planning/lesson-composition-requirements.md), [M2 contracts](planning/m2-contracts.md), [prior follow-up](task-reports/2026-11-01-201122Z-research-source-ingestion-followup.md), [scientific ledger](research/composable-learning-screening.md).
+Next: complete the owned qualification/docs commit, inspect live KER-97 and relevant M1.1 acceptance sources; finish its real checks without status-only closure. Host focus/typing remains paused while user uses the PC.

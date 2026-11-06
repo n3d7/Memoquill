@@ -57,7 +57,7 @@ The user explicitly asks to conserve usage: run focused regressions for changed 
 ## Task 3: KER-120 isolated composer and renderer
 
 **Files:** `src/lessons/` controller, renderer, composer, tabs, tests; root LibraryApp integration and lesson styles. Consume Task 1 DTOs and Task 2 ports; no SQL/domain migration changes.
-**Interfaces:** composer receives workspaceId, Unit and LessonPort. Each tab mounts an independent controller keyed by Unit. New lesson uses existing createUnit service. Pins resources through existing readDocument exact revision. Authoring activity definitions use typed Task 1 service. Render with typed view model/actions; preview separate disposable responses/assistance by node occurrence.
+**Interfaces:** composer receives workspaceId, Unit and LessonPort. Each tab mounts an independent controller keyed by Unit. New lesson uses existing createUnit service. Pins resources through Unit-scoped readResource with an exact revision. Authoring activity definitions use typed Task 1 service. Render with typed view model/actions; preview separate disposable responses/assistance by node occurrence.
 
 - [ ] Write failing component tests for add/edit/remove/reorder/nest/configure, undo/redo, preview/save/reopen, two isolated lessons, unknown inert fallback, failed apply/exact retry, stale async response, keyboard/focus/semantic order and four subjects.
 - [ ] Implement stack/columns/section/content/source/activity/button/status registry with closed typed fields and safe rendering, forms for all initial activity families and bounded condition/event configuration. No arbitrary JS/HTML/CSS/URLs.
@@ -92,6 +92,15 @@ The user explicitly asks to conserve usage: run focused regressions for changed 
 - [ ] Run focused tests RED, implement read-only resolver through existing actor/service/native boundaries and matching typed frontend adapter.
 - [ ] Align catalog response.update value bound with actual scalar validation:4096 UTF-8 bytes (catalog.rs currently16384 maxLength). Include ASCII4096/4097 and multibyte boundary regression/metadata; document byte semantics so tools do not treat code-point length as sufficient. Keep event/action/state descriptors consistent.
 - [ ] Run focused Rust/adapter tests, fmt/Clippy/build as affected; commit only this independently testable substep and record exact logs/report.
-- [ ] Task-scoped review before Task3 consumes this interface. KER-119 stays unfinished until this gap and review are closed.
+- [x] Final integration review covered this interface under the user's reduced-cadence override. Fix1c1fb43 additionally closes published-resource pins in validated durable drafts before apply; the persistence child is Done.
 
 Execution order refinement: Task1 fix/review → Task2 → Task5 → Task3 → Task4. Task2 does not depend on resource rendering, so its frontend boundary extraction can proceed first. Task3 must consume the real scoped readResource method.
+
+## Execution checkpoint — 2026-11-06
+
+Tasks1/2/3/5 implementation and the single integration-review fix wave are complete;
+the historical checklists above are not instructions to repeat completed work.
+Task4's local qualification checkpoint records passed X11 and failed/unrun platform
+gates in docs/quality/m2-qualification.md; M2 acceptance remains incomplete.
+Additional startup fix 5c72fdb resolves the user-confirmed Linux/NVIDIA GBM white window.
+The user next authorizes finishing KER-97/M1.1; no M3 work is authorized.

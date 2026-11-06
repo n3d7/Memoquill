@@ -2,7 +2,7 @@
 
 M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
 
-Status: research/product architecture/planning are preserved. M1.1 supplies the desktop qualification shell. M1.2 now implements the durable workspace and local reading preferences; local qualification is complete and source delivery is being finalized. The user authorized PR and merge after checks; manual desktop acceptance and release remain separate.
+Status: M2 implementation is authorized on dev with local substep commits only. The constructor, service boundaries and Linux/NVIDIA startup fix are implemented; platform/manual qualification remains incomplete. No push, merge or release is authorized. See the [M2 qualification ledger](quality/m2-qualification.md) and [current checkpoint](HANDOFF.md).
 
 Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
 
@@ -18,7 +18,9 @@ Foundation documentation and the M1.1 source candidate are published through [PR
 - [Actual Fedora desktop qualification](quality/fedora-desktop-baseline.md) and [M1.1 implementation/action log](planning/m1-desktop-qualification.md).
 - [M1.1 review report](task-reports/2026-10-28-103031Z-m1-desktop-qualification.md), [source/artifact evidence](quality/m1-desktop-evidence.json), and [native reproduction](../tests/qualification/README.md).
 - [M1.2 qualification evidence](quality/workspace-qualification.md).
-- [M1.2 historical preparation](planning/m1-2-workspace-preparation.md), [execution/verification ledger](planning/m1-2-execution.md), and [implemented workspace runtime](architecture/workspace-runtime.md). The later implementation request supersedes the preparation-only pause; M2 remains unstarted.
+- [M1.2 historical preparation](planning/m1-2-workspace-preparation.md), [execution/verification ledger](planning/m1-2-execution.md), and [implemented workspace runtime](architecture/workspace-runtime.md).
+- [M2 execution](planning/m2-execution.md), [composition plan](superpowers/plans/2026-11-04-m2-composition.md), and [qualification ledger](quality/m2-qualification.md).
+- [M2 qualification/startup checkpoint](task-reports/2026-11-06-101709Z-m2-qualification-and-linux-startup.md).
 
 - [Learning science and evidence register](research/learning-science.md).
 - [Activity portfolio and additional evidence](research/learning-activities.md), with [audit of the supplied Consensus review](research/consensus-review-audit.md).
@@ -37,10 +39,10 @@ The roadmap defines implementation order; Linear records its executable backlog 
 - [Clarified requirements and Linear mapping](planning/lesson-composition-requirements.md): manual/agent lesson composition, replaceable UI, guest identity seam, M4/M6 boundaries and final optional M8.
 - [Architecture research and evidence applicability](research/composable-learning-architecture.md): trusted registries, learning-component schemas, security/accessibility and conditional gamification evidence.
 
-Feature/UI development and further GUI qualification are paused pending revised architecture agreement.
+The later user instruction authorizes completing M2 and its substeps, including app launch when needed. Screenshots must be provided by the user; agents never capture them.
 
 - [Bounded scientific screening and lesson-source requirements](research/composable-learning-screening.md): admitted versus future/rejected evidence, pinned study/assistance/metric boundaries and books/files assigned to M3/M6.
 
 ## Concrete lesson-constructor architecture
 
-[KER-117 proposal](architecture/lesson-composition.md) covers identities, typed blocks/actions, content/presentation/history boundaries, revisions/migrations, shared manual/MCP authoring and four subject traces. [Evidence delta](research/lesson-contract-evidence.md) records bounded gap checks. Proposal awaits agreement; application work remains paused.
+[KER-117 contract](architecture/lesson-composition.md) covers identities, typed blocks/actions, content/presentation/history boundaries, revisions/migrations, shared manual/MCP authoring and four subject traces. KER-117 is Done for M2 execution. [Evidence delta](research/lesson-contract-evidence.md) records bounded gap checks; it is reused without duplicate collection.

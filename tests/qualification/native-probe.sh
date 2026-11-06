@@ -53,7 +53,11 @@ WAYLAND_DEBUG=1 "${app_command[@]}" >"/evidence/app-$mode.log" 2>&1 &
 app_pid=$!
 printf '%s\n' "$app_pid" > "/evidence/app-pid-$mode"
 if [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
-  python3 /input/m2-journey.py "$mode"
+  if [[ "${MEMOQUILL_M2_RESUME:-0}" == 1 ]]; then
+    python3 /input/m2-reopen.py "$mode"
+  else
+    python3 /input/m2-journey.py "$mode"
+  fi
 else
   python3 /input/atspi-probe.py "$mode"
   python3 /input/atspi-journey.py "$mode"
@@ -66,7 +70,9 @@ fi
 kill -TERM "$orca_pid"
 wait "$orca_pid"
 if [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
-  python3 /input/m2-speech.py "$mode"
+  if [[ "${MEMOQUILL_M2_RESUME:-0}" != 1 ]]; then
+    python3 /input/m2-speech.py "$mode"
+  fi
 else
   python3 /input/atspi-speech.py "$mode"
 fi

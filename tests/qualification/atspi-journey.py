@@ -28,7 +28,7 @@ def nodes(root=None):
     root = pyatspi.Registry.getDesktop(0) if root is None else root
     found = []
     def visit(node, depth=0):
-        if depth > 30 or len(found) > 1800:
+        if node is None or depth > 30 or len(found) > 1800:
             return
         try:
             found.append(node)
@@ -41,7 +41,9 @@ def nodes(root=None):
 
 def find(role, name=None):
     for node in nodes():
-        if node.getRoleName() == role and (name is None or node.name == name):
+        actual_role = node.getRoleName()
+        role_matches = actual_role == role or role == 'button' and actual_role in ('push button', 'toggle button')
+        if role_matches and (name is None or node.name == name):
             return node
     raise LookupError(f'Accessible control not found: {role} {name}')
 
@@ -56,9 +58,23 @@ def wait_for(test, description, record=True):
         except (LookupError, GLib.Error):
             pass
         time.sleep(.1)
-    focused = [{'role': node.getRoleName(), 'name': node.name} for node in nodes() if node.getState().contains(pyatspi.STATE_FOCUSED)]
-    active_window = command('xdotool', 'getwindowfocus', 'getwindowname')
-    results.append({'failed': description, 'focusedControls': focused, 'activeXWindow': active_window})
+    focused, messages, selected_tabs = [], [], []
+    for node in nodes():
+        try:
+            role, state = node.getRoleName(), node.getState()
+            if state.contains(pyatspi.STATE_FOCUSED):
+                focused.append({'role': role, 'name': node.name})
+            if role in ('alert', 'status') or 'live:polite' in node.getAttributes():
+                messages.append(text(node)[:600])
+            if role == 'page tab' and state.contains(pyatspi.STATE_SELECTED):
+                selected_tabs.append(node.name)
+        except GLib.Error:
+            pass  # Preserve diagnostics even if a WebKit process disappeared.
+    try:
+        active_window = command('xdotool', 'getwindowfocus', 'getwindowname')
+    except RuntimeError:
+        active_window = 'No active X11 input window'
+    results.append({'failed': description, 'focusedControls': focused, 'activeXWindow': active_window, 'messages': messages[-8:], 'selectedLessonTabs': selected_tabs})
     capture('failure')
     raise AssertionError(f'{description}; focused controls: {focused}')
 

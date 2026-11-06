@@ -30,10 +30,9 @@ def click(name):
 
 
 def type_in(name, value, role='entry'):
-    if role == 'entry':
-        d.edit_field(name)
-    else:
-        d.focus(role, name)
+    # AT-SPI grabFocus already focuses ordinary form fields. Return can submit
+    # their form before typing; editor browse-mode activation is separate below.
+    d.focus(role, name)
     d.key('ctrl+a')
     d.command('xdotool', 'type', '--clearmodifiers', '--delay', '1', value)
     d.wait_for(lambda: value in d.text(d.find(role, name)), f'keyboard input retained in {name}')
@@ -53,8 +52,22 @@ def picker_closed():
     return d.find('button', 'Choose source file').getState().contains(d.pyatspi.STATE_FOCUSED)
 
 
+def close_window():
+    if mode == 'wayland':
+        if not d.find('button', 'Close').queryAction().doAction(0):
+            raise AssertionError('Native window-close action was not accepted')
+    else:
+        d.key('alt+F4')
+
+
+composer_spec = importlib.util.spec_from_file_location('composer_checks', Path(__file__).with_name('m2-composer.py'))
+composer = importlib.util.module_from_spec(composer_spec)
+composer_spec.loader.exec_module(composer)
+
+
 try:
     d.wait_for(lambda: d.find('button', 'Create subject').getState().contains(d.pyatspi.STATE_ENABLED), 'fresh workspace is authorable')
+    composer.focus_window(d, mode)
     d.capture('m2-start')
     type_in('New subject', 'Quantum physics')
     click('Create subject')
@@ -142,9 +155,10 @@ try:
     click('Close result')
     d.wait_for(lambda: d.find('button', 'Save reading preferences').getState().contains(d.pyatspi.STATE_FOCUSED), 'result closure restores requested trigger focus')
     d.capture('m2-authoring')
+    composer.exercise(d, click, type_in, choose, shown)
 
     # Close normally, then restart with identical private profile/backend.
-    d.key('alt+F4')
+    close_window()
     d.wait_for(lambda: not any(node.name == 'Create subject' for node in d.nodes()), 'first product window closes normally')
     child_env = os.environ.copy()
     child_env['WAYLAND_DEBUG'] = '1'
@@ -160,14 +174,15 @@ try:
     d.wait_for(lambda: 'Native quantum provenance' in d.text(d.find('entry', 'Learning document')), 'canonical prose survives reopen')
     d.wait_for(lambda: shown('Native anchored note'), 'anchored note survives restart')
     d.wait_for(lambda: shown('Saved reading location restored.'), 'exact saved reading position restores without changing content')
-    choose('Selected block', 1)
+    composer.choose_block(d, choose, 'math')
     d.wait_for(lambda: r'E=\hbar\omega' in d.text(d.find('entry', 'Formula source')), 'authored math source survives reopen')
-    d.edit_field('Formula source')
+    d.focus('entry', 'Formula source')
     d.read_from_focus()
     click('Preview original m2-original.html')
     d.wait_for(lambda: shown('<script>never_execute_original()</script>'), 'managed original survives restart unchanged')
     d.capture('m2-reopened')
-    d.key('alt+F4')
+    composer.reopened(d, click, choose, shown)
+    close_window()
     results.append({'check': 'restarted product exits normally', 'passed': child.wait(timeout=10) == 0})
 finally:
     if child is not None and child.poll() is None:
