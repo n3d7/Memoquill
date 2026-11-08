@@ -2,8 +2,7 @@
 
 M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
 
-Status (2026-11-06): current authority is documentation/Linear planning for future platform adaptation only; application implementation, builds and GUI checks are paused. Main M1–M8 delivery remains Linux/X11-only on resume, with explicit portability criteria in each stage. Windows, macOS, Wayland, iPhone/iOS and Android are standalone inactive work after M8. See the [platform contract](architecture/platform-portability.md), [roadmap](planning/roadmap.md) and [current checkpoint](HANDOFF.md). No push/merge/release is authorized.
-
+Status (2026-11-08): M2 functional X11 exit is qualified; see the [exit report](task-reports/2026-11-08-105345Z-m2-x11-exit.md) and [qualification ledger](quality/m2-qualification.md). The user requested preparation of dev for main after M2; M3 does not start. Main M1–M8 remains Linux/X11-only with portable contracts; other platforms stay inactive after M8. Full X11 release AT/reflow remains M7 and deferred M1.1 manual acceptance is not passed. Full visual-design timing will be discussed after M2. No actual push/merge/PR/release is authorized.
 Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
 
 ## Read in this order
@@ -52,5 +51,5 @@ The later user instruction authorizes completing M2 and its substeps, including 
 - [Portability contract and per-main-stage criteria](architecture/platform-portability.md), with ADR-10 in [decisions](architecture/decisions.md).
 - [Sequencing design](superpowers/specs/2026-11-06-x11-first-platforms-design.md): planning only; no target implementation before the deferred phase.
 - [Standalone later backlog](planning/linear-backlog.md): KER-122–126, after M8, inactive and unrelated to the main dependency graph.
-- [Retained Wayland diagnosis](quality/wayland-deferred-diagnostic.md); no CSS workaround applied or failure converted to a pass.
+- [Retained Wayland diagnosis](quality/wayland-deferred-diagnostic.md); historical Wayland result retained; the common X11 attribute-query case now has a tested layout workaround, not a Wayland pass.
 - [Platform-planning report](task-reports/2026-11-06-193756Z-x11-first-platform-adaptation.md).

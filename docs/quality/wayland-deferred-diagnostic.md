@@ -1,5 +1,13 @@
 # Deferred Wayland text-attribute crash
 
+Update, 2026-11-08: the same valid label query also crashed the retained candidate
+on X11, so this was handled as a common M2 defect rather than deferred with
+Wayland. Block layout for labelled text controls avoids the problematic inline
+object run while retaining their names. The updated probe fails on the old X11
+RPM and passes on the new one; the full M2 X11 journey also passes. This is a
+layout workaround, not an upstream engine fix or a Wayland qualification result.
+See the [current M2 ledger](m2-qualification.md). The diagnosis below is historical.
+
 Diagnosis stopped when the user selected X11-only core delivery on2026-11-06.
 This is retained evidence for [KER-124](https://linear.app/kerigan/issue/KER-124/deferred-after-m8-linux-wayland-support-and-qualification),
 not a requirement to continue Wayland work during M1–M8. No CSS workaround was

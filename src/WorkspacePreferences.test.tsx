@@ -22,7 +22,7 @@ test('loads saved appearance, explicitly saves edits and restores them on reopen
   });
   const view = render(<App />);
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark'));
-  expect(document.documentElement.style.fontSize).toBe('125%');
+  await waitFor(() => expect(document.documentElement.style.fontSize).toBe('125%'));
   fireEvent.change(screen.getByRole('combobox', { name: 'Appearance' }), { target: { value: 'light' } });
   const save = screen.getByRole('button', { name: 'Save reading preferences' });
   await userEvent.click(save);

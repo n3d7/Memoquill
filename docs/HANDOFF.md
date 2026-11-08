@@ -1,23 +1,23 @@
 # Memoquill continuation checkpoint
 
-Updated 2026-11-06 19:37 UTC. Source b67f0fd on dev. Current user authority: document future platform adaptation in docs/Linear only. Application development, builds and GUI qualification are paused until an explicit user resume.
+Updated 2026-11-08 10:55 UTC. Branch dev; local completed-substep commits only.
 
-- Main M1–M8 cycle targets Linux/X11 only. M8 keeps its existing optional lesson-local scope; it is not a platform-port stage. Other targets do not begin automatically at M7/M8 completion.
-- Portability must be considered in the main stages: one versioned domain/content/history model, typed UI/controller/application ports, native I/O/permissions/lifecycle/transport adapters, logical view models and explicit capabilities. No foreign-target SDKs, builds, devices or adapter implementation now.
-- Canonical policy: docs/architecture/platform-portability.md and ADR-10 in decisions.md. Roadmap, product/technical/quality scope, M2 contract/plan and Linear mapping are amended. Historical reports/results remain evidence, not current execution authority.
-- Linear: eight main milestones and13 main issues have X11/portability criteria; five M2 integration/review issues have the revised scope. Application pause is recorded. Existing statuses were not closed by rephasing.
-- Standalone later milestone after M8: KER-122 Windows,123 macOS,124 Wayland,125 iPhone/iOS,126 Android. All Backlog/low-priority/unassigned; no parent/cycle/dates/blocking/related links. Readback verified; initial automatic Related links from issue-number mentions were removed, and main descriptions no longer contain those future references.
-- Native I/O debt is explicit: rustix/openat2/safe-open/rename/owner/asset/error helpers are Linux/Unix-specific adapter work. Tauri's mobile support does not qualify this app/plugins or guarantee a quick port. Do not fork the core or create unused abstraction hierarchies.
-- Different editable lessons remain fully isolated, including forms/answers/hints/progress. No linked mutable views or future linked-tab seam. Immutable pins never propagate edits.
-- Earlier completed app substep b67f0fd fixes original-preview Close focus; exact opener/visible heading restored, hidden lessons protected.47 affected lesson tests/8 files and types/Vite/RPM passed; native RPM retest and all four families/eight components/save/restart passed. See the native constructor report.
-- Prior broad gates118 frontend/157 Rust-library (3 ignored)/4 startup tests and bounded review/security evidence remain in the M2 qualification ledger. They were not rerun for docs-only planning.
-- Current RPM SHA256 d2c55cf523f97c5728ce63c9d673f98526ceb7f2e5bd2326236949ff5a12b9db; payload92639334369726e9cc9ae9dcdbe3394cd306d040bd5c713e0531ce7e36203ec8. Candidate/source hashes: .qualification/m2-composition/focus-fix-candidate/candidate.json.
-- Before the platform rephase, a direct Wayland label GetAttributeRun(11,true) reproduced WebKitWebProcess SIGABRT through textAttributesWithUTF8Offset/CrashOnOverflow. Ordinary minimal HTML controls did not. Related upstream PR67179 is not a verified fix for this runtime. Details: docs/quality/wayland-deferred-diagnostic.md and ignored wayland-stack/ evidence.
-- Wayland diagnosis is now deferred under the standalone later task. The proposed CSS experiment was never applied. Do not continue those probes, broad cold-Orca trials, switch sessions or install GNOME/Orca during the current docs-only task.
-- KER-97 manual evidence remains deferred/In Review, not passed. Main X11 keyboard/semantics/focus/data/security remain required; full X11 release-level AT/reflow stays M7. Other-target failure is not grounds to ignore a common or X11 defect.
-- Current M2 issue states remain KER-99/116 In Progress;113/114/115/120 In Review;117/118/119 Done. Revised X11 exit criteria require review after application work is explicitly resumed, not status-only closure now.
-- User app interaction had been authorized on workspace5, but current work is docs-only. No GUI input/captures now. On later authorized control, use .qualification/m2-composition/user-preview-5c72fdb/launch.json and verify live process/window; never trust old IDs after a pause/reboot.
-- Preserve unrelated .agents/skills/memoquill-task-workflow/SKILL.md, .gitignore, AGENTS.md and the two November1 tooling reports. Local completed-substep commits on dev only; no push/merge/PR/release.
-- Latest planning report: docs/task-reports/2026-11-06-193756Z-x11-first-platform-adaptation.md. Current spec: docs/superpowers/specs/2026-11-06-x11-first-platforms-design.md. Scientific research was reused; no learning-effect claim or new platform implementation.
+- User resumed development after the updated tool-catalog/MCP inventory. M2 functional Linux/X11 work is complete; next is preparing dev for main. Do not start M3 or actually push/merge/create a PR/release.
+- Linear readback: KER-99 and all12 M2 children (109–120) Done. KER-97 remains In Review/unaccepted. Historical tracker pauses are superseded by the explicit resume.
+- Main M1–M8 is X11-only. Portable versioned models, typed frontend/controller/service/native adapters and capabilities remain required. Standalone later-platform tasks stay inactive after M8 with no core dependencies; no SDK/port/runtime work now.
+- Different editable lessons remain fully isolated: content/forms/answers/hints/progress do not propagate. No linked-tab editing or future linked-tab seam.
+- Full visual-design timing will be discussed with the user after M2. Do not add a redesign or alter the UI roadmap before that discussion.
+- Final exit fix: labelled text inputs/textarea use block layout to avoid a valid WebKitGTK AT-SPI inline-label query crash confirmed on X11. Names/implicit labels are retained; checkbox/radio/hidden controls excluded. This is an app layout workaround, not an upstream engine fix.
+- Same updated probe fails on the old RPM and passes on the candidate. A first candidate probe rejected a valid separate label representation; corrected harness still reproduces the old failure.
+- Final frontend coverage120/23 passed; targeted preferences6 passed after waiting for the unchanged125% root-font effect. TypeScript/Vite/Rust release/RPM build passed.
+- Fresh isolated packaged X11 journey passed68 assertions plus one IME metadata record, exit0: authoring, code/math/real IME, originals/search, constructor families/components, isolated lessons and save/restart. Restart uses the same candidate through PATH. Zero captures.
+- Final RPM SHA256 5c0adfe50a553e15675cb87ecbd7e5525c691d3a176973e269fd984c1d96a394. Candidate/source hashes and logs: .qualification/m2-x11-exit-20261107/.
+- Unchanged157 Rust-library tests/3 ignored,4 startup tests, fmt/Clippy, optimized glib and prior bounded security evidence reused per user cadence. Source/locks unchanged except the CSS and test/harness exit delta.
+- Prior whole-change review findings were fixed in3b1c5a4/1c1fb43. One fresh independent review of the source tail after1c1fb43 found no Critical/Important or confirmed Minor issues.
+- Full X11 release AT/reflow/human speech remains M7. UI-only mode is X11+M2 guarded and explicitly records speech NOT_RUN. Earlier Wayland/Orca failures and cold-readiness NOT_RUN remain retained, not passed. No GNOME/Orca host install or host GUI control in this exit run.
+- Catalog refresh:1362 base/1367 project entries, zero stale/missing metadata errors. Health/auth unprobed. Jupyter/Chrome DevTools/public Grep/DeepWiki/offline n8n were discovered, not exercised.
+- Preserved unrelated workflow skill, .gitignore, AGENTS.md and both November1 tooling reports; all five hashes match the saved baseline. Never stage or revert them.
+- Current report: [M2 X11 exit](task-reports/2026-11-08-105345Z-m2-x11-exit.md); [qualification ledger](quality/m2-qualification.md); [execution ledger](planning/m2-execution.md).
+- GUI permission exists if truly needed, but agents never capture screenshots. After reboot verify any process/window anew; old host IDs are not evidence.
 
-Next: none for the requested planning substep. Await explicit application-work resume, then review only remaining M2 X11 exit criteria; never auto-select the inactive later-platform tasks or infer M3/porting authority from the roadmap.
+Next: finish local exit commit and main merge-readiness record using freshly fetched refs. Preserve user changes and keep dev intact; no actual integration or M3.

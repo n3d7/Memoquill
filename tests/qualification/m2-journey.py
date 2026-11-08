@@ -1,7 +1,7 @@
 """Exercise the packaged M2 product through native keyboard/AT-SPI only.
 
 Runs on the existing isolated Fedora desktop. No direct IPC, SQL or DOM calls.
-The legacy driver supplies shared keyboard/focus/screenshot helpers without
+The legacy driver supplies shared keyboard/focus helpers without
 executing its M1 fixture journey when imported.
 """
 import importlib.util
@@ -38,6 +38,32 @@ def type_in(name, value, role='entry'):
     d.wait_for(lambda: value in d.text(d.find(role, name)), f'keyboard input retained in {name}')
 
 
+def check_empty_control_attributes(name):
+    """Exercise the public text-run query used by screen readers, when exposed.
+
+    A block control may have a non-text label container; its accessible name is
+    still required. Never require an inline representation just for this check.
+    """
+    entry = d.find('entry', name)
+    assert entry.name == name
+    parent = entry.get_parent()
+    try:
+        text = parent.queryText()
+    except NotImplementedError:
+        representation = 'separate named control'
+    else:
+        value = text.getText(0, -1)
+        offset = value.find('\ufffc')
+        if offset >= 0:
+            # This valid query aborted WebKitGTK on the original empty control.
+            attributes, start, end = text.getAttributeRun(offset, True)
+            assert 0 <= start <= end <= text.characterCount
+            representation = 'queried embedded control'
+        else:
+            representation = 'label text without embedded control'
+    results.append({'check': 'empty named text control survives accessible attribute inspection', 'passed': True, 'representation': representation})
+
+
 def choose(name, index):
     d.focus('combo box', name)
     d.key('alt+Down')
@@ -68,7 +94,7 @@ composer_spec.loader.exec_module(composer)
 try:
     d.wait_for(lambda: d.find('button', 'Create subject').getState().contains(d.pyatspi.STATE_ENABLED), 'fresh workspace is authorable')
     composer.focus_window(d, mode)
-    d.capture('m2-start')
+    check_empty_control_attributes('New subject')
     type_in('New subject', 'Quantum physics')
     click('Create subject')
     d.wait_for(lambda: shown('Current subject: Quantum physics'), 'blank subject created without a template')
@@ -154,7 +180,6 @@ try:
     d.read_from_focus()
     click('Close result')
     d.wait_for(lambda: d.find('button', 'Save reading preferences').getState().contains(d.pyatspi.STATE_FOCUSED), 'result closure restores requested trigger focus')
-    d.capture('m2-authoring')
     composer.exercise(d, click, type_in, choose, shown)
 
     # Close normally, then restart with identical private profile/backend.
@@ -180,7 +205,6 @@ try:
     d.read_from_focus()
     click('Preview original m2-original.html')
     d.wait_for(lambda: shown('<script>never_execute_original()</script>'), 'managed original survives restart unchanged')
-    d.capture('m2-reopened')
     composer.reopened(d, click, choose, shown)
     close_window()
     results.append({'check': 'restarted product exits normally', 'passed': child.wait(timeout=10) == 0})

@@ -1,6 +1,6 @@
 # M2 composition implementation plan
 
-Current user authority,2026-11-06: docs/Linear portability planning only; application implementation/builds/GUI checks are paused. When resumed, qualify main M1–M8 on X11 only and retain [per-stage portability](../../architecture/platform-portability.md). Non-X11 matrices, including Wayland, are deferred under ADR-10/KER-122–126; historical unchecked criteria below are not converted into passes. Review revised X11 exit criteria before closing M2.
+Current user authority,2026-11-08: resumed M2 development after the catalog refresh. Finish M2 functional X11 acceptance, then prepare dev for main without actual push/merge or M3. [Per-stage portability](../../architecture/platform-portability.md) and ADR-10 remain binding. Other-platform runtime work is deferred after M8; full X11 release AT/reflow remains M7. Visual-design timing will be discussed with the user after M2.
 
 > **For agentic workers:** Superpowers execution with the explicit user override below. Follow focused TDD and commit completed substeps only; avoid broad repeated checks and per-task review dispatch.
 
@@ -106,3 +106,15 @@ Task4's local qualification checkpoint records passed X11 and failed/unrun platf
 gates in docs/quality/m2-qualification.md; M2 acceptance remains incomplete.
 Additional startup fix 5c72fdb resolves the user-confirmed Linux/NVIDIA GBM white window.
 The user next authorizes finishing KER-97/M1.1; no M3 work is authorized.
+
+## Final execution checkpoint — 2026-11-08
+
+Tasks1/2/3/5 and Task4 functional X11 qualification are complete under ADR-10.
+Historical unchecked boxes above do not request repeat work. The final frontend
+suite/build/native X11 pass was refreshed; unchanged Rust/Clippy/security and the
+whole-change review were reused per the explicit reduced-cadence instruction.
+A bounded review of the unreviewed source tail found no blockers. See the
+[qualification ledger](../../quality/m2-qualification.md) and
+[exit report](../../task-reports/2026-11-08-105345Z-m2-x11-exit.md).
+No failed/unrun speech or other-platform check is converted to a pass. Next is
+main merge preparation only; actual merge/push and M3 are not authorized.
