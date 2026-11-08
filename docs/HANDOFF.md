@@ -1,6 +1,6 @@
 # Memoquill continuation checkpoint
 
-Updated 2026-11-08 10:55 UTC. Branch dev; local completed-substep commits only.
+Updated 2026-11-08 10:58 UTC. Branch dev; local completed-substep commits only.
 
 - User resumed development after the updated tool-catalog/MCP inventory. M2 functional Linux/X11 work is complete; next is preparing dev for main. Do not start M3 or actually push/merge/create a PR/release.
 - Linear readback: KER-99 and all12 M2 children (109–120) Done. KER-97 remains In Review/unaccepted. Historical tracker pauses are superseded by the explicit resume.
@@ -17,7 +17,8 @@ Updated 2026-11-08 10:55 UTC. Branch dev; local completed-substep commits only.
 - Full X11 release AT/reflow/human speech remains M7. UI-only mode is X11+M2 guarded and explicitly records speech NOT_RUN. Earlier Wayland/Orca failures and cold-readiness NOT_RUN remain retained, not passed. No GNOME/Orca host install or host GUI control in this exit run.
 - Catalog refresh:1362 base/1367 project entries, zero stale/missing metadata errors. Health/auth unprobed. Jupyter/Chrome DevTools/public Grep/DeepWiki/offline n8n were discovered, not exercised.
 - Preserved unrelated workflow skill, .gitignore, AGENTS.md and both November1 tooling reports; all five hashes match the saved baseline. Never stage or revert them.
+- Exit source commit8c9c27a. Fresh origin/main8405103 remains the merge base; merge-tree has no conflicts and equals the source tree. Dev is fast-forwardable from this main; no actual integration. [Main-readiness record](task-reports/2026-11-08-105831Z-m2-main-readiness.md).
 - Current report: [M2 X11 exit](task-reports/2026-11-08-105345Z-m2-x11-exit.md); [qualification ledger](quality/m2-qualification.md); [execution ledger](planning/m2-execution.md).
 - GUI permission exists if truly needed, but agents never capture screenshots. After reboot verify any process/window anew; old host IDs are not evidence.
 
-Next: finish local exit commit and main merge-readiness record using freshly fetched refs. Preserve user changes and keep dev intact; no actual integration or M3.
+Next: user review and explicit integration/UI-scheduling decision. Main-readiness preparation is complete; preserve user changes and keep dev intact. Refresh main before any later authorized integration; no automatic M3.

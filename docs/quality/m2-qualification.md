@@ -9,8 +9,8 @@ M7; KER-97 manual evidence remains deferred/unaccepted. Other-platform runtime
 work stays inactive after M8. Full visual-design timing will be discussed with the
 user after M2; no redesign has been added to this scope.
 
-Source baseline5e245ba plus the labelled-control CSS fix and qualification/test
-changes below, on dev. After M2, prepare dev for main; do not start M3 or actually
+Final exit source8c9c27a on dev includes the labelled-control CSS fix and
+qualification/test changes below. After M2, prepare dev for main; do not start M3 or actually
 push/merge/create a PR/release.
 
 | Acceptance area | Current evidence | Exit / retained boundary |

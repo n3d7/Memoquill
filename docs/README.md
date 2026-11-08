@@ -2,7 +2,7 @@
 
 M1.2 delivery: [PR #2](https://github.com/n3d7/Memoquill/pull/2) is the authoritative source-integration record for KER-98; [qualification](quality/workspace-qualification.md) records local evidence and remaining manual acceptance.
 
-Status (2026-11-08): M2 functional X11 exit is qualified; see the [exit report](task-reports/2026-11-08-105345Z-m2-x11-exit.md) and [qualification ledger](quality/m2-qualification.md). The user requested preparation of dev for main after M2; M3 does not start. Main M1–M8 remains Linux/X11-only with portable contracts; other platforms stay inactive after M8. Full X11 release AT/reflow remains M7 and deferred M1.1 manual acceptance is not passed. Full visual-design timing will be discussed after M2. No actual push/merge/PR/release is authorized.
+Status (2026-11-08): M2 functional X11 exit is qualified; see the [exit report](task-reports/2026-11-08-105345Z-m2-x11-exit.md) and [qualification ledger](quality/m2-qualification.md). Dev is [prepared for main](task-reports/2026-11-08-105831Z-m2-main-readiness.md); M3 does not start. Main M1–M8 remains Linux/X11-only with portable contracts; other platforms stay inactive after M8. Full X11 release AT/reflow remains M7 and deferred M1.1 manual acceptance is not passed. Full visual-design timing will be discussed after M2. No actual push/merge/PR/release is authorized.
 Foundation documentation and the M1.1 source candidate are published through [PR #1](https://github.com/n3d7/Memoquill/pull/1), following the user's explicit PR/merge instruction. See the [publication report](task-reports/2026-10-28-122447Z-foundation-publication.md); manual acceptance remains separate from source integration.
 
 ## Read in this order
