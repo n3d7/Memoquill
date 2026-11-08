@@ -10,8 +10,9 @@ work stays inactive after M8. Full visual-design timing will be discussed with t
 user after M2; no redesign has been added to this scope.
 
 Final exit source8c9c27a on dev includes the labelled-control CSS fix and
-qualification/test changes below. After M2, prepare dev for main; do not start M3 or actually
-push/merge/create a PR/release.
+qualification/test changes below. User subsequently authorized publishing
+[PR #3](https://github.com/n3d7/Memoquill/pull/3); owner performs the merge with
+all substep commits preserved. No agent merge, release or M3.
 
 | Acceptance area | Current evidence | Exit / retained boundary |
 | --- | --- | --- |

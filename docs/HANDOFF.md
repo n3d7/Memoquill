@@ -1,9 +1,9 @@
 # Memoquill continuation checkpoint
 
-Updated 2026-11-08 10:58 UTC. Branch dev; local completed-substep commits only.
+Updated 2026-11-08 11:06 UTC. Branch dev; user authorized push/PR, owner alone performs merge.
 
-- User resumed development after the updated tool-catalog/MCP inventory. M2 functional Linux/X11 work is complete; next is preparing dev for main. Do not start M3 or actually push/merge/create a PR/release.
-- User requires every M2 substep commit to remain visible in main after eventual integration, with original SHAs. Use fast-forward or an ordinary history-preserving merge; never squash/rebase or replace the history with one commit. Actual integration still needs authorization.
+- M2 functional X11 work is complete. User explicitly authorized publishing dev and creating PR; earlier no-push/no-PR instructions are superseded. PR #3 is open: https://github.com/n3d7/Memoquill/pull/3 (dev → main). Owner performs merge; no agent merge, release or M3.
+- User requires every M2 substep commit to remain visible in main after eventual integration, with original SHAs. Use fast-forward or an ordinary history-preserving merge; never squash/rebase or replace the history with one commit. Owner will perform the integration; do not merge or enable auto-merge.
 - Linear readback: KER-99 and all12 M2 children (109–120) Done. KER-97 remains In Review/unaccepted. Historical tracker pauses are superseded by the explicit resume.
 - Main M1–M8 is X11-only. Portable versioned models, typed frontend/controller/service/native adapters and capabilities remain required. Standalone later-platform tasks stay inactive after M8 with no core dependencies; no SDK/port/runtime work now.
 - Different editable lessons remain fully isolated: content/forms/answers/hints/progress do not propagate. No linked-tab editing or future linked-tab seam.
@@ -22,4 +22,4 @@ Updated 2026-11-08 10:58 UTC. Branch dev; local completed-substep commits only.
 - Current report: [M2 X11 exit](task-reports/2026-11-08-105345Z-m2-x11-exit.md); [qualification ledger](quality/m2-qualification.md); [execution ledger](planning/m2-execution.md).
 - GUI permission exists if truly needed, but agents never capture screenshots. After reboot verify any process/window anew; old host IDs are not evidence.
 
-Next: user review and explicit integration/UI-scheduling decision. Main-readiness preparation is complete; preserve user changes and keep dev intact. Refresh main before any later authorized integration; no automatic M3.
+Next: owner reviews/merges PR #3 with Create a merge commit; retain every original substep SHA. Preserve user files and dev; no agent merge or automatic M3. Full visual-design timing remains for discussion. [Publication record](task-reports/2026-11-08-110548Z-m2-pr-publication.md).

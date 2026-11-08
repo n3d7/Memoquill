@@ -1,6 +1,6 @@
 # M2 execution ledger
 
-Current authority (2026-11-08): user resumed development after a tool-catalog refresh, requested full M2 completion and then preparation of dev for main. Do not start M3. Main M1–M8 remains X11-only with portability criteria; later platform tasks stay inactive. Local completed-substep commits on dev only; no push/merge/PR/release. Full visual-design timing is deferred for discussion after M2.
+Current authority (2026-11-08): user resumed development after a tool-catalog refresh, requested full M2 completion and then preparation of dev for main. Do not start M3. Main M1–M8 remains X11-only with portability criteria; later platform tasks stay inactive. Completed-substep commits stay on dev; later explicit user authorization permits push/PR #3, with the merge reserved to the owner. No agent merge/release. Full visual-design timing is deferred for discussion after M2.
 Superpowers owns execution. The user defers broad checks to the milestone boundary; focused regressions accompany fixes and unchanged checks are reused. Platform/manual acceptance remains separate from implementation.
 Historical start: feat/ker-99-authoring from main8405103cae7bcafdeec15caebf2516bfcf0a035e; later user instructions supersede that branch/publication policy.
 
@@ -45,3 +45,5 @@ Pre-existing this execution: preparation/HANDOFF documents from prior authorized
 | 2026-11-08 / M2 X11 exit | Refreshed catalog first; fixed X11 empty-label attribute crash with block text-control layout and a native red/green probe; corrected an async preference-test race. Final bounded review found no blockers. |120 frontend/23 files;6 preference tests; build/RPM; fresh68 native assertions plus IME metadata, save/restart/isolation; zero captures. Unchanged Rust/security evidence reused. [Exit report](../task-reports/2026-11-08-105345Z-m2-x11-exit.md). Full AT/reflow stays M7; KER-97 unaccepted. Prepare main next, no M3. |
 
 | 2026-11-08 / main preparation | Committed X11 exit8c9c27a, closed/read back all M2 issues, fetched main/dev and computed a conflict-free merge tree identical to the source tree. | Current main8405103 is an ancestor; fast-forward available. [Readiness report](../task-reports/2026-11-08-105831Z-m2-main-readiness.md). No actual merge/push/PR/CI/release/M3. |
+
+| 2026-11-08 / PR publication | User explicitly requested PR creation and reserved merge to themselves. Published dev without force and created PR #3, preserving all substep history; no auto-merge. | [Publication report](../task-reports/2026-11-08-110548Z-m2-pr-publication.md); [PR #3](https://github.com/n3d7/Memoquill/pull/3). Owner uses Create a merge commit, never Squash/Rebase. No source change, new tests/scans/CI or M3. |
