@@ -7,6 +7,9 @@ progressively author/adapt the course. Provider/tariff/budget is not a prerequis
 Separate post-M2 step [KER-127](planning/course-workspace-followup.md), Backlog;
 requirements recorded, architecture/migration design and implementation not begun.
 Full visual design remains deferred. Post-M2 research/planning stays local only.
+Further user requirement: provide a foundation for future AI-created interactive
+course tools beyond built-in types (simulations/trainers). KER-127 records this;
+execution/isolation design and concrete simulator implementations remain pending.
 
 Updated 2026-11-08 11:27 UTC. Branch dev; post-M2 planning commits local only.
 

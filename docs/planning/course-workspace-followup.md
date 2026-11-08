@@ -35,6 +35,22 @@ policies are still provisional. The [evidence brief](../research/ai-directed-lea
 distinguishes existing contracts, new research and unresolved design choices.
 This step does not implement arbitrary executable UI or agent edits to past grades.
 
+## Future interactive extensions: foundation required
+
+The user also wants AI-created interactive tools beyond the built-in activity
+types, such as physics simulations or neural-network trainers. The separate
+post-M2 design must provide an extensibility foundation; it does not need to
+implement these examples now. Course configuration must not be permanently
+limited to the current closed component/activity registry.
+
+Define a versioned component/extension contract, course-local state and explicit
+capabilities, validation, compatibility/migration and recovery requirements.
+Choose and validate an execution/isolation model before accepting executable
+generated components. No shared course authority, unrestricted native/DB/filesystem
+access or unreviewed runtime is authorized by this requirement. Existing trusted
+components continue to work; the exact extension mechanism remains a design choice.
+Learning-effectiveness claims for each new interaction still require evidence.
+
 ## Separate design work before code
 
 1. Agree course identity, ownership and upgrade behavior for existing shared data.
@@ -44,6 +60,8 @@ This step does not implement arbitrary executable UI or agent edits to past grad
 4. Define proportionate two-course isolation and migration/restart acceptance.
 5. Align later ingestion/study/MCP plans after agreement. No new milestone/blocker
    or M3 execution is inferred from this record.
+6. Specify the interactive-extension foundation and its isolation/capability
+   tests without bundling implementation of arbitrary simulators into this step.
 
 Next: continue the requirements discussion, then compare approaches and approve
 a design before an implementation plan. Do not push this planning checkpoint

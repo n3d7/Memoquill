@@ -22,6 +22,12 @@ lessons inside, and selected a separate step after M2 rather than changing M2.
 
 Next: continue requirements clarification before choosing/approving a design.
 
+11:32 UTC follow-up: user requested an extensibility foundation for AI-created
+interactive course tools beyond built-in types. Added the requirement and design
+questions to KER-127/scope/handoff. No simulator, generated-code runtime or new
+dependency implemented; exact execution/isolation approach awaits design approval.
+This follow-up used Linear MCP and RTK/Git/Python; no new research or code tests.
+
 Actual use: Superpowers brainstorming and project workflow/reporting/learning
 evidence guidance; Linear/GitHub MCP, Serena activation, RTK/Git/Python. No new
 web/scientific retrieval, GUI, screenshots, application implementation or push.
