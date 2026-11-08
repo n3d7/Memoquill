@@ -17,8 +17,12 @@ no provider/tariff or budget answer is an application prerequisite. The learner
 sets the goal/focus; AI gathers sources and progressively adapts courses. Each
 sidebar tab is an entire isolated course with lessons inside, not an individual
 lesson. The user selected a separate post-M2 step, [KER-127](../planning/course-workspace-followup.md).
-Host availability and disputed/uncertain-assessment policy remain open; do not
-silently settle them as user choices.
+The [consolidated requirements map](../planning/learning-productivity-followup.md)
+records protected manual edits, configurable research reviews and fresh resume
+permission after interruption. The user delegates remaining pedagogical choices
+to applicable research; only material uncertainty about intent requires questions.
+Assessment reliability/runtime behavior still need design and evaluation, not
+another generic preference interview.
 
 ## Reused evidence and existing contracts
 
@@ -61,6 +65,6 @@ retrieval, search2 and scrape1 reported, search feedback refunded1. No purchase.
 Full paper was retrieved but only the stated sections appraised; not a systematic
 review. No private lessons/history were transmitted or paper text committed.
 
-Next: clarify course identity and operational/assessment behavior, then scope
-remaining evidence gaps before proposing a design. The later course clarification
-is tracked separately; this brief does not authorize runtime changes.
+Next: design the tracked course/assessment/MCP substeps, reusing this evidence.
+Methodological choices need applicability and evaluation; no evidence establishes
+a universally optimal complete product. This brief does not activate runtime work.

@@ -63,6 +63,12 @@ Learning-effectiveness claims for each new interaction still require evidence.
 6. Specify the interactive-extension foundation and its isolation/capability
    tests without bundling implementation of arbitrary simulators into this step.
 
-Next: continue the requirements discussion, then compare approaches and approve
-a design before an implementation plan. Do not push this planning checkpoint
+The [consolidated requirements map](learning-productivity-followup.md) assigns
+identity/migration to KER-128, course views/scope to KER-129, and extension
+contracts to KER-130 under this separate step. Other course learning/source/MCP
+requirements are assigned to their existing main stages.
+
+Next: design the course boundary and required migration/extension contracts,
+using applicable research for pedagogical choices. Ask the user only for material
+intent/scope uncertainty; avoid repeating the completed requirements interview. Do not push this planning checkpoint
 into the completed M2 PR or begin the course migration from its Backlog status.

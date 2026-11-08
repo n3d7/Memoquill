@@ -6,12 +6,12 @@ work is standalone and inactive after that cycle. Every main stage still preserv
 its explicit portability boundary. See the [platform contract](../architecture/platform-portability.md)
 and ADR-10 in [decisions](../architecture/decisions.md).
 
-Current authorized phase: documentation/Linear planning only. Application
-implementation, builds and GUI qualification are paused by the user's latest
-instruction. The roadmap never supplies execution, SDK/device setup or publication
-authority. Source b67f0fd contains the implemented M2 constructor and native X11
-focus fix; [qualification](../quality/m2-qualification.md) records evidence and gaps.
-M2's revised X11 exit criteria remain to be reviewed after implementation resumes.
+Current authorized phase (2026-11-08): consolidate post-M2 requirements in
+docs/Linear only. M2 PR #3 is merged by the owner with all substep commits
+preserved. Course-level isolation is a separate post-M2 step, not a reopened M2.
+[Requirements and substep map](learning-productivity-followup.md) owns the latest
+course/AI/manual-edit/research-schedule clarification. Full visual design remains
+deferred. This planning does not begin implementation, schedules or publication.
 
 Core Foundation spans M1–M7. M8 remains the final optional lesson-local extension
 and does not block the core M7 release. Other platforms do not start automatically
@@ -21,6 +21,7 @@ at M7 or M8 completion. No main issue depends on the deferred platform tasks.
 | --- | --- | --- | --- | --- |
 | M1 | Desktop foundation and durable services | None | Supported Fedora X11 RPM/runtime, typed services, durable SQLite/assets/migrations and safe failure. KER-97's manual evidence remains unaccepted; the user-approved development deferral is distinct from M7 release acceptance. | Native roots, locking, lifecycle and errors behind the application/native boundary; record Linux assumptions. |
 | M2 | Composable lessons, authoring and navigation | M1 service/storage baseline | Organization, canonical editing, passive originals/search and KER-117–120: trusted composition contracts, replaceable UI/controllers, durable drafts/receipts, isolated lessons and offline composer/preview. Qualify current X11 functionality; no other-platform matrix. | Stable lesson/content/activity/history formats; no X11/window identity in domain data; typed UI/IPC/service seams. |
+| Post-M2 | Separate course-workspace foundation (KER-127) | M2 integrated | Course identity/migration (128), functional isolation/nested navigation (129), versioned future interactive-extension contracts (130). Settle course contracts before dependent implementation; no simulator runtime or full visual redesign. | Course-scoped portable IDs, services/state/capabilities; current X11 only. |
 | M3 | Lesson sources, ingestion, discovery and ownership | M2 | KER-100 preserved research/books/files, qualified PDF/EPUB/common-format intake, locators/coverage, safe reimport/search; KER-101 package/recovery completeness. Retain PDF/resource/security gates. | Provider/file selection and native safe I/O separated; immutable bytes and portable manifests/IDs, versioned package round-trips without absolute host paths. |
 | M4 | Activities, feedback, sessions and recall review | M2 | Four families, exactly-once durable attempts/drafts, feedback/help, scoped assessments, FSRS recall adapter and separate practice reminders; extend recovery with history. | UI-independent learning services and checkpoints; isolate clocks and process/window lifecycle from study policy. |
 | M5 | Progress, personalization and workflow completion | M3,M4 | Honest outcome-specific history/coverage/errors, accessible settings/navigation and consistent offline resumption; no universal mastery percentage. | Semantic commands/view models and logical settings; input/layout/window details cannot become learning state. |
@@ -35,7 +36,8 @@ The [stage/issue matrix](../architecture/platform-portability.md) specifies the
 required boundary in each main issue. Data/schema/service checks still run on the
 current supported environment; they are not Windows/mobile qualification.
 
-M3 and M4 can proceed independently after M2 when authorized and ownership is
+M3 and M4 can proceed independently after M2 and the applicable course-boundary
+contracts when authorized and ownership is
 separate; M5 joins them. MCP contracts are considered early but working external
 transport follows stable user workflows in M6. Never expose raw storage as a shortcut.
 The [learning-activity evidence](../research/learning-activities.md) continues to
@@ -74,6 +76,8 @@ blocking or related links, no dates/cycles/automatic execution:
 
 Detailed boundaries and links: [portability contract](../architecture/platform-portability.md).
 Current Wayland failure evidence is [retained separately](../quality/wayland-deferred-diagnostic.md).
+The future interactive-extension foundation is planned separately; executable
+runtimes/simulator implementations still require an approved design.
 Cloud/sync/accounts/collaboration, autonomous in-app AI, executable sandboxes,
 unqualified OCR/complex formats, full web crawling, advanced psychometrics and a
 marketplace remain outside the core cycle. New ideas require explicit scope review.
@@ -81,8 +85,8 @@ marketplace remain outside the core cycle. New ideas require explicit scope revi
 ## Historical clarification records
 
 The November1 architecture hold was superseded by the November4 execution authority
-and completed KER-117 contracts; the current pause is the user's November6 docs-only
-instruction. Historical research/reports remain evidence, not current execution policy.
+and completed KER-117 contracts; the November6 pause was superseded by resumed M2 work and its merged PR.
+The current November8 task is post-M2 requirements/backlog consolidation. Historical research/reports remain evidence, not current execution policy.
 The [lesson requirements](lesson-composition-requirements.md), [source admission](../research/composable-learning-screening.md)
 and [execution ledger](m2-execution.md) retain their valid ownership, science,
 source/provenance and subject-independence decisions.

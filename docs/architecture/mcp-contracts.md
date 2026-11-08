@@ -1,5 +1,15 @@
 # MCP agent contracts and delegated autonomy
 
+Post-M2 requirements amendment, 2026-11-08: [the consolidated map](../planning/learning-productivity-followup.md)
+owns planned course-scoped adaptation, assessment records and research schedules.
+Before altering learner-edited content/tasks/UI, the agent asks what is permitted,
+waits for the answer and respects its scope; general autonomy or undo is insufficient.
+After abrupt interruption, state/status recovery may inspect durable receipts,
+but agent execution/replay waits for fresh continue permission. Missed unstarted
+research catch-up also waits for explicit permission under the documented
+conservative default. Regular opted-in schedules are a separate authorization.
+These amend future requirements; they do not activate a transport or scheduler.
+
 This is the detailed Foundation V1 design contract, not an implemented API. [MCP architecture](ai-mcp-integration.md) owns transport/trust boundaries; this document owns the agent-facing operating model. The user's clarified requirement is **substantial agent freedom and capability**, with safe application-level authority rather than GUI automation or direct database access.
 
 ## Design goals
