@@ -3,6 +3,7 @@
 Updated 2026-11-08 10:58 UTC. Branch dev; local completed-substep commits only.
 
 - User resumed development after the updated tool-catalog/MCP inventory. M2 functional Linux/X11 work is complete; next is preparing dev for main. Do not start M3 or actually push/merge/create a PR/release.
+- User requires every M2 substep commit to remain visible in main after eventual integration, with original SHAs. Use fast-forward or an ordinary history-preserving merge; never squash/rebase or replace the history with one commit. Actual integration still needs authorization.
 - Linear readback: KER-99 and all12 M2 children (109–120) Done. KER-97 remains In Review/unaccepted. Historical tracker pauses are superseded by the explicit resume.
 - Main M1–M8 is X11-only. Portable versioned models, typed frontend/controller/service/native adapters and capabilities remain required. Standalone later-platform tasks stay inactive after M8 with no core dependencies; no SDK/port/runtime work now.
 - Different editable lessons remain fully isolated: content/forms/answers/hints/progress do not propagate. No linked-tab editing or future linked-tab seam.
