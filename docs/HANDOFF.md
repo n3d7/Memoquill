@@ -1,5 +1,12 @@
 # Memoquill continuation checkpoint
 
+Post-M2 discussion, 2026-11-08: user defers UI and wants broad research-led AI/MCP
+direction and assessment while mainly doing lessons/tasks. This remains a
+provisional brief, not an approved architecture change or M3 implementation.
+See [evidence/requirements brief](research/ai-directed-learning-brief.md). Ask about
+AI cost/latency next; host availability and uncertain grading remain open.
+This research checkpoint is local only; do not push it into the completed M2 PR.
+
 Updated 2026-11-08 11:06 UTC. Branch dev; user authorized push/PR, owner alone performs merge.
 
 - M2 functional X11 work is complete. User explicitly authorized publishing dev and creating PR; earlier no-push/no-PR instructions are superseded. PR #3 is open: https://github.com/n3d7/Memoquill/pull/3 (dev → main). Owner performs merge; no agent merge, release or M3.
