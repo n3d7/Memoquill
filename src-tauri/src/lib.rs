@@ -1,5 +1,6 @@
 mod attachments;
 mod authoring;
+mod course_commands;
 pub mod document;
 pub mod draft;
 mod lesson_commands;
@@ -9,38 +10,46 @@ pub mod workspace;
 use std::sync::atomic::{AtomicU8, Ordering};
 use tauri::Manager;
 use workspace::{
-    AppError, ApplicationService, OperationId, OperationReceipt, PreferencesSnapshot,
-    RequestContext, SavePreferences, WorkspaceStatus,
+    AppError, CourseManager, OperationId, OperationReceipt, PreferencesSnapshot, RequestContext,
+    SavePreferences, WorkspaceStatus,
 };
 
 #[tauri::command]
 async fn workspace_status(
-    service: tauri::State<'_, ApplicationService>,
+    manager: tauri::State<'_, CourseManager>,
+    course_id: uuid::Uuid,
 ) -> Result<WorkspaceStatus, AppError> {
+    let service = manager.service(course_id)?;
     service.status(RequestContext::local_ui()).await
 }
 #[tauri::command]
 async fn save_reading_preferences(
-    service: tauri::State<'_, ApplicationService>,
+    manager: tauri::State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: SavePreferences,
 ) -> Result<PreferencesSnapshot, AppError> {
+    let service = manager.service(course_id)?;
     service
         .save_preferences(RequestContext::local_ui(), request)
         .await
 }
 #[tauri::command]
 async fn operation_receipt(
-    service: tauri::State<'_, ApplicationService>,
+    manager: tauri::State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     operation_id: OperationId,
 ) -> Result<Option<OperationReceipt>, AppError> {
+    let service = manager.service(course_id)?;
     service
         .operation_receipt(RequestContext::local_ui(), operation_id)
         .await
 }
 #[tauri::command]
 async fn reopen_workspace(
-    service: tauri::State<'_, ApplicationService>,
+    manager: tauri::State<'_, CourseManager>,
+    course_id: uuid::Uuid,
 ) -> Result<WorkspaceStatus, AppError> {
+    let service = manager.service(course_id)?;
     service.reopen(RequestContext::local_ui()).await
 }
 
@@ -54,6 +63,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
+            course_commands::courses_list,
+            course_commands::course_create,
+            course_commands::course_select,
             lesson_commands::lesson_discover,
             lesson_commands::lesson_read,
             lesson_commands::lesson_read_source,
@@ -97,9 +109,9 @@ fn initialize_workspace(app: &mut tauri::App) -> Result<(), Box<dyn std::error::
     app.manage(Shutdown(AtomicU8::new(0)));
     Ok(())
 }
-fn start_workspace(app: &tauri::App) -> Result<ApplicationService, Box<dyn std::error::Error>> {
-    let root = app.path().app_local_data_dir()?.join("workspace");
-    ApplicationService::start(root).map_err(Into::into)
+fn start_workspace(app: &tauri::App) -> Result<CourseManager, Box<dyn std::error::Error>> {
+    let root = app.path().app_local_data_dir()?;
+    CourseManager::open(root).map_err(Into::into)
 }
 struct Shutdown(AtomicU8);
 fn handle_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
@@ -123,10 +135,9 @@ fn start_draining(app: &tauri::AppHandle) {
     {
         return;
     }
-    let service = app.state::<ApplicationService>().inner().clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let _ = service.shutdown().await;
+        let _ = app.state::<CourseManager>().shutdown().await;
         app.state::<Shutdown>().0.store(2, Ordering::Release);
         app.exit(0);
     });
@@ -143,11 +154,229 @@ mod tests {
     };
 
     #[test]
+    fn course_routes_reject_missing_and_unknown_course_ids() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
+        let app = mock_builder()
+            .manage(manager)
+            .invoke_handler(tauri::generate_handler![authoring::library])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        assert!(raw_ipc(&main, "library", "tauri://localhost", serde_json::json!({})).is_err());
+        assert!(
+            raw_ipc(
+                &main,
+                "library",
+                "tauri://localhost",
+                serde_json::json!({"courseId":uuid::Uuid::new_v4()})
+            )
+            .is_err()
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn real_two_course_ipc_isolates_content_search_preferences_drafts_and_receipts() {
+        use serde_json::{Value, json};
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let a = manager.list().unwrap().selected_course_id;
+        let b = uuid::Uuid::new_v4();
+        manager.create(b, "Second".into()).unwrap();
+        let app = mock_builder()
+            .manage(manager)
+            .invoke_handler(tauri::generate_handler![
+                course_commands::courses_list,
+                course_commands::course_create,
+                course_commands::course_select,
+                workspace_status,
+                save_reading_preferences,
+                operation_receipt,
+                authoring::library,
+                authoring::apply_content,
+                authoring::read_document,
+                authoring::search_resources,
+                lesson_commands::lesson_create_draft,
+                lesson_commands::lesson_list_drafts,
+                lesson_commands::lesson_preview_draft,
+                lesson_commands::lesson_get_receipt
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let call = |course: uuid::Uuid, command: &str, mut body: Value| {
+            body["courseId"] = json!(course);
+            raw_ipc(&main, command, "tauri://localhost", body)
+                .map(|v| v.deserialize::<Value>().unwrap())
+        };
+        let one = call(a, "library", json!({})).unwrap();
+        let two = call(b, "library", json!({})).unwrap();
+        assert_ne!(one["workspaceId"], two["workspaceId"]);
+        let resource = uuid::Uuid::new_v4();
+        let unit = uuid::Uuid::new_v4();
+        let operation = uuid::Uuid::new_v4();
+        let request = json!({"contractVersion":1,"workspaceId":one["workspaceId"],"operationId":operation,"expectedRevision":0,"command":{"type":"createResource","id":resource,"title":"A secret needle"}});
+        call(a, "apply_content", json!({"request":request})).unwrap();
+        assert_eq!(
+            call(b, "apply_content", json!({"request":request})).unwrap_err()["code"],
+            "permission_denied"
+        );
+        assert_eq!(
+            call(a, "search_resources", json!({"query":"needle","offset":0})).unwrap()["items"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            call(b, "search_resources", json!({"query":"needle","offset":0})).unwrap()["items"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            call(
+                b,
+                "read_document",
+                json!({"resourceId":resource,"revisionId":null})
+            )
+            .is_err()
+        );
+        assert!(
+            !call(a, "operation_receipt", json!({"operationId":operation}))
+                .unwrap()
+                .is_null()
+        );
+        assert!(
+            call(b, "operation_receipt", json!({"operationId":operation}))
+                .unwrap()
+                .is_null()
+        );
+        let preference_operation = uuid::Uuid::new_v4();
+        call(a, "save_reading_preferences", json!({"request":{"contractVersion":1,"workspaceId":one["workspaceId"],"operationId":preference_operation,"expectedRevision":0,"preferences":{"theme":"dark","textScale":150}}})).unwrap();
+        assert_eq!(
+            call(a, "workspace_status", json!({})).unwrap()["preferences"]["preferences"]["theme"],
+            "dark"
+        );
+        assert_eq!(
+            call(b, "workspace_status", json!({})).unwrap()["preferences"]["preferences"]["theme"],
+            "system"
+        );
+        // The same Unit ID exists in both databases: a foreign draft still cannot resolve.
+        for (course, workspace, revision) in
+            [(a, &one["workspaceId"], 1), (b, &two["workspaceId"], 0)]
+        {
+            call(course, "apply_content", json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"expectedRevision":revision,"command":{"type":"createUnit","id":unit,"title":"Lesson","objective":"Explain","goalIds":[],"resourceIds":[]}}})).unwrap();
+        }
+        let draft_operation = uuid::Uuid::new_v4();
+        let draft = call(a, "lesson_create_draft", json!({"request":{"contractVersion":1,"workspaceId":one["workspaceId"],"unitId":unit,"operationId":draft_operation,"expectedHeadRevision":null}})).unwrap();
+        assert_eq!(
+            call(a, "lesson_list_drafts", json!({"unitId":unit}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            call(b, "lesson_list_drafts", json!({"unitId":unit}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(call(b, "lesson_preview_draft", json!({"request":{"contractVersion":1,"workspaceId":two["workspaceId"],"unitId":unit,"draftId":draft["id"],"expectedDraftRevision":draft["revision"]}})).is_err());
+        assert!(
+            !call(
+                a,
+                "operation_receipt",
+                json!({"operationId":draft_operation})
+            )
+            .unwrap()
+            .is_null()
+        );
+        assert!(
+            call(
+                b,
+                "lesson_get_receipt",
+                json!({"operationId":draft_operation})
+            )
+            .unwrap()
+            .is_null()
+        );
+        call(a, "course_select", json!({})).unwrap();
+        // A changed global selection cannot redirect an explicit B request.
+        assert!(
+            call(b, "library", json!({})).unwrap()["resources"]
+                .as_object()
+                .unwrap()
+                .is_empty()
+        );
+        for command in [
+            "courses_list",
+            "course_create",
+            "course_select",
+            "library",
+            "lesson_list_drafts",
+        ] {
+            assert!(raw_ipc(&other, command, "tauri://localhost", json!({"courseId":a})).is_err());
+            assert!(
+                raw_ipc(
+                    &main,
+                    command,
+                    "https://untrusted.example",
+                    json!({"courseId":a})
+                )
+                .is_err()
+            );
+        }
+        assert!(raw_ipc(&main, "course_create", "tauri://localhost", json!({"request":{"operationId":uuid::Uuid::new_v4(),"title":"Forged","root":"/tmp/foreign"}})).is_err());
+        assert!(
+            call(
+                a,
+                "lesson_create_draft",
+                json!({"trustedUi":true,"request":{}})
+            )
+            .is_err()
+        );
+        tauri::async_runtime::block_on(app.state::<CourseManager>().shutdown()).unwrap();
+        drop(other);
+        drop(main);
+        drop(app);
+        let reopened = CourseManager::open(temp.path().to_owned()).unwrap();
+        assert_eq!(reopened.list().unwrap().selected_course_id, a);
+        let restored = tauri::async_runtime::block_on(
+            reopened
+                .service(a)
+                .unwrap()
+                .lesson_list_drafts(RequestContext::local_ui(), unit.to_string()),
+        )
+        .unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(serde_json::to_value(&restored[0]).unwrap(), draft);
+        tauri::async_runtime::block_on(reopened.shutdown()).unwrap();
+    }
+
+    #[test]
     fn lesson_raw_decoder_rejects_budgets_and_returns_structured_errors_through_ipc() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 lesson_commands::lesson_edit_draft,
                 lesson_commands::lesson_discover
@@ -179,9 +408,12 @@ mod tests {
     #[test]
     fn lesson_registry_and_mutations_respect_native_capabilities_and_closed_context() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 lesson_commands::lesson_discover,
                 lesson_commands::lesson_create_draft
@@ -231,9 +463,12 @@ mod tests {
     #[test]
     fn authoring_read_is_scoped_to_the_trusted_main_webview() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 authoring::library,
                 authoring::search_resources
@@ -323,11 +558,14 @@ mod tests {
     #[test]
     fn native_selection_rejects_other_surfaces_and_caller_path_authority() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let status =
             tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![attachments::pick_source])
             .build(tauri::generate_context!())
             .unwrap();
@@ -365,11 +603,14 @@ mod tests {
     #[test]
     fn authoring_mutation_rejects_foreign_surfaces_and_forged_principals() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let initial =
             tauri::async_runtime::block_on(service.library(RequestContext::local_ui())).unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![authoring::apply_content])
             .build(tauri::generate_context!())
             .unwrap();
@@ -416,9 +657,12 @@ mod tests {
         origin: &str,
     ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 check_draft,
                 workspace_status,
@@ -448,6 +692,36 @@ mod tests {
         origin: &str,
         body: impl Into<InvokeBody>,
     ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
+        let course_id = webview
+            .state::<CourseManager>()
+            .list()
+            .unwrap()
+            .selected_course_id;
+        let body = match body.into() {
+            InvokeBody::Json(mut value) => {
+                value["courseId"] = serde_json::json!(course_id);
+                InvokeBody::Json(value)
+            }
+            InvokeBody::Raw(bytes) => {
+                // Oversized preflight fixtures stay byte-identical.
+                if bytes.len() > 1024 * 1024 {
+                    InvokeBody::Raw(bytes)
+                } else {
+                    let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                    value["courseId"] = serde_json::json!(course_id);
+                    InvokeBody::Raw(serde_json::to_vec(&value).unwrap())
+                }
+            }
+        };
+        raw_ipc(webview, command, origin, body)
+    }
+
+    fn raw_ipc(
+        webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
+        command: &str,
+        origin: &str,
+        body: impl Into<InvokeBody>,
+    ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
         get_ipc_response(
             webview,
             InvokeRequest {
@@ -464,11 +738,14 @@ mod tests {
     #[test]
     fn native_preference_save_and_receipt_round_trip_preserves_authority() {
         let temp = tempfile::tempdir().unwrap();
-        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let service = manager
+            .service(manager.list().unwrap().selected_course_id)
+            .unwrap();
         let initial =
             tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
         let app = mock_builder()
-            .manage(service.clone())
+            .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 save_reading_preferences,
                 operation_receipt

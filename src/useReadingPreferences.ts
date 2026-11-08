@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useWorkspacePort } from './application/ApplicationProvider';
+import { useApplicationActive, useWorkspacePort } from './application/ApplicationProvider';
 import type { WorkspacePort } from './application/ports';
 import type { PreferencesSnapshot, ReadingPreferences, SavePreferences, WorkspaceStatus } from './workspaceBridge';
 
@@ -46,6 +46,7 @@ function useInitialWorkspace(port: WorkspacePort, accept: (status: WorkspaceStat
 }
 export function useReadingPreferences() {
   const port = useWorkspacePort();
+  const active = useApplicationActive();
   const [snapshot, setSnapshot] = useState<PreferencesSnapshot | null>(null);
   const [preferences, setPreferences] = useState<ReadingPreferences>({ theme: 'system', textScale: 100 });
   const [pending, setPending] = useState<SavePreferences | null>(null);
@@ -59,7 +60,7 @@ export function useReadingPreferences() {
     setRecovery(needsRecovery(status));setPending(null);setMessage(readyMessage(status));
   }
   useInitialWorkspace(port, accept, reason => setMessage(storageMessage(reason)), () => setWorking(false));
-  useEffect(() => { document.documentElement.style.fontSize = `${preferences.textScale}%`; }, [preferences.textScale]);
+  useEffect(() => { if (active) document.documentElement.style.fontSize = `${preferences.textScale}%`; }, [preferences.textScale, active]);
 
   async function reload(): Promise<string> {
     setWorking(true);

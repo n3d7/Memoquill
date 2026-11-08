@@ -26,11 +26,11 @@ struct State {
     connection: Connection,
     services: HashMap<Uuid, ApplicationService>,
     closing: bool,
+    owner: Option<owner::Owner>,
 }
 
 pub struct CourseManager {
     app_data: PathBuf,
-    _owner: owner::Owner,
     state: Mutex<State>,
 }
 
@@ -41,29 +41,40 @@ impl CourseManager {
         let data = root.join("data");
         owner::create_private_tree(&data)?;
         owner::private_directory(&data)?;
+        let has_managed_data = std::fs::read_dir(&data)?.next().transpose()?.is_some();
         let path = root.join("catalogue.sqlite3");
         match std::fs::symlink_metadata(&path) {
             Ok(meta) => {
                 use std::os::unix::fs::PermissionsExt;
-                if !meta.is_file() || meta.permissions().mode() & 0o077 != 0 {
+                if !meta.is_file()
+                    || meta.permissions().mode() & 0o077 != 0
+                    || (meta.len() == 0 && has_managed_data)
+                {
                     return Err(AppError::new(ErrorCode::RecoveryRequired));
                 }
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if has_managed_data {
+                    return Err(AppError::new(ErrorCode::RecoveryRequired));
+                }
                 owner::create_private_file(&path)?.sync_all()?;
                 owner::sync_directory(&root)?;
             }
             Err(error) => return Err(error.into()),
         }
         let mut connection = Connection::open(path)?;
-        initialize(&mut connection, app_data.join("workspace").exists())?;
+        initialize(
+            &mut connection,
+            app_data.join("workspace").exists(),
+            has_managed_data,
+        )?;
         let manager = Self {
             app_data,
-            _owner: guard,
             state: Mutex::new(State {
                 connection,
                 services: HashMap::new(),
                 closing: false,
+                owner: Some(guard),
             }),
         };
         manager.list()?;
@@ -71,7 +82,11 @@ impl CourseManager {
     }
 
     pub fn list(&self) -> Result<CourseCatalogue> {
-        catalogue(&self.state.lock().map_err(|_| unavailable())?.connection)
+        let state = self.state.lock().map_err(|_| unavailable())?;
+        if state.closing {
+            return Err(unavailable());
+        }
+        catalogue(&state.connection)
     }
 
     /// The operation UUID is also the new course identity; retries cannot allocate another root.
@@ -99,7 +114,7 @@ impl CourseManager {
         }
         let tx = state.connection.transaction()?;
         tx.execute(
-            "INSERT INTO courses(id,title,legacy) VALUES(?1,?2,0)",
+            "INSERT INTO courses(id,title,legacy,opened) VALUES(?1,?2,0,0)",
             params![operation_id.to_string(), title],
         )?;
         tx.execute(
@@ -142,10 +157,10 @@ impl CourseManager {
         {
             return Err(AppError::new(ErrorCode::InvalidReference));
         }
-        let legacy: bool = state.connection.query_row(
-            "SELECT legacy FROM courses WHERE id=?1",
+        let (legacy, opened): (bool, bool) = state.connection.query_row(
+            "SELECT legacy,opened FROM courses WHERE id=?1",
             [course_id.to_string()],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         let root = if legacy {
             self.app_data.join("workspace")
@@ -154,6 +169,21 @@ impl CourseManager {
             owner::private_directory(&data)?;
             data.join(course_id.to_string())
         };
+        // A known initialized course must never silently acquire a replacement identity.
+        // Mark before first initialization: interruption requires explicit recovery.
+        if opened && !root.join("memoquill.sqlite3").is_file() {
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
+        if !opened && root.try_exists()? {
+            // Never adopt an orphan root merely because a caller reused its UUID.
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
+        if !opened {
+            state.connection.execute(
+                "UPDATE courses SET opened=1 WHERE id=?1",
+                [course_id.to_string()],
+            )?;
+        }
         let service = ApplicationService::start(root)?;
         state.services.insert(course_id, service.clone());
         Ok(service)
@@ -170,6 +200,11 @@ impl CourseManager {
             if let Err(error) = service.shutdown().await {
                 result = Err(error);
             }
+        }
+        if result.is_ok() {
+            // Tauri may retain the stopped managed state. Only a confirmed complete
+            // drain releases catalogue ownership; all subsequent calls stay closed.
+            self.state.lock().map_err(|_| unavailable())?.owner.take();
         }
         result
     }
@@ -192,7 +227,7 @@ fn validate_title(title: &str) -> Result<()> {
     Ok(())
 }
 
-fn initialize(connection: &mut Connection, legacy: bool) -> Result<()> {
+fn initialize(connection: &mut Connection, legacy: bool, has_managed_data: bool) -> Result<()> {
     connection.pragma_update(None, "foreign_keys", true)?;
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
     if version > 1 {
@@ -206,23 +241,24 @@ fn initialize(connection: &mut Connection, legacy: bool) -> Result<()> {
         [],
         |row| row.get(0),
     )?;
-    if version != 0 || tables != 0 {
+    if version != 0 || tables != 0 || has_managed_data {
         return Err(AppError::new(ErrorCode::RecoveryRequired));
     }
     let tx = connection.transaction()?;
-    tx.execute_batch("CREATE TABLE courses(id TEXT PRIMARY KEY, title TEXT NOT NULL, legacy INTEGER NOT NULL CHECK(legacy IN (0,1)));
+    tx.execute_batch("CREATE TABLE courses(id TEXT PRIMARY KEY, title TEXT NOT NULL, legacy INTEGER NOT NULL CHECK(legacy IN (0,1)), opened INTEGER NOT NULL CHECK(opened IN (0,1)));
         CREATE UNIQUE INDEX one_legacy ON courses(legacy) WHERE legacy=1;
         CREATE TABLE catalogue_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),selected TEXT NOT NULL REFERENCES courses(id));")?;
     let id = Uuid::new_v4().to_string();
     tx.execute(
-        "INSERT INTO courses VALUES(?1,?2,1)",
+        "INSERT INTO courses VALUES(?1,?2,1,?3)",
         params![
             id,
             if legacy {
                 "Imported workspace"
             } else {
                 "My course"
-            }
+            },
+            legacy
         ],
     )?;
     tx.execute("INSERT INTO catalogue_meta VALUES(1,?1)", [id])?;
@@ -238,7 +274,7 @@ fn catalogue(connection: &Connection) -> Result<CourseCatalogue> {
                 row.get(0)
             })?;
         let invalid: i64 = connection.query_row(
-            "SELECT count(*) FROM courses WHERE legacy NOT IN (0,1)",
+            "SELECT count(*) FROM courses WHERE legacy NOT IN (0,1) OR opened NOT IN (0,1)",
             [],
             |row| row.get(0),
         )?;

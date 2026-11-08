@@ -104,10 +104,11 @@ it('edits a learning unit objective and its explicit goal and shared resource li
 });
 
 it('passes literal search syntax and the opaque offset as native parameters', async () => {
-  const bridge = await vi.importActual<typeof import('./contentBridge')>('./contentBridge');
+  const { createNativeContentPort } = await import('./application/nativeContentPort');
+  const bridge = createNativeContentPort('test-course');
   const result = { revision: 7, items: [], nextOffset: 400 }; calls.invoke.mockResolvedValue(result);
   expect(await bridge.searchResources("Ä%_' OR (.*)", 200)).toBe(result);
-  expect(calls.invoke).toHaveBeenCalledWith('search_resources', { query: "Ä%_' OR (.*)", offset: 200 });
+  expect(calls.invoke).toHaveBeenCalledWith('search_resources', { courseId: 'test-course', query: "Ä%_' OR (.*)", offset: 200 });
 });
 it('limits search by Unicode scalars and discards results when the library revision changes', async () => {
   const snapshot: Library = { ...blank(), resources: { r: { id: 'r', title: 'Current', archived: false } } };

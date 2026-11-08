@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { nativeLessonPort } from './nativeLessonPort';
+import { createNativeLessonPort } from './nativeLessonPort';
 import type { SavedDocument } from '../application/contentTypes';
 import type { CreateLessonDraft, EditLessonDraft, LessonError } from './types';
+const nativeLessonPort = createNativeLessonPort('course');
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 describe('lesson native transport', () => {
   beforeEach(() => { vi.mocked(invoke).mockReset(); });
@@ -14,7 +15,7 @@ describe('lesson native transport', () => {
     expect(command).toBe('lesson_create_draft');
     expect(ArrayBuffer.isView(body)).toBe(true);
     if (!ArrayBuffer.isView(body)) throw new Error('Expected native raw byte envelope');
-    expect(JSON.parse(new TextDecoder().decode(body))).toEqual({ request });
+    expect(JSON.parse(new TextDecoder().decode(body))).toEqual({ courseId: 'course', request });
   });
   it('preserves native safe field diagnostics on rejection', async () => {
     const error: LessonError = { code: 'invalid_request', diagnostics: [{ code: 'invalid_props', nodeId: 'node', operationIndex: 0, field: 'props.gap', repair: 'use_declared_value' }] };
@@ -29,7 +30,7 @@ describe('lesson native transport', () => {
 it('reads a resource pin with its Unit scope and preserves null denial', async () => {
   vi.mocked(invoke).mockResolvedValue(null);
   expect(await nativeLessonPort.readResource('unit', 'pin')).toBeNull();
-  expect(invoke).toHaveBeenCalledWith('lesson_read_resource', { unitId: 'unit', revisionId: 'pin' });
+  expect(invoke).toHaveBeenCalledWith('lesson_read_resource', { courseId: 'course', unitId: 'unit', revisionId: 'pin' });
 });
 
 it('returns the immutable resource snapshot without transforming it', async () => {

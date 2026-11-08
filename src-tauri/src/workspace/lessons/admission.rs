@@ -1,7 +1,9 @@
 //! Bounds application-controlled decoding/admission; Tauri's existing transport buffer is external.
 use super::*;
+#[cfg(test)]
+use serde::Deserialize;
+use serde::Serialize;
 use serde::de::{DeserializeOwned, DeserializeSeed, Error, MapAccess, SeqAccess, Visitor};
-use serde::{Deserialize, Serialize};
 use std::io::Write;
 use tauri::ipc::InvokeBody;
 const MAX_BYTES: usize = 2 * 1024 * 1024;
@@ -250,6 +252,7 @@ pub(crate) fn decode<T: DeserializeOwned>(body: &InvokeBody) -> Result<T> {
     serde_json::from_slice(bytes)
         .map_err(|_| super::diagnostics::envelope(ErrorCode::InvalidRequest, "request"))
 }
+#[cfg(test)]
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Mutation<T> {
@@ -337,7 +340,11 @@ mod tests {
         };
         let body =
             InvokeBody::Raw(serde_json::to_vec(&serde_json::json!({"request":request})).unwrap());
-        assert!(decode::<Mutation<EditLessonDraft>>(&body).is_ok());
+        assert!(
+            decode::<Mutation<EditLessonDraft>>(&body)
+                .map(|envelope| envelope.request)
+                .is_ok()
+        );
     }
     #[test]
     fn existing_maximum_width_document_fits_the_bounded_mutation_decoder() {
@@ -372,6 +379,10 @@ mod tests {
         };
         let body =
             InvokeBody::Raw(serde_json::to_vec(&serde_json::json!({"request":request})).unwrap());
-        assert!(decode::<Mutation<EditLessonDraft>>(&body).is_ok());
+        assert!(
+            decode::<Mutation<EditLessonDraft>>(&body)
+                .map(|envelope| envelope.request)
+                .is_ok()
+        );
     }
 }

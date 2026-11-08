@@ -1,5 +1,14 @@
 # Post-M2: isolated course workspaces
 
+Execution amendment, 2026-11-08: the user authorized design followed by
+implementation of KER-127/128–130 and delegated migration choices. See the
+[course design](../superpowers/specs/2026-11-08-course-workspaces-design.md)
+and [execution plan](../superpowers/plans/2026-11-08-course-workspaces.md).
+The existing workspace is adopted in place as one course; its Subjects remain
+nested to preserve shared data and IDs. New courses use separate roots. The
+requirements checkpoint below is historical; Backlog wording adds no hold to
+the later explicit implementation authority. No M3, GUI or publication starts.
+
 User-confirmed requirements, 2026-11-08. Separate step after M2 integration;
 tracked as [KER-127](https://linear.app/kerigan/issue/KER-127/post-m2-establish-isolated-course-workspaces),
 Backlog. This is a requirement/scope record, not an approved implementation design.

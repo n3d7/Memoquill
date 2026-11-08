@@ -1,5 +1,12 @@
 # Course autonomy and learning-productivity requirements
 
+Execution amendment, 2026-11-08: separate post-M2 implementation is authorized
+by the user's continuation request; the earlier planning-only wording below is
+historical. [Course design](../superpowers/specs/2026-11-08-course-workspaces-design.md)
+settles ownership/migration, and [extension contracts](../architecture/course-extensions.md)
+define the data-only future-tool foundation. Other main-stage assignments and
+X11-only delivery remain unchanged.
+
 Consolidated user decisions, 2026-11-08. Planning complete; implementation not
 started. M2 PR #3 is merged. This work is a separate local post-M2 checkpoint.
 The main M1–M8 delivery target remains Linux/X11 with portable contracts.

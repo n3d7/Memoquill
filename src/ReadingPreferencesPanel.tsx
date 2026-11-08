@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useResultDialog } from './useResultDialog';
 import type { ReadingController } from './useReadingPreferences';
 import type { TextScale, Theme } from './workspaceBridge';
@@ -6,12 +7,13 @@ const themes: Theme[] = ['system', 'light', 'dark'];
 const scales: TextScale[] = [100, 125, 150, 200];
 
 export function ReadingPreferencesPanel({ reading }: { reading: ReadingController }) {
+  const messageId = useId();
   const result = useResultDialog();
   async function show(action: () => Promise<string>, origin: HTMLButtonElement) {
     const message = await action();result.show(message, origin);
   }
   return <section className="reading-preferences" aria-label="Local workspace">
-    <fieldset className="appearance" aria-describedby="workspace-message" disabled={reading.working}>
+    <fieldset className="appearance" aria-describedby={messageId} disabled={reading.working}>
       <legend>Reading preferences</legend>
       <label>Appearance<select value={reading.preferences.theme} disabled={!reading.loaded || reading.retry}
         onChange={event => {
@@ -36,7 +38,7 @@ export function ReadingPreferencesPanel({ reading }: { reading: ReadingControlle
       </button>
       <button onClick={event => result.show(reading.message, event.currentTarget)}>Read workspace status</button>
     </fieldset>
-    <p id="workspace-message" aria-live="polite" aria-atomic="true">{reading.working ? 'Working with local workspace…' : reading.message}</p>
+    <p id={messageId} aria-live="polite" aria-atomic="true">{reading.working ? 'Working with local workspace…' : reading.message}</p>
     {result.dialog}
   </section>;
 }

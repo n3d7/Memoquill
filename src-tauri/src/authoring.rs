@@ -2,7 +2,7 @@
 use crate::{
     organization::{ResourceId, Snapshot},
     workspace::{
-        Annotation, AppError, ApplicationService, ApplyContent, ReadingPosition, RequestContext,
+        Annotation, AppError, ApplyContent, CourseManager, ReadingPosition, RequestContext,
         SaveAnnotation, SaveDocument, SaveReadingPosition, SavedDocument,
     },
 };
@@ -11,79 +11,99 @@ use uuid::Uuid;
 
 #[tauri::command]
 pub async fn search_resources(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     query: String,
     offset: u64,
 ) -> Result<crate::workspace::SearchPage, AppError> {
+    let service = manager.service(course_id)?;
     service
         .search_resources(RequestContext::local_ui(), query, offset)
         .await
 }
 
 #[tauri::command]
-pub async fn library(service: State<'_, ApplicationService>) -> Result<Snapshot, AppError> {
+pub async fn library(
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
+) -> Result<Snapshot, AppError> {
+    let service = manager.service(course_id)?;
     service.library(RequestContext::local_ui()).await
 }
 #[tauri::command]
 pub async fn apply_content(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: ApplyContent,
 ) -> Result<Snapshot, AppError> {
+    let service = manager.service(course_id)?;
     service
         .apply_content(RequestContext::local_ui(), request)
         .await
 }
 #[tauri::command]
 pub async fn save_document(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: SaveDocument,
 ) -> Result<SavedDocument, AppError> {
+    let service = manager.service(course_id)?;
     service
         .save_document(RequestContext::local_ui(), request)
         .await
 }
 #[tauri::command]
 pub async fn read_document(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     resource_id: ResourceId,
     revision_id: Option<Uuid>,
 ) -> Result<Option<SavedDocument>, AppError> {
+    let service = manager.service(course_id)?;
     service
         .read_document(RequestContext::local_ui(), resource_id, revision_id)
         .await
 }
 #[tauri::command]
 pub async fn save_annotation(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: SaveAnnotation,
 ) -> Result<Annotation, AppError> {
+    let service = manager.service(course_id)?;
     service
         .save_annotation(RequestContext::local_ui(), request)
         .await
 }
 #[tauri::command]
 pub async fn annotations(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     resource_id: ResourceId,
 ) -> Result<Vec<Annotation>, AppError> {
+    let service = manager.service(course_id)?;
     service
         .annotations(RequestContext::local_ui(), resource_id)
         .await
 }
 #[tauri::command]
 pub async fn save_reading_position(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: SaveReadingPosition,
 ) -> Result<ReadingPosition, AppError> {
+    let service = manager.service(course_id)?;
     service
         .save_reading_position(RequestContext::local_ui(), request)
         .await
 }
 #[tauri::command]
 pub async fn reading_position(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     resource_id: ResourceId,
 ) -> Result<Option<ReadingPosition>, AppError> {
+    let service = manager.service(course_id)?;
     service
         .reading_position(RequestContext::local_ui(), resource_id)
         .await

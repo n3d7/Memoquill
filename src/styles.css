@@ -37,3 +37,11 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid; padding
 dialog { color: inherit; background: var(--bg); border: 2px solid var(--line); border-radius: .5rem; width: min(60rem, 95vw); max-height: 90vh; padding: 1.5rem; overflow: auto; }
 dialog::backdrop { background: rgb(0 0 0 / 55%); }
 [role="alert"] { border: 2px solid var(--accent); padding: .75rem; }
+
+.course-shell { display: flex; align-items: flex-start; gap: 1rem; }
+.course-sidebar { flex: 0 0 15rem; padding: 1rem; position: sticky; top: 0; }
+.course-sidebar ul { list-style: none; padding: 0; }
+.course-sidebar button[aria-current="page"] { font-weight: bold; }
+.course-workspace { min-width: 0; flex: 1; }
+[hidden] { display: none !important; }
+@media (max-width: 48rem) { .course-shell { display: block; } .course-sidebar { position: static; } }

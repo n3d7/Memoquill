@@ -6,6 +6,9 @@
     "main"
   ],
   "permissions": [
+    "allow-courses-list",
+    "allow-course-create",
+    "allow-course-select",
     "allow-check-draft",
     "allow-workspace-status",
     "allow-save-reading-preferences",

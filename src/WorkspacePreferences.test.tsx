@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render } from '../tests/courseRender';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
@@ -27,7 +28,7 @@ test('loads saved appearance, explicitly saves edits and restores them on reopen
   const save = screen.getByRole('button', { name: 'Save reading preferences' });
   await userEvent.click(save);
   expect(await screen.findByRole('dialog', { name: 'Operation result' })).toHaveTextContent('Reading preferences saved');
-  expect(invoke).toHaveBeenCalledWith('save_reading_preferences', { request: expect.objectContaining({
+  expect(invoke).toHaveBeenCalledWith('save_reading_preferences', { courseId: 'test-course', request: expect.objectContaining({
     contractVersion: 1, workspaceId: initial.preferences.workspaceId, expectedRevision: 3,
     operationId: expect.stringMatching(/^[a-f0-9-]{36}$/), preferences: { theme: 'light', textScale: 125 },
   }) });
@@ -59,7 +60,7 @@ test('unknown outcome retains one operation for retry and preserves material edi
   await userEvent.click(screen.getByRole('button', { name: 'Retry saving preferences' }));
   expect(await screen.findByRole('dialog')).toHaveTextContent('Reading preferences saved. Material edits are unchanged.');
   expect(requests).toHaveLength(2);expect(requests[1]).toEqual(requests[0]);
-  expect(invoke).toHaveBeenCalledWith('reopen_workspace');
+  expect(invoke).toHaveBeenCalledWith('reopen_workspace', { courseId: 'test-course' });
   expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Preserve these notes');
 });
 

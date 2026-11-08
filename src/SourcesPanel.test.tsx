@@ -1,5 +1,6 @@
+import { render } from '../tests/courseRender';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SourcesPanel } from './SourcesPanel';
 import type { SaveSource, SelectedSource } from './sourceBridge';
