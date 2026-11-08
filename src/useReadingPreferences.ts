@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { reopenWorkspace, saveReadingPreferences, workspaceStatus } from './workspaceBridge';
+import { useWorkspacePort } from './application/ApplicationProvider';
+import type { WorkspacePort } from './application/ports';
 import type { PreferencesSnapshot, ReadingPreferences, SavePreferences, WorkspaceStatus } from './workspaceBridge';
 
 const errors: Record<string, string> = {
@@ -26,24 +27,25 @@ function readyMessage(status: WorkspaceStatus): string {
   if (needsRecovery(status)) return errors.recovery_required;
   const retained = status.recovery.stagingFiles + status.recovery.orphanAssets;
   return retained > 0
-    ? `Workspace ready. ${retained} unreferenced files were preserved for later recovery. Only reading preferences are saved.`
-    : 'Workspace ready. Reading preferences are saved locally; material edits are temporary.';
+    ? `Workspace ready. ${retained} unreferenced files were preserved for later recovery.`
+    : 'Workspace ready. Reading preferences are stored locally.';
 }
-async function sendPreferences(request: SavePreferences, retry: boolean): Promise<PreferencesSnapshot> {
-  if (retry) await reopenWorkspace();
-  return saveReadingPreferences(request);
+async function sendPreferences(request: SavePreferences, retry: boolean, port: WorkspacePort): Promise<PreferencesSnapshot> {
+  if (retry) await port.reopenWorkspace();
+  return port.saveReadingPreferences(request);
 }
-function useInitialWorkspace(accept: (status: WorkspaceStatus) => void,
+function useInitialWorkspace(port: WorkspacePort, accept: (status: WorkspaceStatus) => void,
   fail: (reason: unknown) => void, finish: () => void) {
   useEffect(() => {
     let active = true;
-    workspaceStatus().then(status => { if (active) accept(status); })
+    port.workspaceStatus().then(status => { if (active) accept(status); })
       .catch(reason => { if (active) fail(reason); })
       .finally(() => { if (active) finish(); });
     return () => { active = false; };
   }, []); // Startup only: callbacks use stable state setters, never current edits.
 }
 export function useReadingPreferences() {
+  const port = useWorkspacePort();
   const [snapshot, setSnapshot] = useState<PreferencesSnapshot | null>(null);
   const [preferences, setPreferences] = useState<ReadingPreferences>({ theme: 'system', textScale: 100 });
   const [pending, setPending] = useState<SavePreferences | null>(null);
@@ -56,12 +58,12 @@ export function useReadingPreferences() {
     setSnapshot(status.preferences);setPreferences(status.preferences.preferences);
     setRecovery(needsRecovery(status));setPending(null);setMessage(readyMessage(status));
   }
-  useInitialWorkspace(accept, reason => setMessage(storageMessage(reason)), () => setWorking(false));
+  useInitialWorkspace(port, accept, reason => setMessage(storageMessage(reason)), () => setWorking(false));
   useEffect(() => { document.documentElement.style.fontSize = `${preferences.textScale}%`; }, [preferences.textScale]);
 
   async function reload(): Promise<string> {
     setWorking(true);
-    try { const status = await reopenWorkspace();accept(status);return readyMessage(status); }
+    try { const status = await port.reopenWorkspace();accept(status);return readyMessage(status); }
     catch (reason) { const text = storageMessage(reason);setMessage(text);return text; }
     finally { setWorking(false); }
   }
@@ -71,9 +73,9 @@ export function useReadingPreferences() {
       operationId: crypto.randomUUID(), expectedRevision: snapshot.revision, preferences } satisfies SavePreferences;
     setPending(request);setWorking(true);
     try {
-      const result = await sendPreferences(request, pending !== null);
+      const result = await sendPreferences(request, pending !== null, port);
       setSnapshot(result);setPreferences(result.preferences);setPending(null);
-      const text = 'Reading preferences saved. Material edits are still temporary.';
+      const text = 'Reading preferences saved. Material edits are unchanged.';
       setMessage(text);return text;
     } catch (reason) { const text = storageMessage(reason);setMessage(text);return text; }
     finally { setWorking(false); }

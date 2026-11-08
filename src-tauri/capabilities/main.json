@@ -1,7 +1,42 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main-window typed workspace/preferences/receipt operations, ephemeral draft checks and an explicit name-only picker. No arbitrary SQL, file reading, execution, network or window commands.",
-  "windows": ["main"],
-  "permissions": ["allow-check-draft", "allow-workspace-status", "allow-save-reading-preferences", "allow-operation-receipt", "allow-reopen-workspace", "dialog:allow-open"]
+  "description": "Main-window typed workspace, authoring and managed-source operations; explicit native picker copies regular bounded user-selected files. No arbitrary SQL, caller-path file access, execution, network or window commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-check-draft",
+    "allow-workspace-status",
+    "allow-save-reading-preferences",
+    "allow-operation-receipt",
+    "allow-reopen-workspace",
+    "allow-library",
+    "dialog:allow-open",
+    "allow-apply-content",
+    "allow-save-document",
+    "allow-read-document",
+    "allow-save-annotation",
+    "allow-annotations",
+    "allow-save-reading-position",
+    "allow-reading-position",
+    "allow-pick-source",
+    "allow-sources",
+    "allow-save-source",
+    "allow-source-preview",
+    "allow-search-resources",
+    "allow-lesson-discover",
+    "allow-lesson-read",
+    "allow-lesson-list-drafts",
+    "allow-lesson-read-activity",
+    "allow-lesson-read-resource",
+    "allow-lesson-create-draft",
+    "allow-lesson-edit-draft",
+    "allow-lesson-preview-draft",
+    "allow-lesson-apply-draft",
+    "allow-lesson-discard-draft",
+    "allow-lesson-get-receipt",
+    "allow-lesson-read-source",
+    "allow-lesson-validate-draft"
+  ]
 }

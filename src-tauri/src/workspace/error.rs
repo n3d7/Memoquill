@@ -4,6 +4,11 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidRequest,
+    InvalidTree,
+    InvalidReference,
+    BudgetExceeded,
+    UnsupportedVersion,
+    CapabilityUnavailable,
     AlreadyOpen,
     Busy,
     OwnerUnavailable,
@@ -18,21 +23,32 @@ pub enum ErrorCode {
 }
 
 /// Safe wire error: never includes raw SQL, source data or machine paths.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppError {
     pub code: ErrorCode,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<super::LessonDiagnostic>,
 }
 
 pub(super) type Result<T> = std::result::Result<T, AppError>;
 impl std::error::Error for AppError {}
 
 impl AppError {
-    pub(super) const fn new(code: ErrorCode) -> Self {
-        Self { code }
+    pub(crate) const fn new(code: ErrorCode) -> Self {
+        Self {
+            code,
+            diagnostics: Vec::new(),
+        }
     }
 }
 
+impl AppError {
+    pub(super) fn with_diagnostics(mut self, diagnostics: Vec<super::LessonDiagnostic>) -> Self {
+        self.diagnostics = diagnostics.into_iter().take(16).collect();
+        self
+    }
+}
 impl std::fmt::Display for AppError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{:?}", self.code)

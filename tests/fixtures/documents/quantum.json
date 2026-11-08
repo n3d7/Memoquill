@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "content": {
+        "type": "heading",
+        "level": 2,
+        "inlines": [
+          {
+            "text": "Quantum physics",
+            "marks": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "content": {
+        "type": "math",
+        "source": "|\\psi\\rangle = \\alpha|0\\rangle + \\beta|1\\rangle"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "content": {
+        "type": "table",
+        "rows": [
+          [
+            [
+              {
+                "id": "00000000-0000-4000-8000-000000000004",
+                "content": {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "text": "State",
+                      "marks": []
+                    }
+                  ]
+                }
+              }
+            ],
+            [
+              {
+                "id": "00000000-0000-4000-8000-000000000005",
+                "content": {
+                  "type": "paragraph",
+                  "inlines": [
+                    {
+                      "text": "Probability",
+                      "marks": []
+                    }
+                  ]
+                }
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

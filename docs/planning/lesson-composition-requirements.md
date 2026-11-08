@@ -1,0 +1,52 @@
+# Lesson composition: architecture-first requirements
+
+Status: user requirement clarification and planned work, 2026-11-01. This is not an approved implementation design or a claim that the constructor exists. Application feature/UI development and further GUI qualification are paused until the revised architecture is agreed. Existing application commits remain evidence for their earlier bounded scope.
+
+## Phase mapping
+
+| Task | Responsibility |
+| --- | --- |
+| [KER-117](https://linear.app/kerigan/issue/KER-117) | Resolve lesson ownership against existing unit/resource/activity concepts; freeze content/activity/composition/history separation, versions, references and trusted component/action capabilities. |
+| [KER-118](https://linear.app/kerigan/issue/KER-118) | Replaceable presentation, controllers, narrow application ports and native/test adapters; shared controls/design tokens; guest identity/session seam for future login. |
+| [KER-119](https://linear.app/kerigan/issue/KER-119) | Validated composition persistence, semantic proposals/patches, transaction/revision/receipt behavior and offline migration/recovery. |
+| [KER-120](https://linear.app/kerigan/issue/KER-120) | Manual offline lesson-tab composer and trusted shared renderer/preview, with keyboard/focus/reading-order and isolation checks. |
+| [KER-116](https://linear.app/kerigan/issue/KER-116) | Expanded integrated M2 acceptance after those foundations; current tests/screenshots do not establish the new scope. |
+| [KER-102](https://linear.app/kerigan/issue/KER-102), [KER-104](https://linear.app/kerigan/issue/KER-104) | Durable study behavior, evaluation, help evidence and honest outcome-specific progress. Keep preview and reward state separate. |
+| [KER-105](https://linear.app/kerigan/issue/KER-105), [KER-106](https://linear.app/kerigan/issue/KER-106), [KER-107](https://linear.app/kerigan/issue/KER-107) | Shared-service MCP discovery, manual/agent authoring parity and enforced lesson/action authority with review or explicit bounded delegation. |
+| [KER-121](https://linear.app/kerigan/issue/KER-121) / M8 | Final optional per-lesson gamification after core M7 qualification: configurable achievements/levels/metrics/rules, default off and evidence-calibrated. |
+
+Dependency: KER-117 precedes KER-118/119; both precede KER-120; KER-116 depends on all four. KER-121 follows KER-108 and does not block the core M7 stage. Completed KER-109–112 slices are point-in-time evidence, not approval of this revised architecture.
+
+## Required boundaries
+
+- A person can compose their own learning methods from content, activities/tests, containers and interaction/presentation primitives. The agent gets the same semantic operations later; a mandatory pedagogy/template is not imposed.
+- Store canonical content/provenance, versioned activity definitions, composition/presentation and personal learning outcomes separately. Preserve IDs, anchors, revisions and history across recomposition; define stale references and migration explicitly.
+- Presentational views use view models/actions. Controllers own scenarios/drafts/retries; native IPC is one adapter behind a frontend application port. Rust services retain invariant, permission, transaction and storage authority. Replacing a representative screen/design system must not require changing Rust storage/domain rules.
+- A versioned registry supplies trusted component implementations, typed prop/slot/action/event contracts and accessibility/fallback behavior. User/agent payloads are bounded declarative data, not arbitrary code or unrestricted CSS/network/filesystem requests.
+- Each lesson tab owns its local composition/settings/state. Cross-lesson/global changes and private outcomes require separate authority. Preview uses the same renderer as the lesson but has separate outcomes from a real study session.
+- A future identity/session adapter starts with a local guest actor. Actual registration/provider/password/session design is deferred. Keep account identity distinct from agent grants and do not add fake login UI or mandatory cloud/account dependencies.
+- Optional M8 metrics explain their denominator, rules and provenance; completion/rewards are separate from independently demonstrated competence. Users can create safe experimental methods; recommended presets carry applicable evidence and benefit/cost checks.
+
+## Open decisions before implementation resumes
+
+Resolve lesson aggregate ownership, initial activity/component vocabulary and interaction semantics; document serialization/reference/version/fallback and resource budgets; choose the minimal manual vertical slice; specify state/attempt ownership and supported extension trust. Compare an owned renderer with a json-render adapter in a separately approved bounded spike if needed. No new renderer dependency or auth provider has been chosen.
+
+Architecture agreement and an implementation plan come before application feature changes. Preserve the existing offline, untrusted-input, source-provenance, physical GNOME/human Orca and release authorization gates. See [research and source applicability](../research/composable-learning-architecture.md).
+
+<!-- research-source-followup:start -->
+## Admitted follow-up and M3 lesson sources
+
+Additional arXiv/Consensus screening admits only narrow requirements: pinned study versions/safe regeneration boundaries; manual/component refinement; distinct authoring-versus-learner assistance; and explicit metric meaning/provenance. UI preference, authoring speed and task volume are not learning-efficacy proof. Learned UI models/adaptive tutors remain future research pointers, not added dependencies. See [admission decisions](../research/composable-learning-screening.md).
+
+Assign the user's research-file/book/document library to existing KER-100/M3, with source bindings, immutable originals/extraction revisions, bibliography/locators, used ranges and honest partial/unread coverage. Qualify PDF/EPUB books and common document formats; unsupported types retain their original with explicit limitations. M2 defines source-reference/ownership seams only, avoiding an M2→M3 cycle.
+
+KER-105 exposes scoped source/capability/range reads; KER-106 selects and structures relevant source material into content/activities/composition proposals through the shared authoring path; KER-107 enforces source/lesson/destination authority and document-as-data boundaries. KER-101 and core qualification cover source portability/completeness. Importing is not blanket remote-model upload or public redistribution permission. No app feature/GUI work resumes before architecture agreement.
+<!-- research-source-followup:end -->
+
+## Reviewable contract proposal — 2026-11-04
+
+The [concrete KER-117 proposal](../architecture/lesson-composition.md) maps each requested boundary to ownership, typed vocabulary, versions, migration/fallback, service authority, limits and acceptance scenarios. It recommends Unit-owned composition revisions and a small owned renderer, preserves existing identities/history and keeps source ingestion in M3, real study in M4, live MCP in M6 and optional motivation in M8. These are proposed decisions awaiting agreement; no application work resumed.
+
+## User-confirmed tab isolation — 2026-11-04
+
+Different lesson tabs must remain independent in authored composition, configuration, pinned content and personal interaction/history/progress. Remove linked-tab editing and synchronization entirely, including the future-view seam. Distinct editable lesson tabs must not alias mutable Unit/composition/draft or learner state. Explicit duplication creates an independent Unit and configuration without copying history. Immutable asset/definition reuse does not authorize cross-lesson updates. See [contract](../architecture/lesson-composition.md).

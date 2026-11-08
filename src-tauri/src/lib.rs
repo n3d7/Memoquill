@@ -1,4 +1,9 @@
+mod attachments;
+mod authoring;
+pub mod document;
 pub mod draft;
+mod lesson_commands;
+pub mod organization;
 pub mod workspace;
 
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -49,11 +54,37 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
+            lesson_commands::lesson_discover,
+            lesson_commands::lesson_read,
+            lesson_commands::lesson_read_source,
+            lesson_commands::lesson_list_drafts,
+            lesson_commands::lesson_read_activity,
+            lesson_commands::lesson_read_resource,
+            lesson_commands::lesson_create_draft,
+            lesson_commands::lesson_edit_draft,
+            lesson_commands::lesson_preview_draft,
+            lesson_commands::lesson_validate_draft,
+            lesson_commands::lesson_apply_draft,
+            lesson_commands::lesson_discard_draft,
+            lesson_commands::lesson_get_receipt,
             check_draft,
             workspace_status,
             save_reading_preferences,
             operation_receipt,
-            reopen_workspace
+            reopen_workspace,
+            authoring::library,
+            authoring::apply_content,
+            authoring::save_document,
+            authoring::read_document,
+            authoring::save_annotation,
+            authoring::annotations,
+            authoring::save_reading_position,
+            authoring::reading_position,
+            attachments::pick_source,
+            attachments::sources,
+            attachments::save_source,
+            attachments::source_preview,
+            authoring::search_resources
         ])
         .build(tauri::generate_context!())
         .expect("Memoquill could not start")
@@ -111,6 +142,269 @@ mod tests {
         webview::InvokeRequest,
     };
 
+    #[test]
+    fn lesson_raw_decoder_rejects_budgets_and_returns_structured_errors_through_ipc() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                lesson_commands::lesson_edit_draft,
+                lesson_commands::lesson_discover
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let too_large = InvokeBody::Raw(
+            format!("{{\"request\":\"{}\"}}", "x".repeat(2 * 1024 * 1024)).into_bytes(),
+        );
+        let error = ipc(&main, "lesson_edit_draft", "tauri://localhost", too_large).unwrap_err();
+        assert_eq!(error["code"], "budget_exceeded");
+        assert_eq!(error["diagnostics"][0]["field"], "request");
+        assert_eq!(error["diagnostics"][0]["repair"], "split_request");
+        let registry = ipc(
+            &main,
+            "lesson_discover",
+            "tauri://localhost",
+            InvokeBody::Raw(b"{}".to_vec()),
+        )
+        .unwrap()
+        .deserialize::<Vec<workspace::RegistryDescriptor>>()
+        .unwrap();
+        assert_eq!(registry.len(), 8);
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+    #[test]
+    fn lesson_registry_and_mutations_respect_native_capabilities_and_closed_context() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                lesson_commands::lesson_discover,
+                lesson_commands::lesson_create_draft
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "secondary", Default::default())
+            .build()
+            .unwrap();
+        let registry = ipc(
+            &main,
+            "lesson_discover",
+            "tauri://localhost",
+            serde_json::json!({}),
+        )
+        .unwrap()
+        .deserialize::<Vec<workspace::RegistryDescriptor>>()
+        .unwrap();
+        assert_eq!(registry.len(), 8);
+        assert!(
+            ipc(
+                &other,
+                "lesson_discover",
+                "tauri://localhost",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "lesson_discover",
+                "https://untrusted.example",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        let status =
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
+        let forged = serde_json::json!({"request":{"contractVersion":1,"workspaceId":status.preferences.workspace_id,"unitId":uuid::Uuid::new_v4(),"operationId":OperationId::generate(),"expectedHeadRevision":null,"trustedUi":true}});
+        assert!(ipc(&main, "lesson_create_draft", "tauri://localhost", forged).is_err());
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+    #[test]
+    fn authoring_read_is_scoped_to_the_trusted_main_webview() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![
+                authoring::library,
+                authoring::search_resources
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "secondary", Default::default())
+            .build()
+            .unwrap();
+        let snapshot = ipc(&main, "library", "tauri://localhost", serde_json::json!({}))
+            .unwrap()
+            .deserialize::<crate::organization::Snapshot>()
+            .unwrap();
+        assert!(snapshot.subjects.is_empty());
+        let search = serde_json::json!({"query":"", "offset":0});
+        let page = ipc(
+            &main,
+            "search_resources",
+            "tauri://localhost",
+            search.clone(),
+        )
+        .unwrap()
+        .deserialize::<workspace::SearchPage>()
+        .unwrap();
+        assert!(page.items.is_empty());
+        assert!(
+            ipc(
+                &other,
+                "search_resources",
+                "tauri://localhost",
+                search.clone()
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "search_resources",
+                "https://untrusted.example",
+                search
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "search_resources",
+                "tauri://localhost",
+                serde_json::json!({"query":"", "offset":-1})
+            )
+            .is_err()
+        );
+        assert_eq!(
+            ipc(
+                &main,
+                "search_resources",
+                "tauri://localhost",
+                serde_json::json!({"query":"\u{0}", "offset":0})
+            )
+            .unwrap_err(),
+            serde_json::json!({"code":"invalid_request"})
+        );
+        assert!(
+            ipc(
+                &other,
+                "library",
+                "tauri://localhost",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        assert!(
+            ipc(
+                &main,
+                "library",
+                "https://untrusted.example",
+                serde_json::json!({})
+            )
+            .is_err()
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn native_selection_rejects_other_surfaces_and_caller_path_authority() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let status =
+            tauri::async_runtime::block_on(service.status(RequestContext::local_ui())).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![attachments::pick_source])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let body = serde_json::json!({"request": {"contractVersion":1,
+            "workspaceId":status.preferences.workspace_id, "operationId":uuid::Uuid::new_v4()}});
+        assert!(ipc(&other, "pick_source", "tauri://localhost", body.clone()).is_err());
+        assert!(
+            ipc(
+                &main,
+                "pick_source",
+                "https://untrusted.example",
+                body.clone()
+            )
+            .is_err()
+        );
+        let mut forged = body.clone();
+        forged["request"]["path"] = serde_json::json!("/etc/passwd");
+        assert!(ipc(&main, "pick_source", "tauri://localhost", forged).is_err());
+        let mut foreign = body;
+        foreign["request"]["workspaceId"] = serde_json::json!(uuid::Uuid::new_v4());
+        let error = ipc(&main, "pick_source", "tauri://localhost", foreign).unwrap_err();
+        assert_eq!(
+            error,
+            serde_json::to_value(AppError::new(workspace::ErrorCode::PermissionDenied)).unwrap()
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn authoring_mutation_rejects_foreign_surfaces_and_forged_principals() {
+        let temp = tempfile::tempdir().unwrap();
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let initial =
+            tauri::async_runtime::block_on(service.library(RequestContext::local_ui())).unwrap();
+        let app = mock_builder()
+            .manage(service.clone())
+            .invoke_handler(tauri::generate_handler![authoring::apply_content])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let request = serde_json::json!({"contractVersion":1,"workspaceId":initial.workspace_id,
+            "operationId":uuid::Uuid::new_v4(),"expectedRevision":0,
+            "command":{"type":"createSubject","id":uuid::Uuid::new_v4(),"title":"Quantum physics","priorKnowledge":null}});
+        let body = serde_json::json!({"request":request});
+        assert!(ipc(&other, "apply_content", "tauri://localhost", body.clone()).is_err());
+        assert!(
+            ipc(
+                &main,
+                "apply_content",
+                "https://untrusted.example",
+                body.clone()
+            )
+            .is_err()
+        );
+        let mut forged = body.clone();
+        forged["request"]["trustedUi"] = serde_json::json!(true);
+        assert!(ipc(&main, "apply_content", "tauri://localhost", forged).is_err());
+        let result = ipc(&main, "apply_content", "tauri://localhost", body)
+            .unwrap()
+            .deserialize::<crate::organization::Snapshot>()
+            .unwrap();
+        assert_eq!(result.revision, 1);
+        assert_eq!(result.subjects.len(), 1);
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
     #[tauri::command]
     fn forbidden_probe() -> bool {
         true
@@ -152,7 +446,7 @@ mod tests {
         webview: &tauri::WebviewWindow<tauri::test::MockRuntime>,
         command: &str,
         origin: &str,
-        body: serde_json::Value,
+        body: impl Into<InvokeBody>,
     ) -> Result<tauri::ipc::InvokeResponseBody, serde_json::Value> {
         get_ipc_response(
             webview,
@@ -161,7 +455,7 @@ mod tests {
                 callback: CallbackFn(0),
                 error: CallbackFn(1),
                 url: origin.parse().unwrap(),
-                body: InvokeBody::Json(body),
+                body: body.into(),
                 headers: Default::default(),
                 invoke_key: INVOKE_KEY.into(),
             },

@@ -1,0 +1,11 @@
+.app { --control-radius: .3rem; --control-padding: .55rem .75rem; --control-min-height: 2.75rem; --focus-width: 3px; }
+input, textarea, select, button { font: inherit; color: inherit; background: var(--field); border: 1px solid var(--line); border-radius: var(--control-radius); padding: var(--control-padding); }
+input, textarea { width: 100%; min-width: 0; }
+/* Keep empty text controls out of inline label runs queried by WebKitGTK AT-SPI. */
+label > input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), label > textarea { display: block; }
+select { display: block; }
+textarea { resize: vertical; }
+button { cursor: pointer; min-height: var(--control-min-height); }
+button:disabled { cursor: wait; opacity: .65; }
+:focus-visible { outline: var(--focus-width) solid var(--accent); outline-offset: 3px; }
+@media (forced-colors: active) { :focus-visible { outline-color: Highlight; } }

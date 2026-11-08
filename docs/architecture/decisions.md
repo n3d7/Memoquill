@@ -1,5 +1,7 @@
 # Architecture decisions
 
+Current phase/platform amendment: [ADR-10](#adr-10--x11-first-core-and-deferred-platform-adapters) supersedes earlier non-X11/main-development gate wording. Current work is docs/Linear only; M1–M8 implementation remains X11-only when authorized. Recorded failed/unrun evidence is not converted to a pass.
+
 Status: **recommended for Foundation V1**, with explicit implementation-time qualification gates. ADR-02's M1.1 candidate has passing bounded native automation and remains subject to manual desktop/Orca acceptance and user review; ADR-08 is applied locally. This is not release qualification or a learning/performance benchmark. Material reconsideration updates this record and the roadmap rather than quietly adding a second architecture. See the [actual Fedora baseline](../quality/fedora-desktop-baseline.md).
 
 ## ADR-01 — A local Linux modular monolith
@@ -19,6 +21,7 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 - **Decision:** stable Tauri 2/Rust core, React/TypeScript interface, app-owned document schema with a mature editor adapter. Pin dependencies in M1 after Fedora packaged checks.
 - **M1.1 disposition (2026-10-28):** retain the pinned Tauri 2 candidate. Offline RPM installation, 35 interaction and 7 Orca-presentation assertions per X11/native-Wayland mode pass in the recorded Fedora 44 profile. Important results use an explicit, reversible dialog; automatic polite notifications are not qualified. Physical GNOME/hardware and human listening remain manual acceptance, so this is not unconditional release approval. KER-97 goes to review; KER-98 does not start here.
 - **Consequences:** WebKitGTK/AT-SPI/IME/Wayland behavior is a critical release risk, not solved by a framework claim. M1 must qualify keyboard/Orca/editor/math before expanding the domain.
+- **M2 development-only disposition (2026-10-28):** the user authorized M2 and delegated the entry-gate decision after direct inspection found an active i3/X11 session without installed GNOME/Orca. Retain Tauri2 and proceed with reversible domain/editor development on the existing passing isolated X11/Wayland/IME/Orca-presentation baseline. Physical GNOME and audible/human Orca acceptance remain unverified and mandatory for acceptance; KER-97 stays In Review. This explicit deferral is not a passing result, release approval or authority to weaken host security/install a desktop. Exercise packaged editor/accessibility cases early during M2; an observed unresolved core failure triggers the existing bounded fallback. See [M2 contracts](../planning/m2-contracts.md).
 - **Reconsider when:** core workflows fail the bounded accessibility/runtime gate; prefer an evaluated Electron or native alternative rather than accumulating fragile workarounds. Revisit Tauri 3 after stable release and relevant evidence.
 - **Bounded fallback:** isolate a failing core case once, distinguish application from runtime behavior, then compare the same fixture in Electron and GTK4 if unresolved. Record deployment/accessibility cost before changing the decision; no concurrent second stack or custom Orca fork is approved.
 
@@ -75,3 +78,47 @@ Status: **recommended for Foundation V1**, with explicit implementation-time qua
 - **Decision:** Cargo pins [the reviewed backport](https://github.com/andrew-wommack-ministries/glib-rustsec-2024-0429-backport/tree/7e91f1a9420fd3e6c58b7913bbbf201888304ea9) at `7e91f1a9420fd3e6c58b7913bbbf201888304ea9`. The normal check command runs an optimized iterator regression as well as debug tests. No API/version relabelling, optimizer workaround or broad advisory suppression.
 - **Consequences:** build-source availability depends on that exact Git revision or its cached copy. Version-only scanners still report 0.18.5; bind the mitigation to the exact source/test evidence and retain unrelated/new advisory visibility. The dependency's original attribution remains separate from any future project-license choice; further licensing work is paused by the user.
 - **Reconsider when:** the framework supports upstream fixed glib, another reviewed compatible correction becomes necessary, or source availability/maintenance fails. Remove the patch with an upstream upgrade only after the optimized regression and Fedora native gates pass. Do not turn a temporary backport into an unreviewed permanent fork.
+
+## ADR-09 — Unit-owned lesson composition and bounded trusted registry
+
+- **Status:** proposed 2026-11-04; pending user agreement, no implementation authority.
+- **Context:** the manual lesson constructor and later MCP author need the same semantic operations without duplicating existing Unit/resource/activity/history identities.
+- **Alternatives:** new Lesson aggregate with copied definitions; Unit-owned immutable composition with a small owned renderer; same domain contract with a json-render adapter.
+- **Proposed decision:** lessonId equals existing unitId; one active immutable composition head per Unit, exact pinned dependencies, application-owned typed registry/actions and shared draft/validate/preview/apply services. Recommend the small owned renderer baseline; no renderer dependency selected. Preserve sources, evaluation semantics, append-only attempts and isolated previews.
+- **Consequences:** screen replacement does not migrate domain data; layouts cannot execute code or authorize access. Explicit migration/unknown-type handling and proposed limits constrain complexity. Actual tables/adapters/tests remain later work.
+- **Contract and agreement points:** [lesson composition](lesson-composition.md). M3 ingestion, M4 real study, M6 MCP and M8 optional gamification keep their phase boundaries.
+
+### ADR-09 clarification — lesson isolation
+
+User correction, 2026-11-04: different lessons have independent mutable configuration and learner state. Linked-tab editing and synchronization are excluded entirely, including the proposed future-view seam. Distinct editable lesson tabs must not alias mutable Unit/composition/draft or learner state. Normal lesson edits rebind only that lesson; reused definitions do not couple lesson progress.
+
+
+## ADR-10 — X11-first core and deferred platform adapters
+
+- **Authority/context:** user instructions of2026-11-06: first build the working
+  X11 application, preserve future portability in every main stage, defer Windows,
+  macOS, Linux/Wayland, iPhone/iOS and Android to independent later work. The latest
+  instruction authorizes only documenting/planning this adaptation; app work is paused.
+- **Decision:** main M1–M8 changes and qualification target X11 only. Retain M8's
+  optional lesson-local scope. Five standalone Backlog tasks in an inactive milestone
+  after M8 have no parent/core blocking/related links, dates or automatic start.
+- **Core criteria now:** shared versioned domain/content/history/package contracts;
+  typed UI/controller/application ports; OS I/O, permissions, lifecycle, IPC and
+  capability discovery at adapters. Each main stage/issue has a specific readiness
+  criterion in the [platform contract](platform-portability.md).
+- **Known debt:** native rustix/openat2/safe-open/rename/locking/error conversion
+  remains Linux/Unix-specific work to adapt. Tauri/plugin mobile support is not
+  proof that this application builds or behaves correctly on another target.
+  No alternate core/data fork, unused adapter hierarchy or pre-M8 SDK/cross-build work.
+- **Gate amendment:** physical GNOME/native Wayland/foreign-OS matrices no longer
+  block main development. KER-97 manual evidence stays deferred/In Review; X11
+  keyboard/semantics/focus, integrity and security remain required. M7 retains full
+  X11 release-level assistive-technology/reflow acceptance. Do not disable accessibility
+  or label failures as passes. An actual common/X11 defect remains a core issue.
+- **Alternatives:** parallel platform delivery violates the user's sequencing;
+  separate domain/schema forks multiply migration/history/authority risk. Keep the
+  modular monolith and current shell, with later native/UI adapter qualification.
+- **Consequences/reconsideration:** [roadmap](../planning/roadmap.md) and Linear
+  criteria govern current scope; explicit user instruction is required to resume
+  application work or activate later ports. Other signing/distribution/system-change
+  permissions are unchanged. No publication or blanket platform support is implied.

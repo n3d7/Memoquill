@@ -28,6 +28,7 @@ Adapted from Scryntic guidance; see docs/architecture/third-party-reuse.md. -->
 - [memoquill-task-workflow](.agents/skills/memoquill-task-workflow/SKILL.md): substantial research, planning, approved implementation, review, and continuation.
 - [memoquill-task-reporting](.agents/skills/memoquill-task-reporting/SKILL.md): concise factual reports and recoverable handoffs.
 - [memoquill-tool-routing](.agents/skills/memoquill-tool-routing/SKILL.md): choose relevant live tools without loading an entire catalog.
+- [memoquill-context-efficiency](.agents/skills/memoquill-context-efficiency/SKILL.md): load for substantial discovery, delegation and continuation; reuse verified evidence and bounded local notes.
 - Skills live inside this repository. Load only relevant instructions. Do not copy guidance into global configuration without a request.
 - When workflows overlap, choose one owner for the active phase; use other skills only for distinct supporting work. Use the installed `skill-catalog` with `--project` for focused selection and load the selected skill's instructions. Do not repeat planning, TDD, review or reporting through competing workflows.
 

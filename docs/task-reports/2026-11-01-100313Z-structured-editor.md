@@ -1,0 +1,9 @@
+# KER-113 structured editor component checkpoint
+
+The standalone structured editor component is ready on dev. It uses the existing canonical document adapter and pinned ProseMirror/KaTeX dependencies. Stable EditorView ownership preserves history, selection and composition across ordinary callback/status/label changes. Read-only state applies to nested controls; plain-text paste/drop boundaries retain passive code, math, tables, media metadata and unsupported source content. Block IDs and resume targets remain stable.
+
+A real regression was reproduced and fixed: changing the accessible label of a surviving nested editor rebuilt its view, losing focus/history. Label updates now change existing view props. Scoped behavior checks cover label identity, nested readOnly, paste/drop, code text/newlines, table editing, passive content and UTF16 resume. Fourteen focused component/adapter tests and TypeScript passed. Scoped CRAP max9.0; Dryer>=0.8 had no candidates. Twenty selected type-valid mutations were killed; three type-invalid mutations were excluded, and the95 discovered sites were not exhaustively tested. Detailed local evidence: .qualification/m2/editor-quality-summary.md.
+
+This commit contains only the editor component and its tests plus this checkpoint. Recoverable-save orchestration, attachment integration and production navigation remain in the working tree and will be committed in their own slices. KER-113 remains In Progress until integrated native keyboard/IME/Orca presentation qualification; jsdom evidence does not prove physical GNOME or human audible Orca acceptance. No dependency change, push, PR, main merge or release.
+
+Used: ub-mode and project context-efficiency/workflow/reporting; Codebase Memory Tier2 search/snippet/trace/coverage and a failed Headroom retrieval attempt; RTK, Vitest/V8, TypeScript, crapper/dryer/mutator, Python/Git/apply_patch. No external research or service plugin required for this component.

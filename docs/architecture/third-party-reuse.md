@@ -1,6 +1,6 @@
 # Third-party reuse and attribution
 
-Memoquill's project license remains MIT (`LICENSE`). Adapted material and components retain their applicable licenses. No license exception from another project applies here.
+Memoquill's project license is Apache License 2.0 subject to Commons Clause 1.0 (`LICENSE`), adopted on 2026-11-01 at the user's explicit request. The combined terms are source-available, not OSI-approved open source. Earlier MIT grants are not revoked; separately licensed dependencies and adapted guidance are not relicensed by this change. Adapted material and components retain their applicable licenses. No license exception from another project applies here.
 
 ## Incorporated operational guidance
 
@@ -14,11 +14,11 @@ The operational files include local-only material not all tracked in Scryntic, s
 
 Before incorporating a dependency, copied/adapted source, dataset, documentation, media, or asset, inspect its actual license and per-file notices. Record project, source URL, authors/holder, version/commit or hash, incorporated paths, modifications, license, and obligations. Distinguish linking, vendoring, copying, and adaptation. Prefer maintained dependencies where appropriate.
 
-Keep required license texts/notices with distributions. Evaluate source disclosure, attribution, patent, asset/data, and distribution terms independently of the MIT project license. A project license change or incompatible obligation requires explicit approval.
+Keep required license texts/notices with distributions. Evaluate source disclosure, attribution, patent, asset/data, and distribution terms independently of the combined project license. A project license change or incompatible obligation requires explicit approval.
 
 ## Evaluated application components — not incorporated
 
-The following are candidate reuse decisions, not an installed dependency inventory. Exact source paths/commits, holders and notices are recorded in [existing applications](../research/existing-applications.md) and [technical options](../research/technical-options.md). Do not label all shipped software MIT merely because the application is MIT.
+The following are candidate reuse decisions, not an installed dependency inventory. Exact source paths/commits, holders and notices are recorded in [existing applications](../research/existing-applications.md) and [technical options](../research/technical-options.md). Do not apply the application license to third-party components.
 
 | Project/component | Inspected reference and license | Decision and obligations |
 | --- | --- | --- |
@@ -32,7 +32,7 @@ The following are candidate reuse decisions, not an installed dependency invento
 | Official Rust MCP SDK (`rmcp`) | inspected commit `cd88056ffdc97756fbd98e5a12bbeb41758f0ce8`; manifest 3.8.0; actual LICENSE describes MIT→Apache-2.0 transition with some earlier MIT contributions and separately licensed non-spec docs | Preferred protocol adapter candidate; verify a released pin and preserve applicable per-file/history notices. Cargo metadata alone is insufficient. No SDK copied/installed now. |
 | PDF.js / Rust PDF parser, KaTeX, Radix, `rusqlite`, testing/build tools | Implementation candidates; exact selected artifacts/transitives not yet audited | No blanket license approval. M1/M3/M7 verify actual license/security/runtime requirements before incorporation. PDF processing remains conditional. |
 
-Permissive dependencies can coexist with independent MIT application source while retaining their own terms. Copying/adapting source requires exact path/version, modifications, original notices and source provenance; vendoring requires tracking updates/security fixes; binary distribution requires bundled/runtime obligations. Apache-2.0 patent/NOTICE terms and BSD non-endorsement/disclaimer conditions must not be discarded. Copyleft components are not selected for embedding/copying under the current strategy; any materially different strategy needs explicit approval.
+Permissive dependencies can coexist with independently licensed application source while retaining their own terms. Copying/adapting source requires exact path/version, modifications, original notices and source provenance; vendoring requires tracking updates/security fixes; binary distribution requires bundled/runtime obligations. Apache-2.0 patent/NOTICE terms and BSD non-endorsement/disclaimer conditions must not be discarded. Copyleft components are not selected for embedding/copying under the current strategy; any materially different strategy needs explicit approval.
 
 ## Educational data and examples
 
@@ -44,8 +44,14 @@ Python documentation, code examples, external exercise datasets and their soluti
 
 ## Distribution compliance plan
 
-- Keep the root `LICENSE` for Memoquill's MIT code, `.agents/LICENSES/` and `.agents/NOTICE` for the adapted operational guidance, and `docs/architecture/third-party-reuse.md` as the human inventory.
+- Keep the root `LICENSE` for Memoquill's application code and combined terms, `.agents/LICENSES/` and `.agents/NOTICE` for the adapted operational guidance, and `docs/architecture/third-party-reuse.md` as the human inventory.
 - At implementation time generate a reviewed lockfile/SBOM-derived dependency inventory and collect exact shipped texts into a `LICENSES/` or distribution notices directory. Include notices in Linux packages and an accessible About/Legal view. Do not create a fake complete inventory before dependencies exist.
 - Record component/version/commit, source URL/paths, holders, SPDX expression, reuse mode, local modifications, required notice/source/relinking/patent obligations and verification date. Flag unknowns before release.
 - Audit bundled executables, webview/runtime dependencies, fonts/media and example datasets independently; a package-manager dependency differs from vendored binary distribution. Check exact release artifacts and advisories, not just repository popularity.
-- No project license change, incompatible source incorporation, commit, push or redistribution occurred during this assignment. This inventory is an engineering compliance plan, not a legal determination for every future dependency combination.
+- The original foundation research made no license change. On 2026-11-01 the user authorized the combined Apache-2.0 / Commons Clause project license; unrelated third-party terms remain intact. This inventory is an engineering compliance plan, not a legal determination for every future dependency combination.
+
+## Project license metadata (2026-11-01)
+
+The complete combined text is in the root `LICENSE` and is bundled in RPM resources as `licenses/Memoquill-LICENSE.txt`. Cargo uses `license-file`; npm uses `SEE LICENSE IN LICENSE`; the desktop bundle uses the local identifier `LicenseRef-Memoquill-Apache-2.0-Commons-Clause-1.0` plus `licenseFile`. None of these labels claims an SPDX-listed Commons Clause exception or plain Apache-2.0 licensing.
+
+Texts were retrieved from [Apache](https://www.apache.org/licenses/LICENSE-2.0.txt) and the [Commons Clause publisher](https://commonsclause.com/). The condition identifies Memoquill, Apache License 2.0, and licensor n3d7. Only those three template fields were filled; the Apache text is unchanged. The publisher explains the commercial restriction and that existing open-source grants are not revoked. Existing per-file Apache notices in adapted operational guidance and third-party dependency notices remain applicable.

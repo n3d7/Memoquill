@@ -1,14 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Restores focus only after React commits the re-enabled picker trigger. */
 export function usePickerFocus(pending: boolean) {
-  const trigger = useRef<HTMLButtonElement>(null);
+  const [element, setElement] = useState<HTMLButtonElement | null>(null);
+  const trigger = useCallback((value: HTMLButtonElement | null) => { setElement(value); }, []);
   const requested = useRef(false);
   useEffect(() => {
-    if (!pending && requested.current) {
+    if (!pending && requested.current && element) {
       requested.current = false;
-      trigger.current?.focus();
+      element.focus();
     }
-  }, [pending]);
+  }, [pending, element]);
   return { trigger, requestFocus: () => { requested.current = true; } };
 }

@@ -10,6 +10,11 @@ type Reply<T> = oneshot::Sender<Result<T>>;
 const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
+    Search(RequestContext, String, u64, Reply<SearchPage>),
+    Content(ContentRequest),
+    Notes(NotesRequest),
+    Sources(SourcesRequest),
+    Lessons(Box<LessonsRequest>),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
     Receipt(RequestContext, OperationId, Reply<Option<OperationReceipt>>),
@@ -23,13 +28,435 @@ enum Request {
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
+enum ContentRequest {
+    Library(RequestContext, Reply<crate::organization::Snapshot>),
+    ApplyContent(
+        RequestContext,
+        ApplyContent,
+        Reply<crate::organization::Snapshot>,
+    ),
+    SaveDocument(RequestContext, SaveDocument, Reply<SavedDocument>),
+    ReadDocument(
+        RequestContext,
+        crate::organization::ResourceId,
+        Option<uuid::Uuid>,
+        Reply<Option<SavedDocument>>,
+    ),
+}
 
+enum NotesRequest {
+    SaveAnnotation(RequestContext, SaveAnnotation, Reply<Annotation>),
+    Annotations(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<Vec<Annotation>>,
+    ),
+    SavePosition(RequestContext, SaveReadingPosition, Reply<ReadingPosition>),
+    ReadPosition(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<Option<ReadingPosition>>,
+    ),
+}
+enum SourcesRequest {
+    List(
+        RequestContext,
+        crate::organization::ResourceId,
+        Reply<SourceList>,
+    ),
+    Save(RequestContext, Box<SaveSource>, Reply<OriginalSource>),
+    Preview(RequestContext, uuid::Uuid, Reply<SourcePreview>),
+}
+
+enum LessonsRequest {
+    Validate(RequestContext, LessonDraftScope, Reply<LessonValidation>),
+    Source(
+        RequestContext,
+        String,
+        String,
+        Reply<Option<SourceBindingRevision>>,
+    ),
+    Read(
+        RequestContext,
+        String,
+        Option<String>,
+        Reply<Option<SavedComposition>>,
+    ),
+    Drafts(RequestContext, String, Reply<Vec<LessonDraft>>),
+    Resource(RequestContext, String, String, Reply<Option<SavedDocument>>),
+    Activity(
+        RequestContext,
+        String,
+        String,
+        Reply<Option<ActivityRevision>>,
+    ),
+    Create(RequestContext, CreateLessonDraft, Reply<LessonDraft>),
+    Edit(RequestContext, EditLessonDraft, Reply<LessonDraft>),
+    Preview(RequestContext, LessonDraftScope, Reply<LessonPreview>),
+    Apply(RequestContext, ApplyLessonDraft, Reply<LessonReceipt>),
+    Discard(RequestContext, DiscardLessonDraft, Reply<()>),
+    Receipt(RequestContext, OperationId, Reply<Option<LessonReceipt>>),
+}
 /// Typed application boundary; no connection, SQL, caller path or principal payload.
 #[derive(Clone)]
 pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn lesson_source(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<SourceBindingRevision>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Source(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub fn lesson_discover(context: RequestContext) -> Result<Vec<RegistryDescriptor>> {
+        context.authorize()?;
+        Ok(super::lessons::registry())
+    }
+    pub async fn lesson_read(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: Option<String>,
+    ) -> Result<Option<SavedComposition>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Read(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_list_drafts(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+    ) -> Result<Vec<LessonDraft>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&&unit_id)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Drafts(context, unit_id, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_resource(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<SavedDocument>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Resource(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_activity(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision_id: String,
+    ) -> Result<Option<ActivityRevision>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&(&unit_id, &revision_id))?;
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::Activity(
+                    context,
+                    unit_id,
+                    revision_id,
+                    reply,
+                )))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_create(
+        &self,
+        context: RequestContext,
+        request: CreateLessonDraft,
+    ) -> Result<LessonDraft> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Create(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_edit(
+        &self,
+        context: RequestContext,
+        request: EditLessonDraft,
+    ) -> Result<LessonDraft> {
+        context.authorize()?;
+        super::lessons::admission::admit_edit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Edit(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_validate(
+        &self,
+        context: RequestContext,
+        request: LessonDraftScope,
+    ) -> Result<LessonValidation> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Validate(context, request, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_preview(
+        &self,
+        context: RequestContext,
+        request: LessonDraftScope,
+    ) -> Result<LessonPreview> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Preview(context, request, reply))),
+            false,
+        )
+        .await
+    }
+    pub async fn lesson_apply(
+        &self,
+        context: RequestContext,
+        request: ApplyLessonDraft,
+    ) -> Result<LessonReceipt> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Apply(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_discard(
+        &self,
+        context: RequestContext,
+        request: DiscardLessonDraft,
+    ) -> Result<()> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Discard(context, request, reply))),
+            true,
+        )
+        .await
+    }
+    pub async fn lesson_receipt(
+        &self,
+        context: RequestContext,
+        id: OperationId,
+    ) -> Result<Option<LessonReceipt>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&&id)?;
+        self.request(
+            context,
+            |reply| Request::Lessons(Box::new(LessonsRequest::Receipt(context, id, reply))),
+            false,
+        )
+        .await
+    }
+
+    pub async fn search_resources(
+        &self,
+        context: RequestContext,
+        query: String,
+        offset: u64,
+    ) -> Result<SearchPage> {
+        self.request(
+            context,
+            |reply| Request::Search(context, query, offset, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn sources(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<SourceList> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::List(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn save_source(
+        &self,
+        context: RequestContext,
+        request: SaveSource,
+    ) -> Result<OriginalSource> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Save(context, Box::new(request), reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn source_preview(
+        &self,
+        context: RequestContext,
+        source_id: uuid::Uuid,
+    ) -> Result<SourcePreview> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Preview(context, source_id, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn library(&self, context: RequestContext) -> Result<crate::organization::Snapshot> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::Library(context, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn apply_content(
+        &self,
+        context: RequestContext,
+        request: ApplyContent,
+    ) -> Result<crate::organization::Snapshot> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::ApplyContent(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn save_document(
+        &self,
+        context: RequestContext,
+        request: SaveDocument,
+    ) -> Result<SavedDocument> {
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::SaveDocument(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn read_document(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+        revision_id: Option<uuid::Uuid>,
+    ) -> Result<Option<SavedDocument>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Content(ContentRequest::ReadDocument(
+                    context,
+                    resource_id,
+                    revision_id,
+                    reply,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+    pub async fn save_annotation(
+        &self,
+        context: RequestContext,
+        request: SaveAnnotation,
+    ) -> Result<Annotation> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::SaveAnnotation(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn annotations(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<Vec<Annotation>> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::Annotations(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
+    pub async fn save_reading_position(
+        &self,
+        context: RequestContext,
+        request: SaveReadingPosition,
+    ) -> Result<ReadingPosition> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::SavePosition(context, request, reply)),
+            true,
+        )
+        .await
+    }
+    pub async fn reading_position(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+    ) -> Result<Option<ReadingPosition>> {
+        self.request(
+            context,
+            |reply| Request::Notes(NotesRequest::ReadPosition(context, resource_id, reply)),
+            false,
+        )
+        .await
+    }
     /// The native adapter supplies the managed root. Opening/auditing happens off the UI thread.
     pub fn start(root: PathBuf) -> Result<Self> {
         let (sender, receiver) = mpsc::channel(QUEUE_CAPACITY);
@@ -126,18 +553,25 @@ impl Store {
             .is_ok_and(|db| db.recovery.blocks_writes());
         let result = match &mut self.database {
             Ok(db) => action(db),
-            Err(error) => Err(*error),
+            Err(error) => Err(error.clone()),
         };
         if let Err(error) = &result
             && (error.code == ErrorCode::OutcomeUnconfirmed
                 || (error.code == ErrorCode::RecoveryRequired && !degraded))
         {
-            self.database = Err(*error); // Close before another operation; caller must explicitly reopen.
+            self.database = Err(error.clone()); // Close before another operation; caller must explicitly reopen.
         }
         result
     }
     fn handle(&mut self, request: Request) {
         match request {
+            Request::Search(context, query, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.search_resources(context, &query, offset)));
+            }
+            Request::Content(request) => self.handle_content(request),
+            Request::Notes(request) => self.handle_notes(request),
+            Request::Sources(request) => self.handle_sources(request),
+            Request::Lessons(request) => self.handle_lessons(*request),
             Request::Status(reply) => {
                 let _ = reply.send(self.access(status));
             }
@@ -158,6 +592,92 @@ impl Store {
                 let _ = reply.send(self.access(status));
             }
             Request::Shutdown(_) => unreachable!("shutdown is owned by the worker loop"),
+        }
+    }
+    fn handle_lessons(&mut self, request: LessonsRequest) {
+        match request {
+            LessonsRequest::Validate(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_validate(c, &r)));
+            }
+            LessonsRequest::Source(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_source(c, &id, &revision)));
+            }
+
+            LessonsRequest::Read(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_read(c, &id, revision.as_deref())));
+            }
+            LessonsRequest::Drafts(c, id, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_list_drafts(c, &id)));
+            }
+            LessonsRequest::Resource(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_resource(c, &id, &revision)));
+            }
+            LessonsRequest::Activity(c, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_activity(c, &id, &revision)));
+            }
+            LessonsRequest::Create(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_create(c, &r)));
+            }
+            LessonsRequest::Edit(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_edit(c, &r)));
+            }
+            LessonsRequest::Preview(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_preview(c, &r)));
+            }
+            LessonsRequest::Apply(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_apply(c, &r)));
+            }
+            LessonsRequest::Discard(c, r, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_discard(c, &r)));
+            }
+            LessonsRequest::Receipt(c, id, reply) => {
+                let _ = reply.send(self.access(|db| db.lesson_receipt(c, &id)));
+            }
+        }
+    }
+    fn handle_sources(&mut self, request: SourcesRequest) {
+        match request {
+            SourcesRequest::List(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.sources(context, id)));
+            }
+            SourcesRequest::Save(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_source(context, &request)));
+            }
+            SourcesRequest::Preview(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.source_preview(context, id)));
+            }
+        }
+    }
+    fn handle_content(&mut self, request: ContentRequest) {
+        match request {
+            ContentRequest::Library(context, reply) => {
+                let _ = reply.send(self.access(|db| db.library(context)));
+            }
+            ContentRequest::ApplyContent(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.apply_content(context, &request)));
+            }
+            ContentRequest::SaveDocument(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_document(context, &request)));
+            }
+            ContentRequest::ReadDocument(context, id, revision, reply) => {
+                let _ = reply.send(self.access(|db| db.read_document(context, id, revision)));
+            }
+        }
+    }
+    fn handle_notes(&mut self, request: NotesRequest) {
+        match request {
+            NotesRequest::SaveAnnotation(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_annotation(context, &request)));
+            }
+            NotesRequest::Annotations(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.annotations(context, id)));
+            }
+            NotesRequest::SavePosition(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.save_reading_position(context, &request)));
+            }
+            NotesRequest::ReadPosition(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.reading_position(context, id)));
+            }
         }
     }
 }
@@ -498,5 +1018,45 @@ mod tests {
             receipt.result,
             ReceiptResult::Applied(OperationOutcome::Asset(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod lesson_admission_tests {
+    use super::*;
+    #[test]
+    fn oversized_operation_batch_never_enters_the_writer_queue() {
+        tauri::async_runtime::block_on(async {
+            let (sender, mut receiver) = mpsc::channel(64);
+            let service = ApplicationService { sender };
+            let request = EditLessonDraft {
+                contract_version: 1,
+                workspace_id: WorkspaceId::generate(),
+                unit_id: uuid::Uuid::new_v4().to_string(),
+                draft_id: uuid::Uuid::new_v4().to_string(),
+                expected_draft_revision: 1,
+                operation_id: OperationId::generate(),
+                operations: vec![LessonOperation::RemoveNode { id: "node".into() }; 65],
+            };
+            use std::future::Future;
+            let mut future = Box::pin(service.lesson_edit(RequestContext::local_ui(), request));
+            let response = future
+                .as_mut()
+                .poll(&mut std::task::Context::from_waker(std::task::Waker::noop()));
+            assert!(
+                matches!(
+                    response,
+                    std::task::Poll::Ready(Err(AppError {
+                        code: ErrorCode::BudgetExceeded,
+                        ..
+                    }))
+                ),
+                "invalid payload must fail before waiting for worker"
+            );
+            assert!(matches!(
+                receiver.try_recv(),
+                Err(mpsc::error::TryRecvError::Empty)
+            ));
+        });
     }
 }

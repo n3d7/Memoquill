@@ -15,6 +15,7 @@ node_modules/
 /.qualification/
 /.serena/
 /.codex/
+/docs/agent-notes/
 
 # Python helpers and isolated tool environments
 __pycache__/

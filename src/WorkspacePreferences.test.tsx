@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
 import initial from '../tests/fixtures/workspace-status.json';
-import { App } from './App';
+// Keep the existing M1 preferences/draft regression against its named fixture.
+import { QualificationApp as App } from './App';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }));
@@ -21,7 +22,7 @@ test('loads saved appearance, explicitly saves edits and restores them on reopen
   });
   const view = render(<App />);
   await waitFor(() => expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('dark'));
-  expect(document.documentElement.style.fontSize).toBe('125%');
+  await waitFor(() => expect(document.documentElement.style.fontSize).toBe('125%'));
   fireEvent.change(screen.getByRole('combobox', { name: 'Appearance' }), { target: { value: 'light' } });
   const save = screen.getByRole('button', { name: 'Save reading preferences' });
   await userEvent.click(save);
@@ -56,7 +57,7 @@ test('unknown outcome retains one operation for retry and preserves material edi
   expect(screen.queryByText('/private/do-not-display')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Close result' }));
   await userEvent.click(screen.getByRole('button', { name: 'Retry saving preferences' }));
-  expect(await screen.findByRole('dialog')).toHaveTextContent('Reading preferences saved. Material edits are still temporary.');
+  expect(await screen.findByRole('dialog')).toHaveTextContent('Reading preferences saved. Material edits are unchanged.');
   expect(requests).toHaveLength(2);expect(requests[1]).toEqual(requests[0]);
   expect(invoke).toHaveBeenCalledWith('reopen_workspace');
   expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Preserve these notes');

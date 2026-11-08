@@ -1,10 +1,12 @@
 # Technical design
 
+> Current architecture clarification: see the composition section below. New feature/UI development is on hold pending architectural agreement.
+
 ## Recommendation and decision status
 
 Use **Rust, TypeScript, React, Tauri 2, and SQLite** as a local modular monolith. Tauri 2 is the deliberately selected stable family, not a claim that no newer previews exist. Exact compatible releases are pinned in the manifests/lockfiles. M1.1 provides the published qualification fixture; M1.2 implements the [workspace runtime](workspace-runtime.md), including local preferences, storage/asset safety and typed application boundaries. Its [execution ledger](../planning/m1-2-execution.md) records current qualification; broader subjects/imports/learning/MCP components below remain planned. [Technical alternatives and inspected versions](../research/technical-options.md) provide the comparison; [ADRs](decisions.md) define reconsideration conditions.
 
-Tauri avoids a separate backend service and reuses Linux WebKitGTK; Rust suits validated domain/IO logic and the FSRS dependency; SQLite fits transactions, local ownership, and FTS5. TypeScript/React provide a mature interface ecosystem. These are practical judgments, not measured Memoquill footprint/performance results. A mandatory **M1 packaged Fedora/Orca/AT-SPI feasibility gate** tests the actual webview, editor, focus, and math/code workflows. If it fails without a bounded fix, revisit Electron or a native shell before domain expansion. Tauri 3 alpha is not a Foundation dependency.
+Tauri avoids a separate backend service and reuses Linux WebKitGTK; Rust suits validated domain/IO logic and the FSRS dependency; SQLite fits local transactions and FTS5. These are practical judgments, not measured footprint/performance results. Current delivery targets Linux/X11 through the main M1–M8 cycle under ADR-10. Keep portable core/contracts and platform adapters; qualify actual X11 behavior, with full X11 assistive-technology/reflow release acceptance in M7. Other-platform matrices are deferred and do not block main development. The latest user instruction pauses application work for docs/Linear planning only. Tauri 3 alpha is not a Foundation dependency.
 
 ## Components
 
@@ -63,8 +65,59 @@ Workspace preferences have schema/defaults and per-subject overrides. Message ca
 
 ## Linux delivery and future evolution
 
-M1 validates an actual Fedora RPM build; a development run may supplement but never replace the packaged gate. M7 qualifies **RPM as the initial supported Fedora artifact**, including WebKitGTK dependencies and Wayland/keyboard/Orca workflows. AppImage is conditional after testing the same workflows and dependency baseline; Flatpak is post-V1 unless portals/IPC and maintenance cost justify it. Avoid supporting several unqualified package types.
+M1 validates an actual supported Fedora X11 RPM; a dev run does not replace the packaged gate. M7 qualifies that X11 artifact, runtime dependencies and offline/keyboard/IME/focus/reflow/assistive-technology workflows. Native Wayland and Windows/macOS/iPhone/Android implementation/builds/qualification are inactive after M8, with separate tasks. AppImage remains conditional on its own qualification and Flatpak is outside the current supported artifact; do not advertise unqualified package/platform support.
 
 For V1, use signed release metadata/checksums and explicit manual updates; do not add a custom auto-updater. When installing through a package manager, follow that channel's update policy. Verify backup/migration compatibility before a new version activates a workspace. Update delivery/signing keys and release automation require separate publication authority; none is configured now.
 
 Future portability benefits from platform adapters, UUIDs, immutable revisions, explicit ownership, and versioned exports. Do not build sync/conflict-free replication, cross-platform IPC implementations, or a plugin marketplace now. Cheap preparation is not a promise that future sync will be automatic.
+
+<!-- lesson-composition-clarification:start -->
+## Composable lesson architecture — clarification, 2026-11-01
+
+Status: requirements and research direction; detailed contracts remain to be agreed in KER-117. Application feature/UI development and GUI qualification are on hold until the revised architecture is agreed. The current fixed forms/document editor do not implement this constructor.
+
+A person must be able to assemble lessons and their own learning methods from content, exercises/tests, interaction and presentation primitives inside each lesson tab. The later agent uses the same authoring operations through MCP. Do not turn the initial four activity families or subject fixtures into a universal lesson template.
+
+Separate presentational views/components and design tokens from scenario controllers and a narrow frontend application port. Native Tauri IPC is one adapter; tests use a deterministic adapter. Rust application services retain permissions, invariant checks, transactions, durable receipts and repositories. Presentation components do not import storage implementations or call unrestricted IPC directly. Replacing a representative screen/design system must preserve service contracts and Rust domain/storage code.
+
+Use a versioned application-owned declarative composition contract and trusted component/action registry. Registry descriptors cover typed props, slots, events/actions, state scope, accessibility, capability/version compatibility and fallback behavior. Compare an owned renderer with a json-render adapter before selecting a dependency. User/agent payloads do not contain executable React/JS/HTML, dynamic imports, unrestricted CSS, network/file actions or permission expansion.
+
+Manual editing and future MCP proposals share semantic validation, exact bases/diffs, preview and transactional apply through the same services. Enforce lesson/reference/action/state-path authority and explicit containment, depth/node/byte/work limits. Review or a matching explicit delegated policy controls agent application. Global shell and personal outcomes have separate authority. Unknown components remain visible, inert, preserved and recoverable.
+
+Content/provenance, immutable activity/evaluation definitions, composition/presentation and learner attempts/history are separate. Preview uses the same renderer as a lesson while maintaining separate preview outcomes. Recomposition preserves stable identities, anchors and history; each tab owns its local configuration and state. Keep meaningful DOM/reading order, keyboard alternatives, focus continuity and offline save/reopen.
+
+Prepare an identity/session port with a local guest actor in KER-118. Future account identity is distinct from agent grants and workspace authority; actual registration/provider/password/session handling needs a later design. No fake login controls, mandatory account, new auth service or cloud dependency is introduced by this seam.
+
+M8/KER-121 is a final optional per-lesson gamification extension after core M7 qualification. Versioned lesson-local rules can express custom achievements, levels, ratings/scores, percentages and scales. Default off; no global XP/account level or implicit cross-lesson effects. Explain metrics/provenance, preserve ordinary learning records, and separate reward/completion scores from assessment evidence. Recommended presets require applicable research and learning/time/autonomy/accessibility checks; safe custom experiments remain possible.
+
+See [requirements and Linear mapping](../planning/lesson-composition-requirements.md) and [research/applicability](../research/composable-learning-architecture.md). KER-117–120 own contracts, frontend boundaries, persistence and manual composition respectively; M4 owns real study/evaluation/history and M6 the live scoped agent adapter.
+<!-- lesson-composition-clarification:end -->
+
+<!-- research-source-followup:start -->
+## Source-based lesson construction and stable study
+
+Planned requirement from the 2026-11-01 clarification; not implemented behavior. M3/KER-100 supplies a lesson-scoped source library for research files, books and documents. Bind existing immutable assets/source revisions to authorized lessons, with bibliography, format-appropriate locators, actual-used ranges, extraction coverage and partial/unread warnings. M2 defines reference/ownership seams only; it must not depend on M3 parsers.
+
+Target a qualified view/extract matrix including PDF/EPUB books, DOCX, text/Markdown/HTML and supported other document/image types. Preserve originals and report partial/original-only capability explicitly. Safe passive/offline workers, archive/path/type/page/byte/work limits and existing PDF/license gates apply. Do not automatically fetch linked resources, resolve external XML entities, execute macros/scripts or access paths outside staged input. Developer document tools do not automatically become product dependencies. No universal parsing or silent whole-book-reading claim.
+
+Manual viewing/selection remains useful offline. Later MCP reads selected authorized source ranges and proposes relevant source selections/outlines/content/activities/composition for the learner's objective and prerequisites. Preserve citations and distinguish extracted facts, interpretation and educational synthesis. Use the same validation/preview/apply/review-or-delegation path; importing a file does not authorize arbitrary remote-model upload, raw filesystem access or policy changes from document text. Export/recovery preserves bindings/provenance and separates private backups from shareable packs.
+
+Pin content/activity/composition versions during real study attempts; stage regeneration at a defined safe boundary. A presentation proposal cannot silently change a live question, answer policy, anchor, position or focus context. Authoring assistance and assistance actually received by the learner are separate provenance. Metrics declare meaning/units/denominators/source; authoring time, UI preference, task volume and game progress do not become evidence of independent learning.
+
+Additional literature was screened, not imported wholesale: retain manual/component refinement and these control/measurement boundaries. Learned UI-preference models, adaptive tutors and universal cognitive-load scores are not core requirements. See [screening and source applicability](../research/composable-learning-screening.md).
+<!-- research-source-followup:end -->
+
+## KER-117 architecture proposal — 2026-11-04
+
+The [lesson composition contract](lesson-composition.md) specifies Unit-owned compositions, trusted registry/actions, bounded conditions, shared semantic draft/validate/preview/apply services and controller-owned study policy. Recommend the small owned renderer first; json-render remains an optional translating adapter, with no dependency chosen. Existing RequestContext is not a deployed MCP grant system. KER-118/119/120 and M4/M6 retain their responsibilities. KER-117 was accepted for M2 execution and the constructor is implemented through b67f0fd. The current pause is the user's docs-only platform-planning instruction, not a missing KER-117 agreement.
+
+## X11-first delivery and later platform adapters — 2026-11-06
+
+[ADR-10](decisions.md#adr-10--x11-first-core-and-deferred-platform-adapters) and the
+[platform contract](platform-portability.md) define concrete portability criteria
+for every M1–M8 stage. Keep one versioned model, shared application services and
+typed frontend/controller/native seams; isolate source providers, safe native I/O,
+permissions, lifecycle and optional transports. Existing rustix/Linux safe-I/O
+assumptions are recorded debt, not proof of Windows/mobile support. No SDKs,
+foreign-target builds or native/mobile adapter implementations belong in this cycle.
+Current work is docs/Linear only; application development is paused.

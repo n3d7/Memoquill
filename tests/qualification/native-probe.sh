@@ -2,6 +2,11 @@
 set -euo pipefail
 ulimit -c 0
 mode="${1:-x11}"
+ui_only="${MEMOQUILL_M2_UI_ONLY:-0}"
+if [[ "$ui_only" == 1 && ( "$mode" != x11 || "${MEMOQUILL_M2_AUDIT:-0}" != 1 ) ]]; then
+  echo 'M2 UI-only qualification requires the X11 M2 audit' >&2
+  exit 2
+fi
 export XDG_RUNTIME_DIR="/tmp/memoquill-runtime-$mode"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
@@ -40,9 +45,12 @@ if [[ "${MEMOQUILL_IME_DIAGNOSTIC:-0}" == 1 ]]; then
   python3 /input/ibus_control.py libpinyin
   exit
 fi
-orca --replace --debug --debug-file="/evidence/orca-$mode.log" >"/evidence/orca-stderr-$mode.log" 2>&1 &
-orca_pid=$!
-if [[ "${MEMOQUILL_SPEECH_AUDIT:-0}" == 1 ]]; then
+orca_pid=''
+if [[ "$ui_only" != 1 ]]; then
+  orca --replace --debug --debug-file="/evidence/orca-$mode.log" >"/evidence/orca-stderr-$mode.log" 2>&1 &
+  orca_pid=$!
+fi
+if [[ "$ui_only" != 1 && "${MEMOQUILL_SPEECH_AUDIT:-0}" == 1 ]]; then
   python3 /input/atspi-events.py "$mode" >"/evidence/events-$mode.log" 2>&1 &
 fi
 app_command=(memoquill)
@@ -52,14 +60,32 @@ fi
 WAYLAND_DEBUG=1 "${app_command[@]}" >"/evidence/app-$mode.log" 2>&1 &
 app_pid=$!
 printf '%s\n' "$app_pid" > "/evidence/app-pid-$mode"
-python3 /input/atspi-probe.py "$mode"
-python3 /input/atspi-journey.py "$mode"
+if [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
+  if [[ "${MEMOQUILL_M2_RESUME:-0}" == 1 ]]; then
+    python3 /input/m2-reopen.py "$mode"
+  else
+    python3 /input/m2-journey.py "$mode"
+  fi
+else
+  python3 /input/atspi-probe.py "$mode"
+  python3 /input/atspi-journey.py "$mode"
+fi
 if [[ "${MEMOQUILL_STORAGE_AUDIT:-0}" == 1 ]]; then
   # The journey closed the original window normally before its controlled restart.
   wait "$app_pid"
   printf '0\n' > "/evidence/normal-exit-$mode.txt"
 fi
-kill -TERM "$orca_pid"
-wait "$orca_pid"
-python3 /input/atspi-speech.py "$mode"
+if [[ -n "$orca_pid" ]]; then
+  kill -TERM "$orca_pid"
+  wait "$orca_pid"
+fi
+if [[ "$ui_only" == 1 ]]; then
+  printf '%s\n' '{"status":"not_run","reason":"M2 X11 functional pass; release speech qualification remains M7"}' > "/evidence/speech-$mode-skip.json"
+elif [[ "${MEMOQUILL_M2_AUDIT:-0}" == 1 ]]; then
+  if [[ "${MEMOQUILL_M2_RESUME:-0}" != 1 ]]; then
+    python3 /input/m2-speech.py "$mode"
+  fi
+else
+  python3 /input/atspi-speech.py "$mode"
+fi
 kill "$app_pid" "$xvfb_pid" 2>/dev/null || true

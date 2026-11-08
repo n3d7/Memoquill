@@ -1,5 +1,25 @@
 # M1 native qualification
 
+## M2 X11 functional exit
+
+For the M2-only functional pass, set `MEMOQUILL_M2_AUDIT=1`,
+`MEMOQUILL_STORAGE_AUDIT=1`, `MEMOQUILL_M2_UI_ONLY=1` and
+`MEMOQUILL_CAPTURE_SCREENSHOTS=0`, and pass `x11` to `native-probe.sh`.
+UI-only mode rejects other backends and non-M2 runs. It preserves AT-SPI and
+real keyboard/IBus interaction but does not start Orca or run speech assertions;
+`speech-x11-skip.json` explicitly records `not_run`. Default speech qualification
+is unchanged. This pass cannot establish human listening or release AT acceptance.
+
+Use a fresh private profile and the resource/security bounds below. When testing
+an extracted candidate instead of the image's installed package, prepend its
+`usr/bin` to `PATH` so the journey's restart executes the same candidate. Record
+its RPM/source digests. The M2 journey does not call screenshot helpers. It also
+checks the empty named text control's accessible attribute run when exposed;
+a separate named block control is valid. See the [M2 ledger](../../docs/quality/m2-qualification.md)
+for the recorded candidate, passes and explicit release-level omissions.
+
+## Original M1 procedure
+
 This is a private test desktop, not a deployment profile or a test against the workstation session. Fedora 44, rootless Podman, the pinned Node/Rust toolchain and Tauri build prerequisites are required. The recorded run used host UID/GID 1000. Adapt user mapping for another account before running; do not change global SELinux policy or mount host desktop/D-Bus sockets.
 
 From the repository root, build the RPM and prepare task-only inputs:
