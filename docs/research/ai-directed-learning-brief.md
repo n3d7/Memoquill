@@ -12,8 +12,13 @@ provisional: research should determine productive delegation, rather than a
 fixed conventional learning-app design. Optimize useful learning per time/effort,
 not feature count or unrestricted automation. No universal optimum is established.
 
-Unknown: available AI budget/latency, host availability, and the precise policy
-for disputed/uncertain assessments. Do not silently decide these as user choices.
+Subsequent clarification: any external model/provider may connect through MCP;
+no provider/tariff or budget answer is an application prerequisite. The learner
+sets the goal/focus; AI gathers sources and progressively adapts courses. Each
+sidebar tab is an entire isolated course with lessons inside, not an individual
+lesson. The user selected a separate post-M2 step, [KER-127](../planning/course-workspace-followup.md).
+Host availability and disputed/uncertain-assessment policy remain open; do not
+silently settle them as user choices.
 
 ## Reused evidence and existing contracts
 
@@ -56,5 +61,6 @@ retrieval, search2 and scrape1 reported, search feedback refunded1. No purchase.
 Full paper was retrieved but only the stated sections appraised; not a systematic
 review. No private lessons/history were transmitted or paper text committed.
 
-Next: obtain practical AI cost/latency constraints, then scope any further
-evidence gaps before proposing a design. No roadmap/Linear scope changed here.
+Next: clarify course identity and operational/assessment behavior, then scope
+remaining evidence gaps before proposing a design. The later course clarification
+is tracked separately; this brief does not authorize runtime changes.

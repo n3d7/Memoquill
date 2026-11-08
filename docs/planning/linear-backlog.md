@@ -1,6 +1,15 @@
 # Linear backlog mapping
 
-## Current platform/phase amendment — 2026-11-06
+## Separate post-M2 course step — 2026-11-08
+
+M2 PR #3 is merged by the owner, preserving all original commits. The later
+user-confirmed course boundary is tracked in [KER-127](https://linear.app/kerigan/issue/KER-127/post-m2-establish-isolated-course-workspaces):
+whole isolated course per top-level tab/sidebar entry, lessons nested within.
+It remains Backlog, outside the completed M2 parent/milestone. See the
+[requirements record](course-workspace-followup.md); design/migration and later
+roadmap alignment are pending. No implementation or automatic M3 start.
+
+## Historical platform/phase amendment — 2026-11-06
 
 The latest user instruction authorizes docs/Linear planning only; application
 implementation, builds and GUI qualification are paused. When resumed, M1–M8
