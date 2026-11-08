@@ -1,6 +1,7 @@
 //! Local application services. Native adapters receive no database connection.
 mod assets;
 mod content;
+mod courses;
 mod database;
 mod error;
 mod faults;
@@ -15,6 +16,7 @@ mod sources;
 mod types;
 
 pub use content::*;
+pub use courses::*;
 pub use error::{AppError, ErrorCode};
 pub use lessons::*;
 pub use search::{SearchHit, SearchPage};
