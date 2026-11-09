@@ -21,3 +21,20 @@ it('reviews a selected subset and retries an unconfirmed apply with the same ope
   expect(apply.mock.calls[0][0].selected).toEqual([1]);
   expect(reload).toHaveBeenCalled();
 });
+
+it('requires explicit approval before sending an overwrite of human edits', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.csv', mediaType: 'text/csv', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 8 };
+  const job: IngestionJob = { id: 'j', handlerVersion: 1, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 1, format: 'csv', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'csvRecord', value: '1' }, fields: ['one'] }] } };
+  const apply = vi.fn().mockResolvedValue({ ...job, revision: 1 });
+  const port = { list: vi.fn().mockResolvedValue([{ id: 'old', sourceId: 's', revision: 2, status: 'staged', recordCount: 1, appliedCount: 1 }]), create: vi.fn().mockResolvedValue(job), read: vi.fn().mockResolvedValue({ ...job, id: 'old', revision: 2 }), reimportPreview: vi.fn().mockResolvedValue({ jobId: 'j', previousJobId: 'old', items: [{ index: 0, key: 'one', resourceId: 'x', status: 'conflict', currentRevisionId: 'human-rev', currentTitle: 'Human title' }] }), reimportApply: apply } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={4} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  await user.selectOptions(await screen.findByLabelText('Reimport from'), 'old');
+  await user.click(screen.getByRole('button', { name: 'Compare reimport' }));
+  const select = await screen.findByLabelText('Select record 1'); expect(select).toBeDisabled();
+  await user.click(screen.getByLabelText(/Explicitly replace current human edits/));
+  await user.click(select);
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(apply).toHaveBeenCalledWith(expect.objectContaining({ selected: [0], resolutions: [{ index: 0, expectedDocumentRevisionId: 'human-rev', expectedTitle: 'Human title' }] }));
+});

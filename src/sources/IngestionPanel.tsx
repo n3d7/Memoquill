@@ -31,7 +31,7 @@ export function IngestionPanel({ port, sources, workspaceId, resourceId, library
       if (generation.current !== current) return;
       setJob(result); setPending(null); setSelected([]); setPreview(null); setUndoPreview(null); setStatus('Import operation saved locally.');
       if (action.kind === 'apply' || action.kind === 'reimport' || action.kind === 'undo') onChanged();
-      void port.list(resourceId, 0).then(value => { if (generation.current === current) setJobs(value); });
+      void port.list(resourceId, 0).then(value => { if (generation.current === current) setJobs(value); }, () => { if (generation.current === current) setError('Import jobs could not be refreshed.'); });
     } catch (reason) { if (generation.current === current) { setError(failureMessage(reason)); if (isConfirmedRejection(reason)) setPending(null); } }
     finally { if (generation.current === current) setBusy(false); }
   }
