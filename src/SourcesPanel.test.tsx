@@ -18,6 +18,53 @@ beforeEach(() => {
   });
 });
 
+it('shows extracted source records and honest partial coverage without executing markup', async () => {
+  const markup = '<img src=x onerror=alert(1)>';
+  native.invoke.mockImplementation(async (command: string) => command === 'sources'
+    ? { revision: 1, sources: [original] }
+    : { source: original, text: 'raw csv', hex: null, truncated: false, extraction: {
+      contractVersion: 1, format: 'csv', status: 'partial', diagnostic: 'recordLimit',
+      records: [{ locator: { kind: 'csvRecord', value: '2' }, fields: [markup, '=1+2'] }],
+    } });
+  const { container } = render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);
+  await userEvent.setup().click(await screen.findByRole('button', { name: /Preview original/ }));
+  expect(await screen.findByRole('region', { name: 'Extracted source preview' })).toBeVisible();
+  expect(screen.getByText(/Extraction is partial/)).toBeVisible();
+  expect(screen.getByText(/record limit/)).toBeVisible();
+  expect(screen.getByText('CSV record 2')).toBeVisible();
+  expect(screen.getByText(markup)).toBeVisible();
+  expect(screen.getByText('=1+2')).toBeVisible();
+  expect(container.querySelector('img, script, iframe, a')).toBeNull();
+});
+
+it.each([
+  ['complete', null, 'Extraction complete'],
+  ['failed', 'malformedInput', 'Extraction failed'],
+  ['attachmentOnly', 'unsupportedFormat', 'Original only'],
+])('shows %s extraction status while retaining the raw original preview', async (status, diagnostic, message) => {
+  native.invoke.mockImplementation(async (command: string) => command === 'sources'
+    ? { revision: 1, sources: [original] }
+    : { source: original, text: 'raw original', hex: null, truncated: false,
+      extraction: { contractVersion: 1, format: 'json', status, diagnostic, records: [] } });
+  render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);
+  await userEvent.setup().click(await screen.findByRole('button', { name: /Preview original/ }));
+  expect(await screen.findByText(new RegExp(message))).toBeVisible();
+  expect(screen.getByText('raw original')).toBeVisible();
+});
+
+it('retains raw preview when an extraction contract is newer than supported', async () => {
+  native.invoke.mockImplementation(async (command: string) => command === 'sources'
+    ? { revision: 1, sources: [original] }
+    : { source: original, text: 'raw original', hex: null, truncated: false,
+      extraction: { contractVersion: 2, format: 'json', status: 'complete', diagnostic: null,
+        records: [{ locator: { kind: 'jsonPointer', value: '/0' }, fields: ['uninterpreted future record'] }] } });
+  render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);
+  await userEvent.setup().click(await screen.findByRole('button', { name: /Preview original/ }));
+  expect(await screen.findByText(/Extraction preview is unavailable in this version/)).toBeVisible();
+  expect(screen.getByText('raw original')).toBeVisible();
+  expect(screen.queryByText('uninterpreted future record')).not.toBeInTheDocument();
+});
+
 it('cancels file selection without saving and restores the chooser focus', async () => {
   native.invoke.mockImplementation(async (command: string) => command === 'sources' ? { revision: 0, sources: [] } : null);
   render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);

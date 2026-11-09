@@ -12,12 +12,14 @@ pub(super) fn read(root: &Path, source: OriginalSource) -> Result<SourcePreview>
     assets::verify(root, &info).map_err(|_| corrupt())?;
     let bytes = bounded_bytes(root, &info)?;
     let truncated = source.byte_length > bytes.len() as u64;
+    let extraction = Some(extraction::extract(&source.filename, &bytes, truncated));
     match text(&bytes, truncated) {
         Some(value) => Ok(SourcePreview {
             source,
             text: Some(value),
             hex: None,
             truncated,
+            extraction,
         }),
         None => {
             let shown = &bytes[..bytes.len().min(HEX_BYTES)];
@@ -28,6 +30,7 @@ pub(super) fn read(root: &Path, source: OriginalSource) -> Result<SourcePreview>
                 text: None,
                 hex: Some(hex),
                 truncated,
+                extraction,
             })
         }
     }

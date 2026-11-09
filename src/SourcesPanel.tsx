@@ -1,4 +1,5 @@
 import type { OriginalSource, SourcePreview } from './sourceBridge';
+import { ExtractionPreview } from './sources/ExtractionPreview';
 import { useSourceController, type SourceController } from './application/useSourceController';
 
 function SourceDraftForm({ draft, pending, busy, onChange, onAttach, onDiscard }: {
@@ -32,6 +33,7 @@ function OriginalPreview({ preview }: { preview: SourcePreview }) {
     <h4>Original preview</h4>
     {preview.text !== null ? <pre>{preview.text}</pre> : <><p>Binary source: only a hexadecimal preview is available. Open the preserved original with a suitable application outside this preview.</p><pre>{preview.hex ?? 'No preview available.'}</pre></>}
     {preview.truncated && <p>Preview is truncated. The preserved original is unchanged.</p>}
+    {preview.extraction && <ExtractionPreview extraction={preview.extraction} />}
   </section>;
 }
 

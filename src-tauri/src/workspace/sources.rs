@@ -4,6 +4,7 @@ use crate::organization::ResourceId;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use uuid::Uuid;
 
+mod extraction;
 mod preview;
 mod storage;
 mod types;

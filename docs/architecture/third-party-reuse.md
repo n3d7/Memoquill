@@ -12,6 +12,24 @@ The operational files include local-only material not all tracked in Scryntic, s
 
 ## Reuse policy
 
+### M3 passive CSV preview (2026-11-09)
+
+Linked registry dependencies `csv` 1.4.0 and `csv-core` 0.1.13 are unmodified
+Andrew Gallant components from [rust-csv](https://github.com/BurntSushi/rust-csv),
+dual Unlicense/MIT; actual COPYING and MIT texts were inspected. `ryu` 1.0.23
+by David Tolnay is Apache-2.0 OR BSL-1.0. Exact source archives, license texts,
+holders and notice hashes are included in the refreshed
+[inventory](../licenses/dependency-inventory.json) and
+[notices](../licenses/THIRD-PARTY-NOTICES.txt), already configured as packaged
+resources. Preserve the original notices under their own terms.
+The handler uses [ReaderBuilder](https://docs.rs/csv/1.4.0/csv/struct.ReaderBuilder.html)
+over bounded bytes with no assumed headers; strict quote validation precedes the
+library's permissive recovery. No upstream source was copied or modified.
+
+The inventory refresh also captures nine already-locked native dependencies
+missing from the older inventory; existing component entries remain identical.
+This does not add those dependencies or claim a new dependency security audit.
+
 Before incorporating a dependency, copied/adapted source, dataset, documentation, media, or asset, inspect its actual license and per-file notices. Record project, source URL, authors/holder, version/commit or hash, incorporated paths, modifications, license, and obligations. Distinguish linking, vendoring, copying, and adaptation. Prefer maintained dependencies where appropriate.
 
 Keep required license texts/notices with distributions. Evaluate source disclosure, attribution, patent, asset/data, and distribution terms independently of the combined project license. A project license change or incompatible obligation requires explicit approval.

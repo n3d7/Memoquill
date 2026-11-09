@@ -7,5 +7,12 @@ export interface NewSource {
 }
 export interface OriginalSource extends NewSource { revision: number; byteLength: number }
 export interface SourceList { revision: number; sources: OriginalSource[] }
-export interface SourcePreview { source: OriginalSource; text: string | null; hex: string | null; truncated: boolean }
+export interface SourcePreview { source: OriginalSource; text: string | null; hex: string | null; truncated: boolean; extraction?: SourceExtraction }
+export interface SourceExtraction {
+  contractVersion: number;
+  format: 'text' | 'markdown' | 'csv' | 'json' | 'unsupported';
+  status: 'complete' | 'partial' | 'attachmentOnly' | 'failed';
+  records: { locator: { kind: 'line' | 'csvRecord' | 'jsonPointer'; value: string }; fields: string[] }[];
+  diagnostic: 'unsupportedFormat' | 'inputLimit' | 'invalidUtf8' | 'malformedInput' | 'recordLimit' | 'fieldLimit' | null;
+}
 export type SaveSource = Envelope & { source: NewSource };

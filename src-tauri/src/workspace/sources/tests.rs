@@ -52,6 +52,78 @@ fn fixture() -> (tempfile::TempDir, Database, SaveSource) {
 }
 
 #[test]
+fn extraction_preview_survives_restart_without_changing_originals_or_receipts() {
+    let (temp, mut db, mut request) = fixture();
+    let bytes = b"word,meaning\r\nhello,world\r\n";
+    let info = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(bytes),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    request.source.filename = "data.csv".into();
+    request.source.digest = info.digest.clone();
+    let source = db
+        .save_source(RequestContext::local_ui(), &request)
+        .unwrap();
+    let before = db
+        .sources(RequestContext::local_ui(), source.resource_id)
+        .unwrap();
+    let receipt = db
+        .operation_receipt(RequestContext::local_ui(), &request.operation_id)
+        .unwrap();
+    let preview = db
+        .source_preview(RequestContext::local_ui(), source.id)
+        .unwrap();
+    let extraction = preview.extraction.as_ref().unwrap();
+    assert_eq!(extraction.status, ExtractionStatus::Complete);
+    assert_eq!(extraction.format, ExtractionFormat::Csv);
+    assert_eq!(extraction.records[1].fields, ["hello", "world"]);
+    assert_eq!(extraction.records[1].locator.value, "2");
+    assert_eq!(
+        preview.text.as_deref(),
+        Some("word,meaning\r\nhello,world\r\n")
+    );
+    drop(db);
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.source_preview(RequestContext::local_ui(), source.id)
+            .unwrap(),
+        preview
+    );
+    assert_eq!(
+        db.sources(RequestContext::local_ui(), source.resource_id)
+            .unwrap(),
+        before
+    );
+    assert_eq!(
+        db.operation_receipt(RequestContext::local_ui(), &request.operation_id)
+            .unwrap(),
+        receipt
+    );
+    assert_eq!(
+        std::fs::read(assets::asset_path(
+            &temp.path().join("workspace"),
+            &info.digest
+        ))
+        .unwrap(),
+        bytes
+    );
+    assert_eq!(
+        db.source_preview(RequestContext::unverified_external(), source.id)
+            .unwrap_err()
+            .code,
+        ErrorCode::PermissionDenied
+    );
+}
+
+#[test]
 fn distinct_provenance_and_exact_receipts_survive_restart() {
     let (temp, mut db, request) = fixture();
     let first = db

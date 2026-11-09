@@ -1,5 +1,11 @@
 # Dependency notices
 
+2026-11-09: inventory and Cargo-lock fingerprint refreshed for M3 CSV extraction
+(`csv` 1.4.0, `csv-core` 0.1.13, `ryu` 1.0.23). Actual installed notices were
+collected offline, also filling nine already-locked native inventory omissions;
+no existing component entry changed. The bounded collector/evidence are under
+`.superpowers/sdd/2026-11-09-source-extraction/`. Rust stdlib notices are unchanged.
+
 The Memoquill application uses Apache License 2.0 with Commons Clause 1.0; the full combined terms are in the root LICENSE. Dependencies, Rust's standard library, and adapted agent guidance retain their own licenses. This directory is shipped as passive resources in the qualification RPM alongside licenses/Memoquill-LICENSE.txt. Earlier MIT grants remain unaffected.
 
 - `dependency-inventory.json`: exact installed Linux Cargo dependency graph and full npm lockfile inventory, license expressions, source locations and notice hashes. Build/test dependencies are deliberately included; inventory inclusion does not mean a component is linked into the application.
