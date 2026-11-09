@@ -3,6 +3,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { createNativeCoursePorts, nativeCoursePort } from './nativeCoursePort';
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 beforeEach(() => { vi.mocked(invoke).mockReset(); vi.mocked(invoke).mockResolvedValue(null); });
+it('binds ingestion actions to their course', async () => {
+  const a = createNativeCoursePorts('course-a');
+  await a.ingestion!.list('resource', 0);
+  await a.ingestion!.read('job');
+  expect(vi.mocked(invoke).mock.calls).toEqual([
+    ['ingestion_list', { courseId: 'course-a', resourceId: 'resource', offset: 0 }],
+    ['ingestion_read', { courseId: 'course-a', jobId: 'job' }],
+  ]);
+});
 it('binds every data-bearing operation to one immutable course, including raw lesson envelopes', async () => {
   const a = createNativeCoursePorts('course-a'); const b = createNativeCoursePorts('course-b');
   await a.content.library(); await b.content.library();

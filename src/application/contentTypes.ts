@@ -39,4 +39,4 @@ export interface SavedDocument { id: string; resourceId: string; revision: numbe
 export interface SaveDocument extends Envelope { resourceId: string; document: Document }
 export interface ReadingPosition { resourceId: string; revisionId: string; blockId: string; offsetUtf16: number; revision: number }
 export interface Annotation { id: string; resourceId: string; revisionId: string; revision: number; body: string; anchor: { resourceId: string; revisionId: string; blockId: string; startUtf16: number; endUtf16: number; exactQuote: string; quoteHash: string | null } }
-export interface SearchPage { revision: number; items: Array<{ resourceId: string; title: string; snippet: string }>; nextOffset: number | null }
+export interface SearchPage { revision: number; items: Array<{ resourceId: string; title: string; snippet: string; references?: Array<{ sourceId: string; locator: { kind: string; value: string } }>; referencesTruncated?: boolean }>; nextOffset: number | null }

@@ -1,6 +1,21 @@
 use super::*;
 
 #[test]
+fn ingestion_reads_complete_inputs_beyond_preview_limits_and_never_returns_a_prefix_as_complete() {
+    let input = "value\n".repeat(200);
+    let result = extract_for_ingestion("rows.csv", input.as_bytes());
+    assert_eq!(result.status, ExtractionStatus::Complete);
+    assert_eq!(result.records.len(), 200);
+    assert_eq!(result.records[199].locator.value, "200");
+
+    let too_many = "x\n".repeat(10_001);
+    let result = extract_for_ingestion("rows.txt", too_many.as_bytes());
+    assert_eq!(result.status, ExtractionStatus::Partial);
+    assert_eq!(result.diagnostic, Some(ExtractionDiagnostic::RecordLimit));
+    assert!(result.records.is_empty());
+}
+
+#[test]
 fn text_and_markdown_keep_unicode_lines_and_passive_markup() {
     for filename in ["NOTES.TXT", "notes.md"] {
         let result = extract(

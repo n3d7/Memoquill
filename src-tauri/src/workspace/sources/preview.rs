@@ -36,7 +36,11 @@ pub(super) fn read(root: &Path, source: OriginalSource) -> Result<SourcePreview>
     }
 }
 
-fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
+pub(super) fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
+    read_bytes(root, info, PREVIEW_BYTES)
+}
+
+pub(super) fn read_bytes(root: &Path, info: &AssetInfo, limit: u64) -> Result<Vec<u8>> {
     let flags = rustix::fs::OFlags::RDONLY
         | rustix::fs::OFlags::NOFOLLOW
         | rustix::fs::OFlags::CLOEXEC
@@ -53,10 +57,10 @@ fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
         return Err(corrupt());
     }
     let mut bytes = Vec::new();
-    file.take(PREVIEW_BYTES)
+    file.take(limit)
         .read_to_end(&mut bytes)
         .map_err(|_| corrupt())?;
-    if bytes.len() as u64 != info.byte_length.min(PREVIEW_BYTES) {
+    if bytes.len() as u64 != info.byte_length.min(limit) {
         return Err(corrupt());
     }
     Ok(bytes)

@@ -71,7 +71,7 @@ pub(super) fn ensure_resource(
         _ => Err(invalid()),
     }
 }
-pub(super) fn read(
+pub(in crate::workspace) fn read(
     connection: &Connection,
     id: ResourceId,
     revision: Option<Uuid>,
@@ -152,7 +152,10 @@ fn document_outcome(receipt: OperationReceipt) -> Result<SavedDocument> {
     }
 }
 
-fn save_revision(tx: &Connection, request: &SaveDocument) -> Result<SavedDocument> {
+pub(in crate::workspace) fn save_revision(
+    tx: &Connection,
+    request: &SaveDocument,
+) -> Result<SavedDocument> {
     ensure_resource(tx, request.resource_id, true)?;
     validate_assets(tx, &request.document)?;
     let current = read(tx, request.resource_id, None)?

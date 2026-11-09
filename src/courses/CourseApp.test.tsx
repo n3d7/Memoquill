@@ -12,7 +12,7 @@ function fixtures() {
   const port: CoursePort = { list: vi.fn().mockResolvedValue(catalogue()), select: vi.fn().mockImplementation(async id => catalogue(id)), create: vi.fn() };
   const ports = new Map(['a', 'b'].map(id => {
     const native = createNativeCoursePorts(id);
-    return [id, { ...native, lessons: undefined, content: { ...native.content, library: vi.fn().mockResolvedValue(blank(id)), applyContent: vi.fn(), searchResources: vi.fn() }, workspace: { ...native.workspace, workspaceStatus: vi.fn().mockResolvedValue({ contractVersion: 1, preferences: { workspaceId: id, revision: 0, preferences: { theme: 'system', textScale: id === 'a' ? 100 : 150 } }, recovery: { missingAssets: 0, corruptAssets: 0, unsafePaths: 0, stagingFiles: 0, orphanAssets: 0 } }) } }];
+    return [id, { ...native, lessons: undefined, ingestion: { ...native.ingestion!, list: vi.fn().mockResolvedValue([]) }, content: { ...native.content, library: vi.fn().mockResolvedValue(blank(id)), applyContent: vi.fn(), searchResources: vi.fn() }, workspace: { ...native.workspace, workspaceStatus: vi.fn().mockResolvedValue({ contractVersion: 1, preferences: { workspaceId: id, revision: 0, preferences: { theme: 'system', textScale: id === 'a' ? 100 : 150 } }, recovery: { missingAssets: 0, corruptAssets: 0, unsafePaths: 0, stagingFiles: 0, orphanAssets: 0 } }) } }];
   }));
   const factory = vi.fn((id: string) => ports.get(id)!);
   return { port, ports, factory };

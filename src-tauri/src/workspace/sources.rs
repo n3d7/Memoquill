@@ -5,10 +5,16 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use uuid::Uuid;
 
 mod extraction;
+mod ingestion;
 mod preview;
 mod storage;
 mod types;
 mod validation;
+pub use ingestion::{
+    ApplyIngestionJob, ApplyReimportJob, CancelIngestionJob, CreateIngestionJob, IngestionJob,
+    IngestionJobSummary, IngestionMapping, IngestionOutcome, IngestionStatus, ReimportItem,
+    ReimportPreview, ReimportResolution, ReimportStatus, UndoIngestionJob, UndoPreview,
+};
 pub use types::*;
 #[cfg(test)]
 mod tests;

@@ -48,7 +48,7 @@ function LibraryContents({ data, content, subjectId, collectionId, selectCollect
   async function createMaterial(title: string) { const id = crypto.randomUUID(); const result = await content.perform({ type: 'createResource', id, title }); if (result) openResource(id); return result; }
   return <>{subjectId && <fieldset disabled={content.busy || content.hasPending}><legend>Selected subject</legend><SubjectPanel data={data} subjectId={subjectId} collectionId={collectionId} selectCollection={selectCollection} perform={content.perform} openResource={openResource} /></fieldset>}
     <fieldset disabled={content.busy || content.hasPending}><legend>Materials</legend><NameForm label="New material" action="Create material" onSubmit={createMaterial} /><MaterialList data={data} selected={resourceId} open={openResource} /></fieldset>
-    {data.resources[resourceId] && <MaterialPanel key={resourceId} data={data} resourceId={resourceId} onDirty={onDirty} perform={content.perform} />}
+    {data.resources[resourceId] && <MaterialPanel key={resourceId} data={data} resourceId={resourceId} onDirty={onDirty} perform={content.perform} onLibraryChanged={() => void content.reload()} />}
     <fieldset disabled={content.busy || content.hasPending}><legend>Units and paths</legend><UnitForms data={data} perform={content.perform} /><PathForms data={data} perform={content.perform} /></fieldset>
     <fieldset disabled={content.busy || content.hasPending}><legend>Archive and restore</legend><ArchivePanel data={data} perform={content.perform} /></fieldset></>;
 }
@@ -90,12 +90,12 @@ function MaterialList({ data, selected, open }: { data: Library; selected: strin
     <SearchForm search={search} beforeSearch={() => { focus.current = true; }} />
     <h3 ref={heading} tabIndex={-1}>{result ? 'Search results' : 'Available materials'}</h3>
     {result ? <SearchStatus result={result} /> : <MaterialCount count={resources.length} page={currentPage} />}
-    <ul>{visible.map(item => <li key={item.id}><button aria-current={selected === item.id ? 'page' : undefined} onClick={() => open(item.id)}>{item.title}</button>{item.snippet && <p>{item.snippet}</p>}</li>)}</ul>
+    <ul>{visible.map(item => <li key={item.id}><button aria-current={selected === item.id ? 'page' : undefined} onClick={() => open(item.id)}>{item.title}</button>{item.snippet && <p>{item.snippet}</p>}{'references' in item && item.references?.map((ref, index) => <p key={`${ref.sourceId}-${index}`}>Original {ref.sourceId}, {ref.locator.kind} {ref.locator.value}</p>)}</li>)}</ul>
     {result ? <ContinueSearch search={search} beforeSearch={() => { focus.current = true; }} /> : <div className="actions"><button disabled={!currentPage} onClick={() => { focus.current = true; setPage(currentPage - 1); }}>Previous materials</button><button disabled={currentPage >= lastPage} onClick={() => { focus.current = true; setPage(currentPage + 1); }}>Next materials</button></div>}
   </section>;
 }
 function materialResults(result: SearchPage | null, resources: Entity[], page: number) {
-  if (result) return result.items.map(item => ({ id: item.resourceId, title: item.title, snippet: item.snippet }));
+  if (result) return result.items.map(item => ({ id: item.resourceId, title: item.title, snippet: item.snippet, references: item.references }));
   return resources.slice(page * 20, page * 20 + 20).map(item => ({ ...item, snippet: '' }));
 }
 function SearchForm({ search, beforeSearch }: { search: MaterialSearch; beforeSearch: () => void }) {

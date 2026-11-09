@@ -3,6 +3,7 @@ mod authoring;
 mod course_commands;
 pub mod document;
 pub mod draft;
+mod ingestion_commands;
 mod lesson_commands;
 pub mod organization;
 pub mod workspace;
@@ -96,6 +97,15 @@ pub fn run() {
             attachments::sources,
             attachments::save_source,
             attachments::source_preview,
+            ingestion_commands::ingestion_create,
+            ingestion_commands::ingestion_read,
+            ingestion_commands::ingestion_list,
+            ingestion_commands::ingestion_cancel,
+            ingestion_commands::ingestion_apply,
+            ingestion_commands::ingestion_reimport_preview,
+            ingestion_commands::ingestion_reimport_apply,
+            ingestion_commands::ingestion_undo_preview,
+            ingestion_commands::ingestion_undo,
             authoring::search_resources
         ])
         .build(tauri::generate_context!())

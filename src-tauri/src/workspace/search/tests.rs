@@ -2,6 +2,55 @@ use super::*;
 use crate::document::Document;
 use uuid::Uuid;
 
+#[test]
+fn rebuilding_search_restores_derived_unicode_and_code_index() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    let id = resource(&db, "λ example");
+    document(
+        &db,
+        id,
+        1,
+        "Код: fn main() { println!(\"hello\"); } 🧠λx with\nnewlines",
+    );
+    db.rebuild_search_index(RequestContext::local_ui()).unwrap();
+    let count: i64 = db
+        .connection
+        .query_row("SELECT count(*) FROM search_fts", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    for query in ["\"hello\"", "🧠λx", "with\nnew", "λ", "()"] {
+        assert_eq!(
+            db.search_resources(RequestContext::local_ui(), query, 0)
+                .unwrap()
+                .items[0]
+                .resource_id,
+            id,
+            "{query:?}"
+        );
+    }
+    db.connection.execute("DELETE FROM search_fts", []).unwrap();
+    assert_eq!(
+        db.search_resources(RequestContext::local_ui(), "println!", 0)
+            .unwrap()
+            .items[0]
+            .resource_id,
+        id
+    );
+    let count: i64 = db
+        .connection
+        .query_row("SELECT count(*) FROM search_fts", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+    assert_eq!(
+        db.search_resources(RequestContext::local_ui(), "println!", 0)
+            .unwrap()
+            .items[0]
+            .resource_id,
+        id
+    );
+}
+
 fn resource(db: &Database, title: &str) -> ResourceId {
     let id = ResourceId::generate();
     db.connection

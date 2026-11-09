@@ -3,7 +3,7 @@ use super::{database::Database, error::Result, *};
 use crate::organization;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use uuid::Uuid;
-mod documents;
+pub(super) mod documents;
 mod notes;
 mod organization_store;
 #[cfg(test)]
@@ -66,7 +66,7 @@ impl Database {
         version(contract, revision)
     }
 }
-fn apply_command(
+pub(super) fn apply_command(
     tx: &Connection,
     workspace: &WorkspaceId,
     request: &ApplyContent,

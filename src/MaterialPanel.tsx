@@ -7,16 +7,19 @@ import type { SavedContextModel } from './application/useSavedContext';
 
 import { ActionButton, StatusMessage } from './application/controls';
 import type { ComponentType } from 'react';
+import { useOptionalIngestionPort } from './application/ApplicationProvider';
+import { IngestionPanel } from './sources/IngestionPanel';
 
 type Perform = (command: Command) => Promise<Library | null>;
-export interface MaterialPanelProps { data: Library; resourceId: string; onDirty: (dirty: boolean) => void; perform: Perform; view?: ComponentType<MaterialViewProps> }
+export interface MaterialPanelProps { data: Library; resourceId: string; onDirty: (dirty: boolean) => void; perform: Perform; onLibraryChanged?: () => void; view?: ComponentType<MaterialViewProps> }
 export type MaterialViewProps = MaterialPanelProps & ReturnType<typeof useMaterialController>;
 export function MaterialPanel(props: MaterialPanelProps) {
   const controller = useMaterialController(props.data.workspaceId, props.resourceId, props.onDirty);
   const View = props.view ?? MaterialView;
   return <View {...props} {...controller} />;
 }
-export function MaterialView({ data, resourceId, perform, material, resume, contextPending, context, sources }: MaterialViewProps) {
+export function MaterialView({ data, resourceId, perform, material, resume, contextPending, context, sources, setIngestionPending, onLibraryChanged }: MaterialViewProps) {
+  const ingestion = useOptionalIngestionPort();
   return <section aria-label="Material authoring"><h2>{data.resources[resourceId].title}</h2>
     <p>Shared material: changes apply to every placement. Content revisions and original sources are retained.</p>
     <NameForm label="New material title" action="Rename material" onSubmit={title => perform({ type: 'renameResource', id: resourceId, title })} />
@@ -32,6 +35,7 @@ export function MaterialView({ data, resourceId, perform, material, resume, cont
     </div>
     {context && <SavedContextView model={context} />}
     <SourcesView model={sources} />
+  {ingestion && sources.list && <IngestionPanel key={`${data.workspaceId}:${resourceId}`} port={ingestion} sources={sources.list.sources} workspaceId={data.workspaceId} resourceId={resourceId} libraryRevision={data.revision} onChanged={onLibraryChanged ?? (() => {})} onPendingChange={setIngestionPending} />}
   </section>;
 }
 function SavedContextView({ model }: { model: SavedContextModel }) {

@@ -28,6 +28,10 @@ pub(super) const MIGRATIONS: &[Migration] = &[
         version: 5,
         sql: include_str!("migrations/005_lessons.sql"),
     },
+    Migration {
+        version: 6,
+        sql: include_str!("migrations/006_ingestion.sql"),
+    },
 ];
 
 pub(super) fn checksum(bytes: &[u8]) -> String {
@@ -111,7 +115,7 @@ mod lesson_upgrade_tests {
         c.execute("INSERT INTO resources VALUES('resource','Original',0)", [])
             .unwrap();
         c.execute("INSERT INTO original_sources VALUES('source','resource',?1,'source.pdf','application/pdf','Author','CC0',NULL,1,4)",["a".repeat(64)]).unwrap();
-        apply(&mut c, 4, MIGRATIONS).unwrap();
+        apply(&mut c, 4, &MIGRATIONS[..5]).unwrap();
         assert!(
             c.pragma_query_value(None, "foreign_keys", |r| r.get::<_, bool>(0))
                 .unwrap()
@@ -132,11 +136,11 @@ mod lesson_upgrade_tests {
         c.pragma_update(None, "foreign_keys", true).unwrap();
         apply(&mut c, 0, MIGRATIONS).unwrap();
         let bad = [Migration {
-            version: 6,
+            version: 7,
             sql: "CREATE TABLE broken(id TEXT REFERENCES resources(id)); INSERT INTO broken VALUES('missing');",
         }];
         assert_eq!(
-            apply(&mut c, 5, &bad).unwrap_err().code,
+            apply(&mut c, 6, &bad).unwrap_err().code,
             ErrorCode::RecoveryRequired
         );
         assert!(
@@ -146,7 +150,7 @@ mod lesson_upgrade_tests {
         assert_eq!(
             c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
         assert_eq!(
             c.query_row(
@@ -157,6 +161,6 @@ mod lesson_upgrade_tests {
             .unwrap(),
             0
         );
-        validate(&c, 5).unwrap();
+        validate(&c, 6).unwrap();
     }
 }

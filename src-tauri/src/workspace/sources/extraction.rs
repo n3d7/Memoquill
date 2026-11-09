@@ -6,6 +6,24 @@ const RECORDS: usize = 128;
 const FIELDS: usize = 64;
 
 pub(super) fn extract(filename: &str, bytes: &[u8], truncated: bool) -> SourceExtraction {
+    extract_bounded(filename, bytes, truncated, INPUT_BYTES, RECORDS)
+}
+
+pub(super) fn extract_for_ingestion(filename: &str, bytes: &[u8]) -> SourceExtraction {
+    let mut result = extract_bounded(filename, bytes, false, 8 * 1024 * 1024, 10_000);
+    if result.status != ExtractionStatus::Complete {
+        result.records.clear();
+    }
+    result
+}
+
+fn extract_bounded(
+    filename: &str,
+    bytes: &[u8],
+    truncated: bool,
+    input_limit: usize,
+    record_limit: usize,
+) -> SourceExtraction {
     let format = match filename
         .rsplit('.')
         .next()
@@ -32,7 +50,7 @@ pub(super) fn extract(filename: &str, bytes: &[u8], truncated: bool) -> SourceEx
             ExtractionDiagnostic::UnsupportedFormat,
         );
     }
-    if bytes.len() > INPUT_BYTES
+    if bytes.len() > input_limit
         || (truncated && matches!(format, ExtractionFormat::Csv | ExtractionFormat::Json))
     {
         return result.with_diagnostic(ExtractionStatus::Partial, ExtractionDiagnostic::InputLimit);
@@ -51,19 +69,20 @@ pub(super) fn extract(filename: &str, bytes: &[u8], truncated: bool) -> SourceEx
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let parsed = match format {
         ExtractionFormat::Text | ExtractionFormat::Markdown => {
-            for (index, line) in text.lines().take(RECORDS + 1).enumerate() {
+            for (index, line) in text.lines().take(record_limit + 1).enumerate() {
                 if !result.push(
                     LocatorKind::Line,
                     (index + 1).to_string(),
                     vec![line.into()],
+                    record_limit,
                 ) {
                     break;
                 }
             }
             Ok(())
         }
-        ExtractionFormat::Csv => csv_records(text, &mut result),
-        ExtractionFormat::Json => json_records(text, &mut result),
+        ExtractionFormat::Csv => csv_records(text, &mut result, record_limit),
+        ExtractionFormat::Json => json_records(text, &mut result, record_limit),
         ExtractionFormat::Unsupported => unreachable!(),
     };
     if let Err(diagnostic) = parsed {
@@ -87,8 +106,14 @@ impl SourceExtraction {
         self.diagnostic = Some(diagnostic);
         self
     }
-    fn push(&mut self, kind: LocatorKind, value: String, fields: Vec<String>) -> bool {
-        if self.records.len() == RECORDS {
+    fn push(
+        &mut self,
+        kind: LocatorKind,
+        value: String,
+        fields: Vec<String>,
+        record_limit: usize,
+    ) -> bool {
+        if self.records.len() == record_limit {
             self.status = ExtractionStatus::Partial;
             self.diagnostic = Some(ExtractionDiagnostic::RecordLimit);
             return false;
@@ -104,12 +129,13 @@ impl SourceExtraction {
 fn csv_records(
     text: &str,
     result: &mut SourceExtraction,
+    record_limit: usize,
 ) -> std::result::Result<(), ExtractionDiagnostic> {
     validate_csv_quotes(text)?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .from_reader(text.as_bytes());
-    for (index, record) in reader.records().take(RECORDS + 1).enumerate() {
+    for (index, record) in reader.records().take(record_limit + 1).enumerate() {
         let record = record.map_err(|_| ExtractionDiagnostic::MalformedInput)?;
         if record.len() > FIELDS {
             return Err(ExtractionDiagnostic::FieldLimit);
@@ -118,6 +144,7 @@ fn csv_records(
             LocatorKind::CsvRecord,
             (index + 1).to_string(),
             record.iter().map(str::to_owned).collect(),
+            record_limit,
         ) {
             break;
         }
@@ -154,6 +181,7 @@ fn validate_csv_quotes(text: &str) -> std::result::Result<(), ExtractionDiagnost
 fn json_records(
     text: &str,
     result: &mut SourceExtraction,
+    record_limit: usize,
 ) -> std::result::Result<(), ExtractionDiagnostic> {
     // Validate with the standard recursion limit before retaining raw slices.
     // RawValue preserves duplicate keys and exact number/string spellings.
@@ -162,11 +190,12 @@ fn json_records(
     if value.is_array() {
         let values: Vec<Box<serde_json::value::RawValue>> =
             serde_json::from_str(text).map_err(|_| ExtractionDiagnostic::MalformedInput)?;
-        for (index, raw) in values.iter().take(RECORDS + 1).enumerate() {
+        for (index, raw) in values.iter().take(record_limit + 1).enumerate() {
             if !result.push(
                 LocatorKind::JsonPointer,
                 format!("/{index}"),
                 vec![raw.get().into()],
+                record_limit,
             ) {
                 break;
             }
@@ -176,6 +205,7 @@ fn json_records(
             LocatorKind::JsonPointer,
             String::new(),
             vec![text.trim().into()],
+            record_limit,
         );
     }
     Ok(())
