@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render } from '../tests/courseRender';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
@@ -27,5 +28,5 @@ it('loads production workspace preferences independently of organization and pre
   expect(await screen.findByRole('dialog', { name: 'Operation result' })).toHaveTextContent('Reading preferences saved');
   expect(subject).toHaveAttribute('aria-current', 'page');
   expect(screen.getByRole('combobox', { name: 'Appearance' })).toHaveValue('light');
-  expect(invoke).toHaveBeenCalledWith('save_reading_preferences', { request: expect.objectContaining({ workspaceId: data.workspaceId, expectedRevision: 3 }) });
+  expect(invoke).toHaveBeenCalledWith('save_reading_preferences', { courseId: 'test-course', request: expect.objectContaining({ workspaceId: data.workspaceId, expectedRevision: 3 }) });
 });

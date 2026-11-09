@@ -1,7 +1,7 @@
 //! User-selected originals. No command accepts an operating-system path.
 use crate::workspace::{
-    AppError, ApplicationService, AssetDigest, ErrorCode, OperationId, RegisterAsset,
-    RequestContext, WorkspaceId,
+    AppError, ApplicationService, AssetDigest, CourseManager, ErrorCode, OperationId,
+    RegisterAsset, RequestContext, WorkspaceId,
 };
 use serde::{Deserialize, Serialize};
 use std::{fs::File, path::Path};
@@ -12,9 +12,11 @@ const MAX_SOURCE_BYTES: u64 = 64 * 1024 * 1024;
 
 #[tauri::command]
 pub async fn sources(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     resource_id: crate::organization::ResourceId,
 ) -> Result<crate::workspace::SourceList, AppError> {
+    let service = manager.service(course_id)?;
     service
         .sources(RequestContext::local_ui(), resource_id)
         .await
@@ -22,9 +24,11 @@ pub async fn sources(
 
 #[tauri::command]
 pub async fn save_source(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: crate::workspace::SaveSource,
 ) -> Result<crate::workspace::OriginalSource, AppError> {
+    let service = manager.service(course_id)?;
     service
         .save_source(RequestContext::local_ui(), request)
         .await
@@ -32,9 +36,11 @@ pub async fn save_source(
 
 #[tauri::command]
 pub async fn source_preview(
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     source_id: uuid::Uuid,
 ) -> Result<crate::workspace::SourcePreview, AppError> {
+    let service = manager.service(course_id)?;
     service
         .source_preview(RequestContext::local_ui(), source_id)
         .await
@@ -63,9 +69,11 @@ fn invalid() -> AppError {
 #[tauri::command]
 pub async fn pick_source<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
-    service: State<'_, ApplicationService>,
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
     request: SelectSource,
 ) -> Result<Option<SelectedSource>, AppError> {
+    let service = manager.service(course_id)?;
     validate_selection(&service, &request).await?;
     let selected =
         tauri::async_runtime::spawn_blocking(move || app.dialog().file().blocking_pick_file())

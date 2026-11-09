@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useContentLibrary } from './useContentLibrary';
 import { GoalForm, NameForm, Options, PathForms, ReorderControls, UnitForms } from './OrganizationForms';
 import { MaterialPanel } from './MaterialPanel';
@@ -13,6 +13,7 @@ import { StatusMessage } from './application/controls';
 type Perform = (command: Command) => Promise<Library | null>;
 type Content = ReturnType<typeof useContentLibrary>;
 export function LibraryApp() {
+  const mainId = useId();
   const lessonPort = useOptionalLessonPort(); const sourcePort = useSourcePort();
   const content = useContentLibrary(); const reading = useReadingPreferences();
   const [subjectId, setSubjectId] = useState(''); const [collectionId, setCollectionId] = useState<string | null>(null);
@@ -23,10 +24,10 @@ export function LibraryApp() {
   const session = data ? identity.session(data.workspaceId) : null;
   function openResource(id: string) { if (dirty && id !== resourceId) { setNotice('Save or discard the current draft before opening another material.'); return; } setResourceId(id); setNotice(''); }
   return <div className="app" data-theme={reading.preferences.theme}>
-    <a className="skip-link" href="#main">Skip to workspace</a><header><p className="eyebrow">Your local learning workspace</p><h1>Memoquill</h1><p>Create subjects, organize shared materials and author your own learning paths.</p></header>
+    <a className="skip-link" href={`#${mainId}`}>Skip to workspace</a><header><p className="eyebrow">Your local learning workspace</p><h1>Memoquill</h1><p>Create subjects, organize shared materials and author your own learning paths.</p></header>
     <p aria-label="Local identity">{session ? 'Local guest · Offline workspace' : 'Local guest'}</p>
     <ReadingPreferencesPanel reading={reading} />
-    <main id="main" tabIndex={-1}>
+    <main id={mainId} tabIndex={-1}>
       <OrganizationStatus content={content} />
       {notice && <p role="alert">{notice}</p>}
       <SubjectNavigation content={content} selected={subjectId} select={id => { setSubjectId(id); setCollectionId(null); }} />
@@ -98,9 +99,10 @@ function materialResults(result: SearchPage | null, resources: Entity[], page: n
   return resources.slice(page * 20, page * 20 + 20).map(item => ({ ...item, snippet: '' }));
 }
 function SearchForm({ search, beforeSearch }: { search: MaterialSearch; beforeSearch: () => void }) {
+  const helpId = useId();
   const valid = search.query.length > 0 && [...search.query].length <= 256;
   function submit(event: FormEvent) { event.preventDefault(); if (valid) { beforeSearch(); void search.search(); } }
-  return <><form onSubmit={submit}><label>Search titles, tags and text<input type="search" value={search.query} onChange={event => search.edit(event.target.value)} aria-describedby="search-help" /></label><p id="search-help">Literal text, up to 256 characters. Searches saved titles, tags and canonical text in bounded batches.</p><button disabled={search.busy || !valid}>Search materials</button><button type="button" onClick={() => search.edit('')}>Show all materials</button></form>{[...search.query].length > 256 && <p role="alert">Use at most 256 characters.</p>}{search.error && <p role="alert">{search.error}</p>}{search.busy && <p role="status">Searching saved materials…</p>}</>;
+  return <><form onSubmit={submit}><label>Search titles, tags and text<input type="search" value={search.query} onChange={event => search.edit(event.target.value)} aria-describedby={helpId} /></label><p id={helpId}>Literal text, up to 256 characters. Searches saved titles, tags and canonical text in bounded batches.</p><button disabled={search.busy || !valid}>Search materials</button><button type="button" onClick={() => search.edit('')}>Show all materials</button></form>{[...search.query].length > 256 && <p role="alert">Use at most 256 characters.</p>}{search.error && <p role="alert">{search.error}</p>}{search.busy && <p role="status">Searching saved materials…</p>}</>;
 }
 function ContinueSearch({ search, beforeSearch }: { search: MaterialSearch; beforeSearch: () => void }) {
   const offset = search.result?.nextOffset ?? null;

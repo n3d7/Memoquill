@@ -8,7 +8,7 @@ export function usePickerFocus(pending: boolean) {
   useEffect(() => {
     if (!pending && requested.current && element) {
       requested.current = false;
-      element.focus();
+      if (!element.closest('[hidden], [inert]')) element.focus();
     }
   }, [pending, element]);
   return { trigger, requestFocus: () => { requested.current = true; } };

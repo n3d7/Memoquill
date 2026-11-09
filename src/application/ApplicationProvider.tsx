@@ -15,10 +15,12 @@ export interface ApplicationPorts {
 }
 // Defaults keep existing bridge consumers compatible; providers replace services per tree.
 const defaults: ApplicationPorts = { content, sources, workspace, identity: localGuestIdentity };
+const ActivityContext = createContext(true);
+export const useApplicationActive = () => useContext(ActivityContext);
 const ApplicationContext = createContext<ApplicationPorts>(defaults);
-export function ApplicationProvider({ ports, children }: { ports: Partial<ApplicationPorts>; children: ReactNode }) {
+export function ApplicationProvider({ ports, children, active = true }: { ports: Partial<ApplicationPorts>; children: ReactNode; active?: boolean }) {
   const parent = useContext(ApplicationContext);
-  return <ApplicationContext.Provider value={{ ...parent, ...ports }}>{children}</ApplicationContext.Provider>;
+  return <ActivityContext.Provider value={active}><ApplicationContext.Provider value={{ ...parent, ...ports }}>{children}</ApplicationContext.Provider></ActivityContext.Provider>;
 }
 export const useContentPort = () => useContext(ApplicationContext).content;
 export const useSourcePort = () => useContext(ApplicationContext).sources;

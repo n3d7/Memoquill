@@ -1,6 +1,27 @@
 # Linear backlog mapping
 
-## Current platform/phase amendment — 2026-11-06
+## Consolidated learning/autonomy substeps — 2026-11-08
+
+[Canonical requirements map](learning-productivity-followup.md): six Backlog
+children added after checking existing parent inventories. KER-128/129/130 belong
+to separate post-M2 KER-127 (course ownership/migration, functional isolation,
+extension contracts); KER-131 to M4/KER-102 (assessment evidence); KER-132/133 to
+M6/KER-106 (progressive adaptation and scheduled research proposals).
+Existing KER-100/103/104/107/108 acceptance carries source intake, outcome-specific
+scheduling/progress, ask-before-changing manual edits, fresh permission after
+interruption and release qualification. No extra blocker edges or milestones,
+actual recurring jobs or implementation. Full visual design remains deferred.
+
+## Separate post-M2 course step — 2026-11-08
+
+M2 PR #3 is merged by the owner, preserving all original commits. The later
+user-confirmed course boundary is tracked in [KER-127](https://linear.app/kerigan/issue/KER-127/post-m2-establish-isolated-course-workspaces):
+whole isolated course per top-level tab/sidebar entry, lessons nested within.
+It remains Backlog, outside the completed M2 parent/milestone. See the
+[requirements record](course-workspace-followup.md); design/migration and later
+roadmap alignment are pending. No implementation or automatic M3 start.
+
+## Historical platform/phase amendment — 2026-11-06
 
 The latest user instruction authorizes docs/Linear planning only; application
 implementation, builds and GUI qualification are paused. When resumed, M1–M8

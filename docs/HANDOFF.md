@@ -1,25 +1,29 @@
 # Memoquill continuation checkpoint
 
-Updated 2026-11-08 11:06 UTC. Branch dev; user authorized push/PR, owner alone performs merge.
+Updated 2026-11-08 16:13 UTC. Branch dev; post-M2 source integration complete locally.
 
-- M2 functional X11 work is complete. User explicitly authorized publishing dev and creating PR; earlier no-push/no-PR instructions are superseded. PR #3 is open: https://github.com/n3d7/Memoquill/pull/3 (dev → main). Owner performs merge; no agent merge, release or M3.
-- User requires every M2 substep commit to remain visible in main after eventual integration, with original SHAs. Use fast-forward or an ordinary history-preserving merge; never squash/rebase or replace the history with one commit. Owner will perform the integration; do not merge or enable auto-merge.
-- Linear readback: KER-99 and all12 M2 children (109–120) Done. KER-97 remains In Review/unaccepted. Historical tracker pauses are superseded by the explicit resume.
-- Main M1–M8 is X11-only. Portable versioned models, typed frontend/controller/service/native adapters and capabilities remain required. Standalone later-platform tasks stay inactive after M8 with no core dependencies; no SDK/port/runtime work now.
-- Different editable lessons remain fully isolated: content/forms/answers/hints/progress do not propagate. No linked-tab editing or future linked-tab seam.
-- Full visual-design timing will be discussed with the user after M2. Do not add a redesign or alter the UI roadmap before that discussion.
-- Final exit fix: labelled text inputs/textarea use block layout to avoid a valid WebKitGTK AT-SPI inline-label query crash confirmed on X11. Names/implicit labels are retained; checkbox/radio/hidden controls excluded. This is an app layout workaround, not an upstream engine fix.
-- Same updated probe fails on the old RPM and passes on the candidate. A first candidate probe rejected a valid separate label representation; corrected harness still reproduces the old failure.
-- Final frontend coverage120/23 passed; targeted preferences6 passed after waiting for the unchanged125% root-font effect. TypeScript/Vite/Rust release/RPM build passed.
-- Fresh isolated packaged X11 journey passed68 assertions plus one IME metadata record, exit0: authoring, code/math/real IME, originals/search, constructor families/components, isolated lessons and save/restart. Restart uses the same candidate through PATH. Zero captures.
-- Final RPM SHA256 5c0adfe50a553e15675cb87ecbd7e5525c691d3a176973e269fd984c1d96a394. Candidate/source hashes and logs: .qualification/m2-x11-exit-20261107/.
-- Unchanged157 Rust-library tests/3 ignored,4 startup tests, fmt/Clippy, optimized glib and prior bounded security evidence reused per user cadence. Source/locks unchanged except the CSS and test/harness exit delta.
-- Prior whole-change review findings were fixed in3b1c5a4/1c1fb43. One fresh independent review of the source tail after1c1fb43 found no Critical/Important or confirmed Minor issues.
-- Full X11 release AT/reflow/human speech remains M7. UI-only mode is X11+M2 guarded and explicitly records speech NOT_RUN. Earlier Wayland/Orca failures and cold-readiness NOT_RUN remain retained, not passed. No GNOME/Orca host install or host GUI control in this exit run.
-- Catalog refresh:1362 base/1367 project entries, zero stale/missing metadata errors. Health/auth unprobed. Jupyter/Chrome DevTools/public Grep/DeepWiki/offline n8n were discovered, not exercised.
-- Preserved unrelated workflow skill, .gitignore, AGENTS.md and both November1 tooling reports; all five hashes match the saved baseline. Never stage or revert them.
-- Exit source commit8c9c27a. Fresh origin/main8405103 remains the merge base; merge-tree has no conflicts and equals the source tree. Dev is fast-forwardable from this main; no actual integration. [Main-readiness record](task-reports/2026-11-08-105831Z-m2-main-readiness.md).
-- Current report: [M2 X11 exit](task-reports/2026-11-08-105345Z-m2-x11-exit.md); [qualification ledger](quality/m2-qualification.md); [execution ledger](planning/m2-execution.md).
-- GUI permission exists if truly needed, but agents never capture screenshots. After reboot verify any process/window anew; old host IDs are not evidence.
+- Authorized scope: KER-127/128–130, completed substeps committed in dev only; no push/merge/history rewrite.
+- Course catalogue foundation 87648ff; inert extension foundation c6a363e; integrated routing/UI follows in the local completion commit containing this checkpoint.
+- Existing workspace adopted in place as one course; Subjects stay nested, preserving shared IDs/links/history. New courses use separate DB/original/recovery roots.
+- Explicit courseId native routing and immutable bound ports cover content, sources, lessons, preferences, search and receipts. Unknown/unbound scope fails closed.
+- Course sidebar creates/selects/persists selection; mounted hidden/inert trees retain edits, responses, pending exact retries and source selection identity. Inactive focus/preferences guarded.
+- Missing initialized storage or missing/empty catalogue beside managed roots requires recovery. Never silently bootstrap replacement ownership or adopt unknown roots.
+- Shutdown denies new work and releases catalogue ownership only after successful writer drain. Interrupted first initialization conservatively requires recovery.
+- KER-130 data-only extension contract preserves bounded exact JSON, scope/capability/version diagnostics and passive fallback. No executable runtime, persistence/import route or simulators activated.
+- Independent whole-change review found two Important issues; both reproduced and fixed, narrow re-review accepted. No open Critical/Important findings.
+- Final checks: 140 frontend tests/26 files; 173 Rust library passed/3 existing ignored; 4 linux_startup integration tests; 0 doctests. Build/fmt/Clippy/diff checks pass; unchanged release GLib focused gate reused.
+- Deferred minor: dedicated v1 extension state/migration diagnostic branch tests; Vite large-bundle warning remains. GUI/package journey and human speech/reflow NOT RUN here.
+- Report: docs/task-reports/2026-11-08-161306Z-post-m2-course-integration.md; runtime: docs/architecture/course-workspaces.md; extensions: docs/architecture/course-extensions.md.
+- Design/plan: docs/superpowers/specs/2026-11-08-course-workspaces-design.md; docs/superpowers/plans/2026-11-08-course-workspaces.md.
+- Ignored ledger/review/report: .superpowers/sdd/2026-11-08-course-workspaces/. All owned workers/tests are stopped after completion.
+- Linear status-only completion readback is recorded in the final response/ledger. Private technical description append was rejected by automatic approval and not retried.
+- M2 PR #3 merged by owner; preserve all original commits. No new publication, remote CI or release.
+- Main M1–M8 targets Linux/X11 only with portable contracts. Other-platform work stays separate/inactive after M8. Full visual design deferred.
+- KER-97 manual evidence remains unaccepted; full X11 keyboard/speech/reflow stays M7. Headless/IPC checks are not human accessibility acceptance.
+- M3/KER-100 sources preserve originals, ranges, provenance and honest coverage; M4 separates observed attempts from judgments; M5 learner goals/focus/format choices.
+- M6 stays provider-independent: scoped MCP authoring/research proposals, ask-before-changing manual edits, opt-in course schedules. No actual transport, daemon or schedule started.
+- Abruptly interrupted work waits for fresh permission, even after prior authorization; do not replay jobs from checkpoints.
+- Existing learning-science/activity evidence reused; no new learning-efficiency claim.
+- Preserve unrelated AGENTS.md, .gitignore, workflow-skill and November 1 tooling report changes; never stage/revert them.
 
-Next: owner reviews/merges PR #3 with Create a merge commit; retain every original substep SHA. Preserve user files and dev; no agent merge or automatic M3. Full visual-design timing remains for discussion. [Publication record](task-reports/2026-11-08-110548Z-m2-pr-publication.md).
+Next: none within post-M2 KER-127–130. Wait for the user's next task; do not start M3, GUI or publication automatically.

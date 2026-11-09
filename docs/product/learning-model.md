@@ -1,5 +1,13 @@
 # Subject-agnostic learning model
 
+Post-M2 requirement amendment, 2026-11-08: the top-level tab is a whole isolated
+course with lessons inside. Earlier shared-subject organization below describes
+the M2 model; course identity/migration must explicitly resolve it before dependent
+implementation. [The consolidated map](../planning/learning-productivity-followup.md)
+records goal-led AI adaptation, learner format choice and separate assessment
+judgments/history. This is planned behavior, not an implemented course migration.
+
+
 ## Organization and meaning
 
 A **subject** is a user-named scope with goals/preferences. Its **collections** are an arbitrary-depth containment tree with user labels (module/topic/chapter are conventions, not tables). Entries reference shared resources and learning units; a resource or unit can appear in multiple collections and subjects without losing identity. Tags, search, and saved views provide alternative access.

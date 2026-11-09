@@ -1,6 +1,9 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "courses_list",
+            "course_create",
+            "course_select",
             "lesson_discover",
             "lesson_read",
             "lesson_read_source",
