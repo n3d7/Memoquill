@@ -11,9 +11,10 @@ mod storage;
 mod types;
 mod validation;
 pub use ingestion::{
-    ApplyIngestionJob, ApplyReimportJob, CancelIngestionJob, CreateIngestionJob, IngestionJob,
-    IngestionJobSummary, IngestionMapping, IngestionOutcome, IngestionStatus, ReimportItem,
-    ReimportPreview, ReimportResolution, ReimportStatus, UndoIngestionJob, UndoPreview,
+    ApplyIngestionJob, ApplyReimportJob, CancelIngestionJob, CreateIngestionJob, IngestionDecision,
+    IngestionDisposition, IngestionJob, IngestionJobSummary, IngestionMapping, IngestionOutcome,
+    IngestionStatus, ReimportItem, ReimportPreview, ReimportResolution, ReimportStatus,
+    ReviewIngestionJob, UndoIngestionJob, UndoPreview,
 };
 pub use types::*;
 #[cfg(test)]

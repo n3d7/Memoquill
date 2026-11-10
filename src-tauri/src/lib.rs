@@ -102,6 +102,7 @@ pub fn run() {
             ingestion_commands::ingestion_list,
             ingestion_commands::ingestion_cancel,
             ingestion_commands::ingestion_apply,
+            ingestion_commands::ingestion_review,
             ingestion_commands::ingestion_reimport_preview,
             ingestion_commands::ingestion_reimport_apply,
             ingestion_commands::ingestion_undo_preview,

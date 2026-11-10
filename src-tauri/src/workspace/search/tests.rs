@@ -64,6 +64,31 @@ fn index_refreshes_after_committed_title_change_in_a_larger_collection() {
             [ids[999].to_string()],
         )
         .unwrap();
+    document(&db, ids[0], 1, "start Unicode λ and fn start_code()");
+    document(&db, ids[500], 1, "middle Unicode λ and fn middle_code()");
+    document(&db, ids[999], 1, "end Unicode λ and fn end_code()");
+    let started = std::time::Instant::now();
+    db.rebuild_search_index(RequestContext::local_ui()).unwrap();
+    eprintln!(
+        "m3-search-scale corpus=1000 rebuild_ms={}",
+        started.elapsed().as_millis()
+    );
+    for (query, offset, expected) in [
+        ("start_code", 0, ids[0]),
+        ("middle_code", 400, ids[500]),
+        ("end_code", 800, ids[999]),
+        ("λ", 0, ids[0]),
+    ] {
+        let started = std::time::Instant::now();
+        let page = db
+            .search_resources(RequestContext::local_ui(), query, offset)
+            .unwrap();
+        eprintln!(
+            "m3-search-scale query={query:?} offset={offset} elapsed_ms={}",
+            started.elapsed().as_millis()
+        );
+        assert!(page.items.iter().any(|item| item.resource_id == expected));
+    }
     let mut cursor = Some(0);
     let mut hits = Vec::new();
     while let Some(offset) = cursor {

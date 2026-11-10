@@ -80,6 +80,38 @@ pub struct IngestionOutcome {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum IngestionDisposition {
+    Pending,
+    Omitted,
+    Empty,
+    Unresolved,
+    RemovedRetained,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct IngestionDecision {
+    pub index: Option<usize>,
+    pub key: Option<String>,
+    pub disposition: IngestionDisposition,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReviewIngestionJob {
+    pub contract_version: u32,
+    pub workspace_id: WorkspaceId,
+    pub operation_id: OperationId,
+    pub job_id: Uuid,
+    pub expected_revision: u64,
+    pub previous_job_id: Option<Uuid>,
+    pub expected_previous_revision: Option<u64>,
+    pub mapping: IngestionMapping,
+    pub decisions: Vec<IngestionDecision>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum ReimportStatus {
     Unchanged,
     New,
@@ -147,6 +179,8 @@ pub struct IngestionJob {
     pub extraction: SourceExtraction,
     pub mapping: Option<IngestionMapping>,
     pub outcomes: Vec<IngestionOutcome>,
+    #[serde(default)]
+    pub decisions: Vec<IngestionDecision>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +201,161 @@ struct LineageItem {
 }
 
 impl Database {
+    pub(in crate::workspace) fn review_ingestion_job(
+        &mut self,
+        context: RequestContext,
+        request: &ReviewIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.authorize_workspace(context, &request.workspace_id)?;
+        if request.contract_version != 1
+            || request.decisions.is_empty()
+            || request.decisions.len() > 100
+            || request.previous_job_id.is_some() != request.expected_previous_revision.is_some()
+        {
+            return Err(invalid());
+        }
+        let hash = operations::request_hash("ingestion-review", request)?;
+        if let Some(receipt) =
+            operations::exact_receipt(&self.connection, &self.id, &request.operation_id, &hash)?
+        {
+            return match receipt.result {
+                ReceiptResult::Applied(OperationOutcome::IngestionJob(value)) => Ok(*value),
+                ReceiptResult::Interrupted(code) => Err(AppError::new(code)),
+                _ => Err(corrupt()),
+            };
+        }
+        let mut job = self.ingestion_job(context, request.job_id)?;
+        self.verify_ingestion_job(&job)?;
+        if job.revision != request.expected_revision
+            || job.status != IngestionStatus::Staged
+            || job
+                .mapping
+                .as_ref()
+                .is_some_and(|mapping| mapping != &request.mapping)
+            || job
+                .previous_job_id
+                .is_some_and(|id| Some(id) != request.previous_job_id)
+            || (request.previous_job_id.is_some()
+                && job.previous_job_id.is_none()
+                && !job.outcomes.is_empty())
+        {
+            return Err(AppError::new(ErrorCode::RevisionConflict));
+        }
+        let preview = if let Some(id) = request.previous_job_id {
+            let previous = self.ingestion_job(context, id)?;
+            if Some(previous.revision) != request.expected_previous_revision {
+                return Err(AppError::new(ErrorCode::RevisionConflict));
+            }
+            Some(self.preview_ingestion_reimport(context, job.id, id, &request.mapping)?)
+        } else {
+            None
+        };
+        if job.extraction.status != ExtractionStatus::Complete {
+            return Err(invalid());
+        }
+        let mut seen = std::collections::HashSet::new();
+        for decision in &request.decisions {
+            if !seen.insert((decision.index, decision.key.clone())) {
+                return Err(invalid());
+            }
+            match (
+                decision.index,
+                decision.key.as_deref(),
+                decision.disposition,
+            ) {
+                (Some(index), None, disposition)
+                    if disposition != IngestionDisposition::RemovedRetained =>
+                {
+                    let record = job.extraction.records.get(index).ok_or_else(invalid)?;
+                    if job.outcomes.iter().any(|outcome| outcome.index == index) {
+                        return Err(invalid());
+                    }
+                    if disposition == IngestionDisposition::Empty
+                        && record.fields.iter().any(|field| !field.trim().is_empty())
+                    {
+                        return Err(invalid());
+                    }
+                    if disposition == IngestionDisposition::Unresolved {
+                        let unresolved = preview
+                            .as_ref()
+                            .and_then(|preview| {
+                                preview.items.iter().find(|item| item.index == Some(index))
+                            })
+                            .is_some_and(|item| item.status == ReimportStatus::Unresolved)
+                            || mapped_fields(&record.fields, &request.mapping).is_none_or(
+                                |(key, title, _)| {
+                                    key.is_empty()
+                                        || title.is_empty()
+                                        || key.len() > 1024
+                                        || job
+                                            .extraction
+                                            .records
+                                            .iter()
+                                            .filter(|other| {
+                                                mapped_fields(&other.fields, &request.mapping)
+                                                    .is_some_and(|(other_key, _, _)| {
+                                                        other_key == key
+                                                    })
+                                            })
+                                            .take(2)
+                                            .count()
+                                            > 1
+                                },
+                            );
+                        if !unresolved {
+                            return Err(invalid());
+                        }
+                    }
+                }
+                (
+                    None,
+                    Some(key),
+                    IngestionDisposition::RemovedRetained | IngestionDisposition::Pending,
+                ) => {
+                    if !preview.as_ref().is_some_and(|preview| {
+                        preview.items.iter().any(|item| {
+                            item.index.is_none()
+                                && item.key == key
+                                && item.status == ReimportStatus::Removed
+                        })
+                    }) {
+                        return Err(invalid());
+                    }
+                }
+                _ => return Err(invalid()),
+            }
+            job.decisions.retain(|existing| {
+                existing.index != decision.index || existing.key != decision.key
+            });
+            if decision.disposition != IngestionDisposition::Pending {
+                job.decisions.push(decision.clone());
+            }
+        }
+        job.decisions
+            .sort_by(|a, b| (a.index, &a.key).cmp(&(b.index, &b.key)));
+        job.previous_job_id = request.previous_job_id;
+        job.mapping = Some(request.mapping.clone());
+        job.revision = job.revision.checked_add(1).ok_or_else(invalid)?;
+        let data = serde_json::to_string(&job).map_err(|_| invalid())?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_no_applied_descendants(&tx, job.id)?;
+        if let Some(previous) = request.previous_job_id {
+            ensure_no_lineage_fork(&tx, job.id, previous)?;
+        }
+        tx.execute(
+            "UPDATE ingestion_jobs SET data=?1 WHERE id=?2",
+            params![data, job.id.to_string()],
+        )?;
+        let receipt = operations::applied(
+            request.operation_id.clone(),
+            OperationOutcome::IngestionJob(Box::new(job.clone())),
+        );
+        operations::insert_applied(&tx, &self.id, &receipt, &hash, "ingestion")?;
+        operations::durable_commit(tx)?;
+        Ok(job)
+    }
     fn ingestion_lineage(
         &self,
         context: RequestContext,
@@ -262,7 +451,7 @@ impl Database {
                 self.ingestion_lineage(context, previous, job.mapping.as_ref().ok_or_else(corrupt)?)
             })
             .transpose()?;
-        let descendant: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", [job.id.to_string()], |r| r.get(0))?;
+        let descendant: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND (json_extract(data,'$.status')<>'cancelled' OR json_array_length(json_extract(data,'$.outcomes'))>0) AND json_extract(data,'$.revision')>0)", [job.id.to_string()], |r| r.get(0))?;
         can_undo &= !descendant;
         let snapshot = self.library(context)?;
         for outcome in &job.outcomes {
@@ -470,7 +659,10 @@ impl Database {
         let mut seen = std::collections::HashSet::new();
         let mut pending = Vec::new();
         for &index in &request.selected {
-            if !seen.insert(index) || job.outcomes.iter().any(|x| x.index == index) {
+            if !seen.insert(index)
+                || job.outcomes.iter().any(|x| x.index == index)
+                || job.decisions.iter().any(|x| x.index == Some(index))
+            {
                 return Err(invalid());
             }
             let item = preview
@@ -521,10 +713,7 @@ impl Database {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_no_applied_descendants(&tx, job.id)?;
-        let fork: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE id<>?1 AND json_extract(data,'$.previousJobId')=?2 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", params![job.id.to_string(), previous.id.to_string()], |r| r.get(0))?;
-        if fork {
-            return Err(AppError::new(ErrorCode::RevisionConflict));
-        }
+        ensure_no_lineage_fork(&tx, job.id, previous.id)?;
         let mut revision = snapshot.revision;
         for (index, key, title, document, item) in pending {
             let (before_revision_id, before_title) = if matches!(
@@ -625,10 +814,10 @@ impl Database {
         self.verify_ingestion_job(&previous)?;
         if job.id == previous.id
             || previous.status == IngestionStatus::Undone
+            || (previous.status == IngestionStatus::Cancelled && previous.outcomes.is_empty())
             || job.source.resource_id != previous.source.resource_id
             || previous.mapping.as_ref() != Some(mapping)
             || job.extraction.status != ExtractionStatus::Complete
-            || previous.outcomes.is_empty()
         {
             return Err(invalid());
         }
@@ -641,6 +830,9 @@ impl Database {
         }
         let mut seen = std::collections::HashSet::new();
         let old_by_key = self.ingestion_lineage(context, &previous, mapping)?;
+        if old_by_key.is_empty() {
+            return Err(invalid());
+        }
         let mut items = Vec::new();
         for (index, record) in job.extraction.records.iter().enumerate() {
             let Some((key, title, body)) = mapped_fields(&record.fields, mapping) else {
@@ -778,6 +970,7 @@ impl Database {
             extraction,
             mapping: None,
             outcomes: Vec::new(),
+            decisions: Vec::new(),
         };
         let data = serde_json::to_string(&job).map_err(|_| invalid())?;
         let tx = self
@@ -848,6 +1041,7 @@ impl Database {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_no_applied_descendants(&tx, job.id)?;
         tx.execute(
             "UPDATE ingestion_jobs SET data=?1 WHERE id=?2",
             params![data, job.id.to_string()],
@@ -900,7 +1094,13 @@ impl Database {
             job.outcomes.iter().map(|x| x.key.clone()).collect();
         let mut pending = Vec::new();
         for &index in &request.selected {
-            if !indices.insert(index) || job.outcomes.iter().any(|outcome| outcome.index == index) {
+            if !indices.insert(index)
+                || job.outcomes.iter().any(|outcome| outcome.index == index)
+                || job
+                    .decisions
+                    .iter()
+                    .any(|decision| decision.index == Some(index))
+            {
                 return Err(invalid());
             }
             let fields = &job
@@ -1029,7 +1229,15 @@ fn mapped_fields<'a>(
 }
 
 fn ensure_no_applied_descendants(connection: &Connection, id: Uuid) -> Result<()> {
-    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", [id.to_string()], |r| r.get(0))?;
+    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND (json_extract(data,'$.status')<>'cancelled' OR json_array_length(json_extract(data,'$.outcomes'))>0) AND json_extract(data,'$.revision')>0)", [id.to_string()], |r| r.get(0))?;
+    if exists {
+        return Err(AppError::new(ErrorCode::RevisionConflict));
+    }
+    Ok(())
+}
+
+fn ensure_no_lineage_fork(connection: &Connection, job: Uuid, previous: Uuid) -> Result<()> {
+    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE id<>?1 AND json_extract(data,'$.previousJobId')=?2 AND json_extract(data,'$.status')<>'undone' AND (json_extract(data,'$.status')<>'cancelled' OR json_array_length(json_extract(data,'$.outcomes'))>0) AND json_extract(data,'$.revision')>0)", params![job.to_string(), previous.to_string()], |r| r.get(0))?;
     if exists {
         return Err(AppError::new(ErrorCode::RevisionConflict));
     }

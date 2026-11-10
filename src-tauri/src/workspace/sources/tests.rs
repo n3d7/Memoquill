@@ -3,6 +3,264 @@ use crate::organization::Command;
 use std::io::Cursor;
 
 #[test]
+fn reviewed_omissions_and_empty_records_survive_restart_and_require_explicit_reopening() {
+    let (temp, mut db, mut request) = fixture();
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(b"key,value\n,\n"),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    request.source.filename = "rows.csv".into();
+    request.source.digest = asset.digest;
+    let source = db
+        .save_source(RequestContext::local_ui(), &request)
+        .unwrap();
+    let job = db
+        .create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap();
+    let mapping = IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 1,
+    };
+    let review = ReviewIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: job.id,
+        expected_revision: 0,
+        previous_job_id: None,
+        expected_previous_revision: None,
+        mapping: mapping.clone(),
+        decisions: vec![
+            IngestionDecision {
+                index: Some(0),
+                key: None,
+                disposition: IngestionDisposition::Omitted,
+            },
+            IngestionDecision {
+                index: Some(1),
+                key: None,
+                disposition: IngestionDisposition::Empty,
+            },
+        ],
+    };
+    let reviewed = db
+        .review_ingestion_job(RequestContext::local_ui(), &review)
+        .unwrap();
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.review_ingestion_job(RequestContext::local_ui(), &review)
+            .unwrap(),
+        reviewed
+    );
+    assert_eq!(
+        db.ingestion_job(RequestContext::local_ui(), job.id)
+            .unwrap()
+            .decisions
+            .len(),
+        2
+    );
+    let apply = ApplyIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: job.id,
+        expected_revision: reviewed.revision,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping: mapping.clone(),
+        selected: vec![0],
+    };
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidRequest
+    );
+    let reopen = ReviewIngestionJob {
+        operation_id: OperationId::generate(),
+        expected_revision: reviewed.revision,
+        decisions: vec![IngestionDecision {
+            index: Some(0),
+            key: None,
+            disposition: IngestionDisposition::Pending,
+        }],
+        ..review
+    };
+    let reopened = db
+        .review_ingestion_job(RequestContext::local_ui(), &reopen)
+        .unwrap();
+    let apply = ApplyIngestionJob {
+        expected_revision: reopened.revision,
+        ..apply
+    };
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+            .unwrap()
+            .outcomes
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn reviewed_removed_key_remains_in_lineage_and_never_deletes_live_material() {
+    let (temp, mut db, mut source_request) = fixture();
+    let mapping = IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 1,
+    };
+    let mut make_job = |db: &mut Database, bytes: &[u8], revision: u64| {
+        let asset = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(bytes),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        source_request.source.id = Uuid::new_v4();
+        source_request.source.filename = "rows.csv".into();
+        source_request.source.digest = asset.digest;
+        source_request.operation_id = OperationId::generate();
+        source_request.expected_revision = revision;
+        let source = db
+            .save_source(RequestContext::local_ui(), &source_request)
+            .unwrap();
+        db.create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap()
+    };
+    let original = make_job(&mut db, b"a,one\nb,two\n", 0);
+    let original = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: original.id,
+                expected_revision: 0,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![0, 1],
+            },
+        )
+        .unwrap();
+    let second = make_job(&mut db, b"a,one\n", 1);
+    let preview = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), second.id, original.id, &mapping)
+        .unwrap();
+    assert!(
+        preview
+            .items
+            .iter()
+            .any(|item| item.key == "b" && item.status == ReimportStatus::Removed)
+    );
+    let review = ReviewIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: second.id,
+        expected_revision: 0,
+        previous_job_id: Some(original.id),
+        expected_previous_revision: Some(original.revision),
+        mapping: mapping.clone(),
+        decisions: vec![IngestionDecision {
+            index: None,
+            key: Some("b".into()),
+            disposition: IngestionDisposition::RemovedRetained,
+        }],
+    };
+    let reviewed = db
+        .review_ingestion_job(RequestContext::local_ui(), &review)
+        .unwrap();
+    let id = original.outcomes[1].resource_id;
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.review_ingestion_job(RequestContext::local_ui(), &review)
+            .unwrap(),
+        reviewed
+    );
+    assert!(!db.library(RequestContext::local_ui()).unwrap().resources[&id].archived);
+    let third = make_job(&mut db, b"a,one\nb,two\n", 2);
+    let comparison = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), third.id, reviewed.id, &mapping)
+        .unwrap();
+    let restored = comparison
+        .items
+        .iter()
+        .find(|item| item.key == "b")
+        .unwrap();
+    assert_eq!(
+        (restored.status, restored.resource_id),
+        (ReimportStatus::Unchanged, Some(id))
+    );
+    db.cancel_ingestion_job(
+        RequestContext::local_ui(),
+        &CancelIngestionJob {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            job_id: reviewed.id,
+            expected_revision: reviewed.revision,
+        },
+    )
+    .unwrap();
+    let other = make_job(&mut db, b"a,one\nb,two\n", 3);
+    let applied = db
+        .apply_ingestion_reimport(
+            RequestContext::local_ui(),
+            &ApplyReimportJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: other.id,
+                previous_job_id: original.id,
+                expected_revision: 0,
+                expected_previous_revision: original.revision,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping,
+                selected: vec![1],
+                resolutions: vec![],
+            },
+        )
+        .unwrap();
+    assert_eq!(applied.outcomes[0].resource_id, id);
+}
+
+#[test]
 fn partial_reimport_preserves_unselected_lineage_in_next_generation() {
     let (_temp, mut db, mut source_request) = fixture();
     let mapping = IngestionMapping {
@@ -121,6 +379,21 @@ fn partial_reimport_preserves_unselected_lineage_in_next_generation() {
         db.apply_ingestion_reimport(RequestContext::local_ui(), &late_parent)
             .unwrap_err()
             .code,
+        ErrorCode::RevisionConflict
+    );
+    assert_eq!(
+        db.cancel_ingestion_job(
+            RequestContext::local_ui(),
+            &CancelIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: second.id,
+                expected_revision: second.revision
+            }
+        )
+        .unwrap_err()
+        .code,
         ErrorCode::RevisionConflict
     );
     let resource_id = first.outcomes[1].resource_id;

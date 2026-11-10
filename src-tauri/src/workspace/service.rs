@@ -77,6 +77,7 @@ enum SourcesRequest {
     ),
     CancelIngestion(RequestContext, Box<CancelIngestionJob>, Reply<IngestionJob>),
     ApplyIngestion(RequestContext, Box<ApplyIngestionJob>, Reply<IngestionJob>),
+    ReviewIngestion(RequestContext, Box<ReviewIngestionJob>, Reply<IngestionJob>),
     ReimportPreview(
         RequestContext,
         uuid::Uuid,
@@ -477,6 +478,24 @@ impl ApplicationService {
         )
         .await
     }
+    pub async fn review_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: ReviewIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::ReviewIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
+        )
+        .await
+    }
 
     pub async fn preview_ingestion_reimport(
         &self,
@@ -851,6 +870,9 @@ impl Store {
             }
             SourcesRequest::ApplyIngestion(context, request, reply) => {
                 let _ = reply.send(self.access(|db| db.apply_ingestion_job(context, &request)));
+            }
+            SourcesRequest::ReviewIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.review_ingestion_job(context, &request)));
             }
             SourcesRequest::ReimportPreview(context, job, previous, mapping, reply) => {
                 let _ =

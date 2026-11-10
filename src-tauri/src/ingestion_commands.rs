@@ -59,6 +59,18 @@ pub async fn ingestion_apply(
         .apply_ingestion_job(RequestContext::local_ui(), request)
         .await
 }
+
+#[tauri::command]
+pub async fn ingestion_review(
+    manager: State<'_, CourseManager>,
+    course_id: Uuid,
+    request: ReviewIngestionJob,
+) -> Result<IngestionJob, AppError> {
+    manager
+        .service(course_id)?
+        .review_ingestion_job(RequestContext::local_ui(), request)
+        .await
+}
 #[tauri::command]
 pub async fn ingestion_reimport_preview(
     manager: State<'_, CourseManager>,
