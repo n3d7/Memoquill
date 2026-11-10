@@ -57,7 +57,7 @@ function SubjectPanel({ data, subjectId, collectionId, selectCollection, perform
   return <fieldset disabled={subject.archived}><legend>{subject.title}</legend><p>Current subject: {subject.title}{subject.archived ? ' (archived)' : ''}</p><GoalForm key={subjectId} subjectId={subjectId} perform={perform} /><ul>{Object.values(data.goals).filter(goal => goal.subjectId === subjectId && !goal.archived).map(goal => <li key={goal.id}>{goal.title}{goal.criteria && <p>{goal.criteria}</p>}</li>)}</ul><CollectionPanel data={data} subjectId={subjectId} selected={collectionId} select={selectCollection} perform={perform} openResource={openResource} /></fieldset>;
 }
 function useMaterialSearch(libraryRevision: number) {
-  const { searchResources } = useContentPort();
+  const { searchResources, rebuildSearchIndex } = useContentPort();
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchPage | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const request = useRef(0); const revision = useRef(libraryRevision); revision.current = libraryRevision;
@@ -75,7 +75,8 @@ function useMaterialSearch(libraryRevision: number) {
     finally { if (token === request.current) setBusy(false); }
   }
   function edit(value: string) { request.current += 1; setQuery(value); setResult(null); setBusy(false); setError(''); }
-  return { query, result, busy, error, search, edit };
+  async function rebuild() { if (!rebuildSearchIndex) return; const token = ++request.current; setBusy(true); setError(''); try { await rebuildSearchIndex(); if (token === request.current) setResult(null); } catch (reason) { if (token === request.current) setError(failureMessage(reason)); } finally { if (token === request.current) setBusy(false); } }
+  return { query, result, busy, error, search, edit, rebuild, canRebuild: !!rebuildSearchIndex };
 }
 type MaterialSearch = ReturnType<typeof useMaterialSearch>;
 function MaterialList({ data, selected, open }: { data: Library; selected: string; open: (id: string) => void }) {
@@ -88,9 +89,10 @@ function MaterialList({ data, selected, open }: { data: Library; selected: strin
   const visible = materialResults(result, resources, currentPage);
   return <section aria-label="Material browser">
     <SearchForm search={search} beforeSearch={() => { focus.current = true; }} />
+    {search.canRebuild && <button disabled={search.busy} onClick={() => void search.rebuild()}>Rebuild search index</button>}
     <h3 ref={heading} tabIndex={-1}>{result ? 'Search results' : 'Available materials'}</h3>
-    {result ? <SearchStatus result={result} /> : <MaterialCount count={resources.length} page={currentPage} />}
-    <ul>{visible.map(item => <li key={item.id}><button aria-current={selected === item.id ? 'page' : undefined} onClick={() => open(item.id)}>{item.title}</button>{item.snippet && <p>{item.snippet}</p>}{'references' in item && item.references?.map((ref, index) => <p key={`${ref.sourceId}-${index}`}>Original {ref.sourceId}, {ref.locator.kind} {ref.locator.value}</p>)}</li>)}</ul>
+    {result ? <><SearchStatus result={result} />{result.indexRebuilt && <p role="status">The search index was rebuilt from saved materials.</p>}</> : <MaterialCount count={resources.length} page={currentPage} />}
+    <ul>{visible.map(item => <li key={item.id}><button aria-current={selected === item.id ? 'page' : undefined} onClick={() => open(item.id)}>{item.title}</button>{item.snippet && <p>{item.snippet}</p>}{'references' in item && item.references?.map((ref, index) => <p key={`${ref.sourceId}-${index}`}>Original {ref.sourceId}, {ref.locator.kind} {ref.locator.value}{!ref.originalAvailable && ' — original unavailable or corrupt'}</p>)}</li>)}</ul>
     {result ? <ContinueSearch search={search} beforeSearch={() => { focus.current = true; }} /> : <div className="actions"><button disabled={!currentPage} onClick={() => { focus.current = true; setPage(currentPage - 1); }}>Previous materials</button><button disabled={currentPage >= lastPage} onClick={() => { focus.current = true; setPage(currentPage + 1); }}>Next materials</button></div>}
   </section>;
 }

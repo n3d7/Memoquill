@@ -11,6 +11,7 @@ const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
     Search(RequestContext, String, u64, Reply<SearchPage>),
+    RebuildSearch(RequestContext, Reply<()>),
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
@@ -338,6 +339,14 @@ impl ApplicationService {
             context,
             |reply| Request::Search(context, query, offset, reply),
             false,
+        )
+        .await
+    }
+    pub async fn rebuild_search_index(&self, context: RequestContext) -> Result<()> {
+        self.request(
+            context,
+            |reply| Request::RebuildSearch(context, reply),
+            true,
         )
         .await
     }
@@ -746,6 +755,9 @@ impl Store {
         match request {
             Request::Search(context, query, offset, reply) => {
                 let _ = reply.send(self.access(|db| db.search_resources(context, &query, offset)));
+            }
+            Request::RebuildSearch(context, reply) => {
+                let _ = reply.send(self.access(|db| db.reset_search_index(context)));
             }
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),

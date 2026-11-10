@@ -21,6 +21,7 @@ pub struct SearchHit {
 pub struct SearchReference {
     pub source_id: uuid::Uuid,
     pub locator: ExtractionLocator,
+    pub original_available: bool,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -28,13 +29,22 @@ pub struct SearchPage {
     pub revision: u64,
     pub items: Vec<SearchHit>,
     pub next_offset: Option<u64>,
+    pub index_rebuilt: bool,
 }
 
 impl Database {
+    pub(super) fn reset_search_index(&self, context: RequestContext) -> Result<()> {
+        context.authorize()?;
+        let tx = self.connection.unchecked_transaction()?;
+        tx.execute_batch("DROP TABLE IF EXISTS search_fts; CREATE VIRTUAL TABLE search_fts USING fts5(resource_id UNINDEXED, title, body, tags, tokenize='trigram'); UPDATE search_index_state SET dirty=1 WHERE id=1;")?;
+        tx.commit()?;
+        self.rebuild_search_index(context)
+    }
     pub(super) fn rebuild_search_index(&self, context: RequestContext) -> Result<()> {
         context.authorize()?;
         let tx = self.connection.unchecked_transaction()?;
         tx.execute("DELETE FROM search_fts", [])?;
+        tx.execute("DELETE FROM search_projection", [])?;
         {
             let mut resources =
                 tx.prepare("SELECT id,title FROM resources WHERE archived=0 ORDER BY id")?;
@@ -67,6 +77,7 @@ impl Database {
                         tags.to_lowercase()
                     ],
                 )?;
+                tx.execute("INSERT INTO search_projection(resource_id,title,body,tags) SELECT resource_id,title,body,tags FROM search_fts WHERE rowid=last_insert_rowid()", [])?;
             }
         }
         tx.execute("UPDATE search_index_state SET dirty=0 WHERE id=1", [])?;
@@ -81,21 +92,35 @@ impl Database {
     ) -> Result<SearchPage> {
         context.authorize()?;
         validate_query(query, offset)?;
-        let (dirty, indexed, resources): (bool, i64, i64) = self.connection.query_row("SELECT dirty,(SELECT count(*) FROM search_fts),(SELECT count(*) FROM resources WHERE archived=0) FROM search_index_state WHERE id=1", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
-        if dirty || indexed != resources {
+        let (dirty, indexed, resources): (bool, i64, i64) = self.connection.query_row("SELECT dirty,(SELECT count(*) FROM search_projection),(SELECT count(*) FROM resources WHERE archived=0) FROM search_index_state WHERE id=1", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
+        let integrity = self.connection.execute(
+            "INSERT INTO search_fts(search_fts) VALUES('integrity-check')",
+            [],
+        );
+        let mut reconstructed = false;
+        if integrity.is_err() {
+            self.reset_search_index(context)?;
+            reconstructed = true;
+        }
+        let mismatch: bool = self.connection.query_row("SELECT (SELECT count(*) FROM search_fts)<>(SELECT count(*) FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_fts EXCEPT SELECT resource_id,title,body,tags FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_projection EXCEPT SELECT resource_id,title,body,tags FROM search_fts)", [], |r| r.get(0))?;
+        let index_rebuilt = dirty || indexed != resources || reconstructed || mismatch;
+        if index_rebuilt && !reconstructed {
             self.rebuild_search_index(context)?;
         }
         let revision = self.search_revision()?;
         let needle = query.to_lowercase();
         let rows = self.search_rows(offset, &needle)?;
         let mut items = Vec::new();
+        let mut availability = std::collections::HashMap::new();
         let mut consumed = 0;
         for (id, title, candidate) in rows.iter().take(SCAN_SIZE) {
             consumed += 1;
             if !candidate {
                 continue;
             }
-            if let Some(hit) = self.match_resource(context, id, title, &needle)? {
+            if let Some(hit) =
+                self.match_resource(context, id, title, &needle, &mut availability)?
+            {
                 items.push(hit);
                 if items.len() == PAGE_SIZE {
                     break;
@@ -106,6 +131,7 @@ impl Database {
             revision,
             items,
             next_offset: continuation(offset, consumed, rows.len()),
+            index_rebuilt,
         })
     }
 
@@ -149,6 +175,7 @@ impl Database {
         raw_id: &str,
         title: &str,
         needle: &str,
+        availability: &mut std::collections::HashMap<String, bool>,
     ) -> Result<Option<SearchHit>> {
         stored_title(title)?;
         let resource_id: ResourceId =
@@ -166,7 +193,8 @@ impl Database {
         {
             return Ok(None);
         }
-        let (references, references_truncated) = self.search_references(context, resource_id)?;
+        let (references, references_truncated) =
+            self.search_references(context, resource_id, availability)?;
         Ok(Some(SearchHit {
             resource_id,
             title: title.into(),
@@ -180,6 +208,7 @@ impl Database {
         &self,
         context: RequestContext,
         resource_id: ResourceId,
+        availability: &mut std::collections::HashMap<String, bool>,
     ) -> Result<(Vec<SearchReference>, bool)> {
         let mut query = self.connection.prepare("SELECT j.id,CAST(json_extract(o.value,'$.index') AS INTEGER) FROM ingestion_jobs j,json_each(j.data,'$.outcomes') o JOIN resource_heads h ON h.resource_id=json_extract(o.value,'$.resourceId') AND h.revision_id=json_extract(o.value,'$.documentRevisionId') WHERE h.resource_id=?1 AND json_extract(j.data,'$.status')<>'undone' ORDER BY j.rowid LIMIT 21")?;
         let rows = query
@@ -192,7 +221,27 @@ impl Database {
             let id = uuid::Uuid::parse_str(id).map_err(|_| corrupt())?;
             let index = usize::try_from(*index).map_err(|_| corrupt())?;
             let job = self.ingestion_job(context, id)?;
-            self.verify_ingestion_job(&job)?;
+            let source = self
+                .sources(context, job.source.resource_id)?
+                .sources
+                .into_iter()
+                .find(|source| source.id == job.source.id)
+                .ok_or_else(corrupt)?;
+            if source != job.source {
+                return Err(corrupt());
+            }
+            let available = *availability
+                .entry(source.digest.as_str().to_owned())
+                .or_insert_with(|| {
+                    assets::verify(
+                        self.owner.root(),
+                        &AssetInfo {
+                            digest: source.digest.clone(),
+                            byte_length: source.byte_length,
+                        },
+                    )
+                    .is_ok()
+                });
             let locator = job
                 .extraction
                 .records
@@ -203,6 +252,7 @@ impl Database {
             result.push(SearchReference {
                 source_id: job.source.id,
                 locator,
+                original_available: available,
             });
         }
         Ok((result, rows.len() > 20))

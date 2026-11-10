@@ -106,7 +106,8 @@ pub fn run() {
             ingestion_commands::ingestion_reimport_apply,
             ingestion_commands::ingestion_undo_preview,
             ingestion_commands::ingestion_undo,
-            authoring::search_resources
+            authoring::search_resources,
+            authoring::rebuild_search_index
         ])
         .build(tauri::generate_context!())
         .expect("Memoquill could not start")

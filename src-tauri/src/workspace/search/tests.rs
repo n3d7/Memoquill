@@ -3,6 +3,92 @@ use crate::document::Document;
 use uuid::Uuid;
 
 #[test]
+fn same_count_stale_index_never_hides_canonical_results() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    let id = resource(&db, "notes");
+    document(&db, id, 1, "canonical rare phrase");
+    db.rebuild_search_index(RequestContext::local_ui()).unwrap();
+    db.connection
+        .execute(
+            "UPDATE search_fts SET body='stale content' WHERE resource_id=?1",
+            [id.to_string()],
+        )
+        .unwrap();
+    let result = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert_eq!(result.items[0].resource_id, id);
+    assert!(result.index_rebuilt);
+    db.connection
+        .execute(
+            "UPDATE search_fts SET resource_id=?1 WHERE resource_id=?2",
+            [Uuid::new_v4().to_string(), id.to_string()],
+        )
+        .unwrap();
+    let result = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert_eq!(result.items[0].resource_id, id);
+    assert!(result.index_rebuilt);
+    let other = resource(&db, "second");
+    document(&db, other, 1, "second unique phrase");
+    db.rebuild_search_index(RequestContext::local_ui()).unwrap();
+    let external =
+        rusqlite::Connection::open(temp.path().join("workspace/memoquill.sqlite3")).unwrap();
+    assert!(
+        external
+            .execute("DELETE FROM search_fts_data WHERE id>10", [])
+            .unwrap()
+            > 0
+    );
+    drop(external);
+    let result = db
+        .search_resources(RequestContext::local_ui(), "second unique", 0)
+        .unwrap();
+    assert_eq!(result.items[0].resource_id, other);
+    assert!(result.index_rebuilt);
+}
+
+#[test]
+fn index_refreshes_after_committed_title_change_in_a_larger_collection() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    let mut ids = (0..1000)
+        .map(|_| resource(&db, "ordinary"))
+        .collect::<Vec<_>>();
+    ids.sort_by_key(|id| id.as_uuid().to_string());
+    db.connection
+        .execute(
+            "UPDATE resources SET title='rare λneedle' WHERE id=?1",
+            [ids[999].to_string()],
+        )
+        .unwrap();
+    let mut cursor = Some(0);
+    let mut hits = Vec::new();
+    while let Some(offset) = cursor {
+        let page = db
+            .search_resources(RequestContext::local_ui(), "λneedle", offset)
+            .unwrap();
+        hits.extend(page.items.into_iter().map(|item| item.resource_id));
+        cursor = page.next_offset;
+    }
+    assert_eq!(hits, vec![ids[999]]);
+    db.connection
+        .execute(
+            "UPDATE resources SET title='changed' WHERE id=?1",
+            [ids[999].to_string()],
+        )
+        .unwrap();
+    assert!(
+        db.search_resources(RequestContext::local_ui(), "λneedle", 800)
+            .unwrap()
+            .items
+            .is_empty()
+    );
+}
+
+#[test]
 fn rebuilding_search_restores_derived_unicode_and_code_index() {
     let temp = tempfile::tempdir().unwrap();
     let db = Database::open(&temp.path().join("workspace")).unwrap();

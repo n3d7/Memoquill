@@ -6,6 +6,7 @@ import type { PreferencesSnapshot, SavePreferences, WorkspaceStatus } from './wo
 export interface ContentPort {
   library(): Promise<Library>;
   searchResources(query: string, offset?: number): Promise<SearchPage>;
+  rebuildSearchIndex?(): Promise<void>;
   applyContent(request: ApplyContent): Promise<Library>;
   readDocument(resourceId: string, revisionId?: string): Promise<SavedDocument | null>;
   saveDocument(request: SaveDocument): Promise<SavedDocument>;

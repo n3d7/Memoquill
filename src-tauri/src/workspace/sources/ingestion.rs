@@ -160,7 +160,72 @@ pub struct IngestionJobSummary {
     pub applied_count: u64,
 }
 
+struct LineageItem {
+    outcome: IngestionOutcome,
+    title: String,
+    body: String,
+}
+
 impl Database {
+    fn ingestion_lineage(
+        &self,
+        context: RequestContext,
+        previous: &IngestionJob,
+        mapping: &IngestionMapping,
+    ) -> Result<std::collections::BTreeMap<String, LineageItem>> {
+        let mut current = previous.clone();
+        let mut visited = std::collections::HashSet::new();
+        let mut lineage = std::collections::BTreeMap::new();
+        let mut retained_bytes = 0usize;
+        loop {
+            if !visited.insert(current.id)
+                || visited.len() > 256
+                || current.status == IngestionStatus::Undone
+                || current.source.resource_id != previous.source.resource_id
+                || current.mapping.as_ref() != Some(mapping)
+            {
+                return Err(corrupt());
+            }
+            self.verify_ingestion_job(&current)?;
+            let mut own_keys = std::collections::HashSet::new();
+            for outcome in &current.outcomes {
+                if !own_keys.insert(&outcome.key) {
+                    return Err(corrupt());
+                }
+                let record = current
+                    .extraction
+                    .records
+                    .get(outcome.index)
+                    .ok_or_else(corrupt)?;
+                let (key, title, body) =
+                    mapped_fields(&record.fields, mapping).ok_or_else(corrupt)?;
+                if key != outcome.key || key.is_empty() {
+                    return Err(corrupt());
+                }
+                if !lineage.contains_key(key) {
+                    retained_bytes = retained_bytes
+                        .checked_add(key.len() + title.len() + body.len())
+                        .ok_or_else(invalid)?;
+                    if retained_bytes > 16 * 1024 * 1024 || lineage.len() >= 10_000 {
+                        return Err(AppError::new(ErrorCode::BudgetExceeded));
+                    }
+                    lineage.insert(
+                        key.to_owned(),
+                        LineageItem {
+                            outcome: outcome.clone(),
+                            title: title.to_owned(),
+                            body: body.to_owned(),
+                        },
+                    );
+                }
+            }
+            match current.previous_job_id {
+                Some(id) => current = self.ingestion_job(context, id)?,
+                None => break,
+            }
+        }
+        Ok(lineage)
+    }
     pub(in crate::workspace) fn list_ingestion_jobs(
         &self,
         context: RequestContext,
@@ -191,16 +256,20 @@ impl Database {
             .previous_job_id
             .map(|id| self.ingestion_job(context, id))
             .transpose()?;
-        if let Some(previous) = &previous {
-            self.verify_ingestion_job(previous)?;
-        }
+        let lineage = previous
+            .as_ref()
+            .map(|previous| {
+                self.ingestion_lineage(context, previous, job.mapping.as_ref().ok_or_else(corrupt)?)
+            })
+            .transpose()?;
         let descendant: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", [job.id.to_string()], |r| r.get(0))?;
         can_undo &= !descendant;
         let snapshot = self.library(context)?;
         for outcome in &job.outcomes {
-            let old = previous
+            let old = lineage
                 .as_ref()
-                .and_then(|p| p.outcomes.iter().find(|x| x.key == outcome.key));
+                .and_then(|items| items.get(&outcome.key))
+                .map(|item| &item.outcome);
             if old.is_some_and(|x| x.resource_id != outcome.resource_id) {
                 return Err(corrupt());
             }
@@ -271,14 +340,21 @@ impl Database {
             .previous_job_id
             .map(|id| self.ingestion_job(context, id))
             .transpose()?;
+        let lineage = previous
+            .as_ref()
+            .map(|previous| {
+                self.ingestion_lineage(context, previous, job.mapping.as_ref().ok_or_else(corrupt)?)
+            })
+            .transpose()?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let mut revision = request.expected_library_revision;
         for outcome in &job.outcomes {
-            let old = previous
+            let old = lineage
                 .as_ref()
-                .and_then(|p| p.outcomes.iter().find(|x| x.key == outcome.key));
+                .and_then(|items| items.get(&outcome.key))
+                .map(|item| &item.outcome);
             if old.is_some() && outcome.before_revision_id.is_none() {
                 continue;
             }
@@ -383,6 +459,7 @@ impl Database {
         }
         let preview =
             self.preview_ingestion_reimport(context, job.id, previous.id, &request.mapping)?;
+        let lineage = self.ingestion_lineage(context, &previous, &request.mapping)?;
         let resolutions: std::collections::HashMap<_, _> =
             request.resolutions.iter().map(|x| (x.index, x)).collect();
         if resolutions.len() != request.resolutions.len()
@@ -443,6 +520,7 @@ impl Database {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_no_applied_descendants(&tx, job.id)?;
         let fork: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE id<>?1 AND json_extract(data,'$.previousJobId')=?2 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", params![job.id.to_string(), previous.id.to_string()], |r| r.get(0))?;
         if fork {
             return Err(AppError::new(ErrorCode::RevisionConflict));
@@ -462,11 +540,7 @@ impl Database {
                 (None, None)
             };
             let (resource_id, document_revision_id) = if item.status == ReimportStatus::Unchanged {
-                let old = previous
-                    .outcomes
-                    .iter()
-                    .find(|x| x.key == key)
-                    .ok_or_else(corrupt)?;
+                let old = &lineage.get(&key).ok_or_else(corrupt)?.outcome;
                 (old.resource_id, old.document_revision_id)
             } else {
                 let resource_id = item.resource_id.unwrap_or_else(ResourceId::generate);
@@ -550,6 +624,7 @@ impl Database {
         self.verify_ingestion_job(&job)?;
         self.verify_ingestion_job(&previous)?;
         if job.id == previous.id
+            || previous.status == IngestionStatus::Undone
             || job.source.resource_id != previous.source.resource_id
             || previous.mapping.as_ref() != Some(mapping)
             || job.extraction.status != ExtractionStatus::Complete
@@ -565,14 +640,7 @@ impl Database {
             }
         }
         let mut seen = std::collections::HashSet::new();
-        let old_by_key: std::collections::HashMap<_, _> = previous
-            .outcomes
-            .iter()
-            .map(|outcome| (outcome.key.as_str(), outcome))
-            .collect();
-        if old_by_key.len() != previous.outcomes.len() {
-            return Err(corrupt());
-        }
+        let old_by_key = self.ingestion_lineage(context, &previous, mapping)?;
         let mut items = Vec::new();
         for (index, record) in job.extraction.records.iter().enumerate() {
             let Some((key, title, body)) = mapped_fields(&record.fields, mapping) else {
@@ -603,35 +671,31 @@ impl Database {
             seen.insert(key.to_string());
             let mut current_revision_id = None;
             let mut current_title = None;
-            let old = old_by_key.get(key).copied();
+            let old = old_by_key.get(key);
             let (resource_id, status) = if let Some(old) = old {
-                let fields = &previous
-                    .extraction
-                    .records
-                    .get(old.index)
-                    .ok_or_else(corrupt)?
-                    .fields;
-                let (_, old_title, old_body) =
-                    mapped_fields(fields, mapping).ok_or_else(corrupt)?;
-                if title == old_title && body == old_body {
-                    (Some(old.resource_id), ReimportStatus::Unchanged)
+                let old_title = old.title.as_str();
+                let old_body = old.body.as_str();
+                let resource = snapshot
+                    .resources
+                    .get(&old.outcome.resource_id)
+                    .ok_or_else(corrupt)?;
+                if resource.archived {
+                    (Some(old.outcome.resource_id), ReimportStatus::Unresolved)
+                } else if title == old_title && body == old_body {
+                    (Some(old.outcome.resource_id), ReimportStatus::Unchanged)
                 } else {
-                    let resource = snapshot
-                        .resources
-                        .get(&old.resource_id)
-                        .ok_or_else(corrupt)?;
                     let head = self
-                        .read_document(context, old.resource_id, None)?
+                        .read_document(context, old.outcome.resource_id, None)?
                         .ok_or_else(corrupt)?;
                     let edited = resource.archived
                         || resource.title != old_title
-                        || head.id != old.document_revision_id;
+                        || head.id != old.outcome.document_revision_id;
                     if edited {
                         current_revision_id = Some(head.id);
                         current_title = Some(resource.title.clone());
                     }
                     (
-                        Some(old.resource_id),
+                        Some(old.outcome.resource_id),
                         if edited {
                             ReimportStatus::Conflict
                         } else {
@@ -651,12 +715,12 @@ impl Database {
                 current_title,
             });
         }
-        for old in &previous.outcomes {
-            if !seen.contains(&old.key) {
+        for (key, old) in old_by_key {
+            if !seen.contains(&key) {
                 items.push(ReimportItem {
                     index: None,
-                    key: old.key.clone(),
-                    resource_id: Some(old.resource_id),
+                    key,
+                    resource_id: Some(old.outcome.resource_id),
                     status: ReimportStatus::Removed,
                     current_revision_id: None,
                     current_title: None,
@@ -872,8 +936,9 @@ impl Database {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_no_applied_descendants(&tx, job.id)?;
         let duplicate: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM ingestion_jobs j JOIN original_sources s ON s.id=j.source_id WHERE j.id<>?1 AND s.resource_id=?2 AND json_array_length(json_extract(j.data,'$.outcomes'))>0)",
+            "SELECT EXISTS(SELECT 1 FROM ingestion_jobs j JOIN original_sources s ON s.id=j.source_id WHERE j.id<>?1 AND s.resource_id=?2 AND json_extract(j.data,'$.status')<>'undone' AND json_array_length(json_extract(j.data,'$.outcomes'))>0)",
             params![job.id.to_string(), source.resource_id.to_string()],
             |r| r.get(0),
         )?;
@@ -961,4 +1026,12 @@ fn mapped_fields<'a>(
         fields.get(mapping.title_column)?.trim(),
         fields.get(mapping.body_column)?,
     ))
+}
+
+fn ensure_no_applied_descendants(connection: &Connection, id: Uuid) -> Result<()> {
+    let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND json_array_length(json_extract(data,'$.outcomes'))>0)", [id.to_string()], |r| r.get(0))?;
+    if exists {
+        return Err(AppError::new(ErrorCode::RevisionConflict));
+    }
+    Ok(())
 }

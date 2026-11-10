@@ -18,7 +18,7 @@ it('binds every data-bearing operation to one immutable course, including raw le
   expect(vi.mocked(invoke).mock.calls).toEqual([['library', { courseId: 'course-a' }], ['library', { courseId: 'course-b' }]]);
   vi.mocked(invoke).mockClear();
   const request = { contractVersion: 1 as const, workspaceId: 'w', operationId: 'o', expectedRevision: 0 };
-  await a.content.searchResources('needle', 3); await a.content.applyContent({ ...request, command: { type: 'createResource', id: 'r', title: 'R' } });
+  await a.content.searchResources('needle', 3); await a.content.rebuildSearchIndex!(); await a.content.applyContent({ ...request, command: { type: 'createResource', id: 'r', title: 'R' } });
   await a.content.readDocument('r'); await a.content.saveDocument({ ...request, resourceId: 'r', document: { schemaVersion: 1, blocks: [] } });
   await a.content.readingPosition('r'); await a.content.annotations('r');
   await a.content.saveReadingPosition({ ...request, position: { resourceId: 'r', revisionId: 'v', blockId: 'block', offsetUtf16: 0, revision: 0 } });
@@ -36,7 +36,7 @@ it('binds every data-bearing operation to one immutable course, including raw le
   await a.lessons!.validateDraft(scope); await a.lessons!.previewDraft(scope);
   await a.lessons!.applyDraft({ ...scope, operationId: 'o', expectedHeadRevision: null, previewHash: 'h' });
   await a.lessons!.discardDraft({ ...scope, operationId: 'o' });
-  expect(vi.mocked(invoke).mock.calls).toHaveLength(29);
+  expect(vi.mocked(invoke).mock.calls).toHaveLength(30);
   for (const [, body] of vi.mocked(invoke).mock.calls) {
     const envelope = ArrayBuffer.isView(body) ? JSON.parse(new TextDecoder().decode(body)) : body;
     expect(envelope).toHaveProperty('courseId', 'course-a');

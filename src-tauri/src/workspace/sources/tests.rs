@@ -2,6 +2,425 @@ use super::*;
 use crate::organization::Command;
 use std::io::Cursor;
 
+#[test]
+fn partial_reimport_preserves_unselected_lineage_in_next_generation() {
+    let (_temp, mut db, mut source_request) = fixture();
+    let mapping = IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 1,
+    };
+    let mut make_job = |db: &mut Database, bytes: &[u8], source_revision: u64| {
+        let asset = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(bytes),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        source_request.source.id = Uuid::new_v4();
+        source_request.source.filename = "rows.csv".into();
+        source_request.source.digest = asset.digest;
+        source_request.operation_id = OperationId::generate();
+        source_request.expected_revision = source_revision;
+        let source = db
+            .save_source(RequestContext::local_ui(), &source_request)
+            .unwrap();
+        db.create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap()
+    };
+    let first = make_job(&mut db, b"a,one\nb,two\n", 0);
+    let first = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: first.id,
+                expected_revision: 0,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![0, 1],
+            },
+        )
+        .unwrap();
+    let second = make_job(&mut db, b"a,one\nb,two\n", 1);
+    let second = db
+        .apply_ingestion_reimport(
+            RequestContext::local_ui(),
+            &ApplyReimportJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: second.id,
+                previous_job_id: first.id,
+                expected_revision: 0,
+                expected_previous_revision: first.revision,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![0],
+                resolutions: vec![],
+            },
+        )
+        .unwrap();
+    let third = make_job(&mut db, b"a,one\nb,two\n", 2);
+    let preview = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), third.id, second.id, &mapping)
+        .unwrap();
+    let b = preview.items.iter().find(|item| item.key == "b").unwrap();
+    assert_eq!(b.status, ReimportStatus::Unchanged);
+    assert_eq!(b.resource_id, Some(first.outcomes[1].resource_id));
+    let third = db
+        .apply_ingestion_reimport(
+            RequestContext::local_ui(),
+            &ApplyReimportJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: third.id,
+                previous_job_id: second.id,
+                expected_revision: 0,
+                expected_previous_revision: second.revision,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![1],
+                resolutions: vec![],
+            },
+        )
+        .unwrap();
+    assert_eq!(third.outcomes[0].resource_id, first.outcomes[1].resource_id);
+    let late_parent = ApplyReimportJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: second.id,
+        previous_job_id: first.id,
+        expected_revision: second.revision,
+        expected_previous_revision: first.revision,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping: mapping.clone(),
+        selected: vec![1],
+        resolutions: vec![],
+    };
+    assert_eq!(
+        db.apply_ingestion_reimport(RequestContext::local_ui(), &late_parent)
+            .unwrap_err()
+            .code,
+        ErrorCode::RevisionConflict
+    );
+    let resource_id = first.outcomes[1].resource_id;
+    let saved = db
+        .read_document(RequestContext::local_ui(), resource_id, None)
+        .unwrap()
+        .unwrap();
+    let doc = crate::document::Document::parse(serde_json::to_string(&serde_json::json!({"schemaVersion":1,"blocks":[{"id":Uuid::new_v4(),"content":{"type":"paragraph","inlines":[{"text":"human","marks":[]}]}}]})).unwrap().as_bytes()).unwrap();
+    db.save_document(
+        RequestContext::local_ui(),
+        &SaveDocument {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            resource_id,
+            expected_revision: saved.revision,
+            document: doc,
+        },
+    )
+    .unwrap();
+    let fourth = make_job(&mut db, b"a,one\nb,changed\n", 3);
+    let comparison = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), fourth.id, third.id, &mapping)
+        .unwrap();
+    assert_eq!(
+        comparison
+            .items
+            .iter()
+            .find(|item| item.key == "b")
+            .unwrap()
+            .status,
+        ReimportStatus::Conflict
+    );
+    db.undo_ingestion_job(
+        RequestContext::local_ui(),
+        &UndoIngestionJob {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            job_id: third.id,
+            expected_revision: third.revision,
+            expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        db.read_document(RequestContext::local_ui(), resource_id, None)
+            .unwrap()
+            .unwrap()
+            .document
+            .text(),
+        "human"
+    );
+    assert!(!db.library(RequestContext::local_ui()).unwrap().resources[&resource_id].archived);
+}
+
+#[test]
+fn undone_import_cannot_be_a_baseline_but_allows_a_new_visible_import() {
+    let (_temp, mut db, mut source_request) = fixture();
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(b"a,one\n"),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    source_request.source.filename = "rows.csv".into();
+    source_request.source.digest = asset.digest;
+    let source = db
+        .save_source(RequestContext::local_ui(), &source_request)
+        .unwrap();
+    let create = |db: &mut Database| {
+        db.create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap()
+    };
+    let first = create(&mut db);
+    let mapping = IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 1,
+    };
+    let first = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: first.id,
+                expected_revision: 0,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![0],
+            },
+        )
+        .unwrap();
+    let first = db
+        .undo_ingestion_job(
+            RequestContext::local_ui(),
+            &UndoIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: first.id,
+                expected_revision: first.revision,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+            },
+        )
+        .unwrap();
+    let next = create(&mut db);
+    assert_eq!(
+        db.preview_ingestion_reimport(RequestContext::local_ui(), next.id, first.id, &mapping)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidRequest
+    );
+    let imported = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: next.id,
+                expected_revision: 0,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping,
+                selected: vec![0],
+            },
+        )
+        .unwrap();
+    let library = db.library(RequestContext::local_ui()).unwrap();
+    assert!(!library.resources[&imported.outcomes[0].resource_id].archived);
+    assert_ne!(
+        first.outcomes[0].resource_id,
+        imported.outcomes[0].resource_id
+    );
+}
+
+#[test]
+fn independently_archived_material_is_not_reported_as_an_unchanged_success() {
+    let (_temp, mut db, mut request) = fixture();
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(b"key,value\n"),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    request.source.filename = "rows.csv".into();
+    request.source.digest = asset.digest;
+    let source = db
+        .save_source(RequestContext::local_ui(), &request)
+        .unwrap();
+    let create = |db: &mut Database| {
+        db.create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap()
+    };
+    let job = create(&mut db);
+    let mapping = IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 1,
+    };
+    let job = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: job.id,
+                expected_revision: 0,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: mapping.clone(),
+                selected: vec![0],
+            },
+        )
+        .unwrap();
+    db.apply_content(
+        RequestContext::local_ui(),
+        &ApplyContent {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+            command: Command::Archive {
+                target: crate::organization::ArchiveTarget::Resource(job.outcomes[0].resource_id),
+                archived: true,
+            },
+        },
+    )
+    .unwrap();
+    let next = create(&mut db);
+    let preview = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), next.id, job.id, &mapping)
+        .unwrap();
+    assert_eq!(preview.items[0].status, ReimportStatus::Unresolved);
+}
+
+#[test]
+fn canonical_search_survives_missing_or_corrupt_originals_after_restart() {
+    for damage in ["missing", "corrupt"] {
+        let (temp, mut db, mut request) = fixture();
+        let asset = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(b"unique-key,canonical needle\n"),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        request.source.filename = "rows.csv".into();
+        request.source.digest = asset.digest.clone();
+        let source = db
+            .save_source(RequestContext::local_ui(), &request)
+            .unwrap();
+        let job = db
+            .create_ingestion_job(
+                RequestContext::local_ui(),
+                &CreateIngestionJob {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                    source_id: source.id,
+                    source_revision: source.revision,
+                },
+            )
+            .unwrap();
+        let applied = db
+            .apply_ingestion_job(
+                RequestContext::local_ui(),
+                &ApplyIngestionJob {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                    job_id: job.id,
+                    expected_revision: 0,
+                    expected_library_revision: db
+                        .library(RequestContext::local_ui())
+                        .unwrap()
+                        .revision,
+                    mapping: IngestionMapping {
+                        key_column: 0,
+                        title_column: 0,
+                        body_column: 1,
+                    },
+                    selected: vec![0],
+                },
+            )
+            .unwrap();
+        let path = assets::asset_path(db.owner.root(), &asset.digest);
+        drop(db);
+        if damage == "missing" {
+            std::fs::remove_file(&path).unwrap();
+        } else {
+            std::fs::write(&path, b"corrupted original").unwrap();
+        }
+        let db = Database::open(&temp.path().join("workspace")).unwrap();
+        let page = db
+            .search_resources(RequestContext::local_ui(), "canonical needle", 0)
+            .unwrap();
+        assert_eq!(page.items[0].resource_id, applied.outcomes[0].resource_id);
+        assert!(!page.items[0].references[0].original_available);
+        assert!(db.recovery_report().missing_assets + db.recovery_report().corrupt_assets > 0);
+    }
+}
+
 fn fixture() -> (tempfile::TempDir, Database, SaveSource) {
     let temp = tempfile::tempdir().unwrap();
     let mut db = Database::open(&temp.path().join("workspace")).unwrap();

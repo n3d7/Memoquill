@@ -23,6 +23,17 @@ pub async fn search_resources(
 }
 
 #[tauri::command]
+pub async fn rebuild_search_index(
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
+) -> Result<(), AppError> {
+    manager
+        .service(course_id)?
+        .rebuild_search_index(RequestContext::local_ui())
+        .await
+}
+
+#[tauri::command]
 pub async fn library(
     manager: State<'_, CourseManager>,
     course_id: uuid::Uuid,
