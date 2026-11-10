@@ -11,7 +11,8 @@ and consistent backup; native adapters own selected files and staged new-course 
 ## Global Constraints
 
 Linux/X11 only. Preserve all existing data/IDs/history and unrelated working-tree
-changes. No GUI/screenshots, remote content upload, implicit fetch, active input,
+changes. The user subsequently authorized isolated X11 GUI checks and temporarily
+screenshots of synthetic test content. No private remote upload, implicit fetch, active input,
 M4/M6 runtime or non-X11 work. User authorizes local commits, push dev and dev→main
 PR only; no merge, history rewrite or force push. Keep artifacts English.
 Reconcile every import/backup item; prefixes/subsets never claim whole-source/full recovery.
