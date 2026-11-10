@@ -30,7 +30,7 @@ it('requires explicit approval before sending an overwrite of human edits', asyn
   const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.csv', mediaType: 'text/csv', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 8 };
   const job: IngestionJob = { id: 'j', handlerVersion: 1, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 1, format: 'csv', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'csvRecord', value: '1' }, fields: ['one'] }] } };
   const apply = vi.fn().mockResolvedValue({ ...job, revision: 1 });
-  const port = { list: vi.fn().mockResolvedValue([{ id: 'old', sourceId: 's', revision: 2, status: 'staged', recordCount: 1, appliedCount: 1 }]), create: vi.fn().mockResolvedValue(job), read: vi.fn().mockResolvedValue({ ...job, id: 'old', revision: 2 }), reimportPreview: vi.fn().mockResolvedValue({ jobId: 'j', previousJobId: 'old', items: [{ index: 0, key: 'one', resourceId: 'x', status: 'conflict', currentRevisionId: 'human-rev', currentTitle: 'Human title' }] }), reimportApply: apply } as unknown as IngestionPort;
+  const port = { list: vi.fn().mockResolvedValue([{ id: 'old', sourceId: 's', revision: 2, status: 'staged', recordCount: 1, appliedCount: 1, eligibleBaseline: true }]), create: vi.fn().mockResolvedValue(job), read: vi.fn().mockResolvedValue({ ...job, id: 'old', revision: 2 }), reimportPreview: vi.fn().mockResolvedValue({ jobId: 'j', previousJobId: 'old', items: [{ index: 0, key: 'one', resourceId: 'x', status: 'conflict', currentRevisionId: 'human-rev', currentTitle: 'Human title' }] }), reimportApply: apply } as unknown as IngestionPort;
   render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={4} onChanged={vi.fn()} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Create import preview' }));
@@ -41,4 +41,31 @@ it('requires explicit approval before sending an overwrite of human edits', asyn
   await user.click(select);
   await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
   expect(apply).toHaveBeenCalledWith(expect.objectContaining({ selected: [0], resolutions: [{ index: 0, expectedDocumentRevisionId: 'human-rev', expectedTitle: 'Human title' }] }));
+});
+
+it('continues a reviewed-only child lineage while keeping its parent protected', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.csv', mediaType: 'text/csv', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 8 };
+  const mapping = { keyColumn: 0, titleColumn: 0, bodyColumn: 0 };
+  const base: IngestionJob = { id: 'a', handlerVersion: 1, revision: 1, status: 'staged', previousJobId: null, source, mapping, outcomes: [{ index: 0, key: 'one', resourceId: 'x', documentRevisionId: 'v' }], extraction: { contractVersion: 1, format: 'csv', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'csvRecord', value: '1' }, fields: ['one'] }] } };
+  const reviewed: IngestionJob = { ...base, id: 'b', previousJobId: 'a', outcomes: [], decisions: [{ index: null, key: 'old', disposition: 'removedRetained' }] };
+  const next: IngestionJob = { ...base, id: 'c', revision: 0, previousJobId: null, mapping: null, outcomes: [] };
+  const jobs = [base, reviewed, next];
+  const summaries = [{ id: 'a', appliedCount: 1, eligibleBaseline: false }, { id: 'b', appliedCount: 0, eligibleBaseline: true }, { id: 'c', appliedCount: 0, eligibleBaseline: false }].map(item => ({ ...item, sourceId: 's', revision: item.id === 'c' ? 0 : 1, status: 'staged', recordCount: 1 }));
+  const compare = vi.fn().mockResolvedValue({ jobId: 'c', previousJobId: 'b', items: [{ index: 0, key: 'one', resourceId: 'x', status: 'unchanged', currentRevisionId: null, currentTitle: null }] });
+  const reimportApply = vi.fn().mockResolvedValue({ ...next, revision: 1, previousJobId: 'b' });
+  const port = { list: vi.fn().mockResolvedValue(summaries), read: vi.fn(async (id: string) => jobs.find(job => job.id === id)), reimportPreview: compare, reimportApply } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={1} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Open import c' }));
+  const previous = await screen.findByLabelText('Reimport from');
+  expect(screen.queryByRole('option', { name: 'a' })).not.toBeInTheDocument();
+  await user.selectOptions(previous, 'b');
+  await user.click(screen.getByRole('button', { name: 'Compare reimport' }));
+  expect(compare).toHaveBeenCalledWith('c', 'b', mapping);
+  await user.click(await screen.findByLabelText('Select record 1'));
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(reimportApply).toHaveBeenCalledWith(expect.objectContaining({ previousJobId: 'b', expectedPreviousRevision: 1 }));
+  await user.click(await screen.findByRole('button', { name: 'Open import b' }));
+  expect(await screen.findByRole('option', { name: 'a' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Reimport from')).toHaveValue('a');
 });

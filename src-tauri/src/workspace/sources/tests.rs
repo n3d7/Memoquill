@@ -64,6 +64,16 @@ fn reviewed_omissions_and_empty_records_survive_restart_and_require_explicit_reo
     let reviewed = db
         .review_ingestion_job(RequestContext::local_ui(), &review)
         .unwrap();
+    let summaries = db
+        .list_ingestion_jobs(RequestContext::local_ui(), source.resource_id, 0)
+        .unwrap();
+    assert!(
+        !summaries
+            .iter()
+            .find(|item| item.id == reviewed.id)
+            .unwrap()
+            .eligible_baseline
+    );
     drop(db);
     let mut db = Database::open(&temp.path().join("workspace")).unwrap();
     assert_eq!(
@@ -205,6 +215,23 @@ fn reviewed_removed_key_remains_in_lineage_and_never_deletes_live_material() {
     let reviewed = db
         .review_ingestion_job(RequestContext::local_ui(), &review)
         .unwrap();
+    let summaries = db
+        .list_ingestion_jobs(RequestContext::local_ui(), original.source.resource_id, 0)
+        .unwrap();
+    assert!(
+        !summaries
+            .iter()
+            .find(|item| item.id == original.id)
+            .unwrap()
+            .eligible_baseline
+    );
+    assert!(
+        summaries
+            .iter()
+            .find(|item| item.id == reviewed.id)
+            .unwrap()
+            .eligible_baseline
+    );
     let id = original.outcomes[1].resource_id;
     drop(db);
     let mut db = Database::open(&temp.path().join("workspace")).unwrap();
@@ -238,6 +265,23 @@ fn reviewed_removed_key_remains_in_lineage_and_never_deletes_live_material() {
         },
     )
     .unwrap();
+    let summaries = db
+        .list_ingestion_jobs(RequestContext::local_ui(), original.source.resource_id, 0)
+        .unwrap();
+    assert!(
+        summaries
+            .iter()
+            .find(|item| item.id == original.id)
+            .unwrap()
+            .eligible_baseline
+    );
+    assert!(
+        !summaries
+            .iter()
+            .find(|item| item.id == reviewed.id)
+            .unwrap()
+            .eligible_baseline
+    );
     let other = make_job(&mut db, b"a,one\nb,two\n", 3);
     let applied = db
         .apply_ingestion_reimport(

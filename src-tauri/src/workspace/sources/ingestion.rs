@@ -192,6 +192,8 @@ pub struct IngestionJobSummary {
     pub status: IngestionStatus,
     pub record_count: u64,
     pub applied_count: u64,
+    #[serde(default)]
+    pub eligible_baseline: bool,
 }
 
 struct LineageItem {
@@ -430,8 +432,28 @@ impl Database {
         let rows = query.query_map(params![resource_id.to_string(), offset as i64], |r| {
             r.get::<_, String>(0)
         })?;
-        rows.map(|row| serde_json::from_str(&row?).map_err(|_| corrupt()))
-            .collect()
+        let mut summaries: Vec<IngestionJobSummary> = rows
+            .map(|row| serde_json::from_str(&row?).map_err(|_| corrupt()))
+            .collect::<Result<_>>()?;
+        for summary in &mut summaries {
+            if summary.status == IngestionStatus::Undone
+                || (summary.status == IngestionStatus::Cancelled && summary.applied_count == 0)
+            {
+                continue;
+            }
+            match ensure_no_applied_descendants(&self.connection, summary.id) {
+                Ok(()) => {}
+                Err(error) if error.code == ErrorCode::RevisionConflict => continue,
+                Err(error) => return Err(error),
+            }
+            let job = self.ingestion_job(context, summary.id)?;
+            if let Some(mapping) = &job.mapping {
+                summary.eligible_baseline = self
+                    .ingestion_lineage(context, &job, mapping)
+                    .is_ok_and(|lineage| !lineage.is_empty());
+            }
+        }
+        Ok(summaries)
     }
     pub(in crate::workspace) fn preview_ingestion_undo(
         &self,

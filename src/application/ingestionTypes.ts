@@ -6,7 +6,7 @@ export interface Outcome { index: number; key: string; resourceId: string; docum
 export type Disposition = 'pending' | 'omitted' | 'empty' | 'unresolved' | 'removedRetained';
 export interface Decision { index: number | null; key: string | null; disposition: Disposition }
 export interface IngestionJob { id: string; handlerVersion: number; revision: number; status: IngestionStatus; previousJobId: string | null; source: OriginalSource; extraction: SourceExtraction; mapping: Mapping | null; outcomes: Outcome[]; decisions?: Decision[] }
-export interface JobSummary { id: string; sourceId: string; revision: number; status: IngestionStatus; recordCount: number; appliedCount: number }
+export interface JobSummary { id: string; sourceId: string; revision: number; status: IngestionStatus; recordCount: number; appliedCount: number; eligibleBaseline: boolean }
 export interface CreateJob extends Envelope { sourceId: string; sourceRevision: number }
 export interface JobAction extends Envelope { jobId: string; expectedRevision: number }
 export interface ApplyJob extends JobAction { expectedLibraryRevision: number; mapping: Mapping; selected: number[] }
