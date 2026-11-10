@@ -74,6 +74,10 @@ pub struct SourceExtraction {
 pub struct ExtractionRecord {
     pub locator: ExtractionLocator,
     pub fields: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub properties: std::collections::BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub duplicate_properties: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

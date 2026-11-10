@@ -184,3 +184,99 @@ fn malformed_csv_quotes_are_not_silently_recovered_as_complete_records() {
         assert!(result.records.is_empty());
     }
 }
+
+#[test]
+fn structured_json_maps_names_without_losing_raw_unicode_or_missing_fields() {
+    let input =
+        r#"[{"id":"κ","title":"Привіт","body":{"x":1, "x":2}}, {"body":[ 1,2 ],"id":"two"}]"#;
+    let result = extract_for_ingestion("rows.json", input.as_bytes());
+    let value = serde_json::to_value(&result).unwrap();
+    assert_eq!(value["contractVersion"], 2);
+    assert_eq!(value["records"][0]["properties"]["id"], "κ");
+    assert_eq!(value["records"][0]["properties"]["title"], "Привіт");
+    assert_eq!(
+        value["records"][0]["properties"]["body"],
+        r#"{"x":1, "x":2}"#
+    );
+    assert_eq!(value["records"][1]["properties"]["id"], "two");
+    assert_eq!(value["records"][1]["properties"]["body"], "[ 1,2 ]");
+    assert!(value["records"][1]["properties"].get("title").is_none());
+    assert_eq!(
+        result.records[0].fields[0],
+        r#"{"id":"κ","title":"Привіт","body":{"x":1, "x":2}}"#
+    );
+    assert_eq!(result.records[1].locator.value, "/1");
+}
+
+#[test]
+fn structured_json_exposes_duplicate_decoded_names_and_preserves_their_raw_evidence() {
+    let result = extract_for_ingestion("rows.json", br#"[{"id":"first","\u0069d":"second"}]"#);
+    let value = serde_json::to_value(&result).unwrap();
+    assert_eq!(
+        value["records"][0]["duplicateProperties"],
+        serde_json::json!(["id"])
+    );
+    assert_eq!(
+        result.records[0].fields[0],
+        r#"{"id":"first","\u0069d":"second"}"#
+    );
+}
+
+#[test]
+fn structured_json_bounds_properties_across_the_whole_job_and_never_applies_a_prefix() {
+    let fields = (0..65)
+        .map(|i| format!(r#""p{i}":0"#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let one = format!("{{{fields}}}");
+    let spread = format!(
+        "[{}]",
+        (0..65)
+            .map(|i| format!(r#"{{"p{i}":0}}"#))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    for input in [one, spread] {
+        let result = extract_for_ingestion("rows.json", input.as_bytes());
+        assert_eq!(result.diagnostic, Some(ExtractionDiagnostic::FieldLimit));
+        assert!(result.records.is_empty());
+    }
+    for input in [
+        format!("{}0{}", "[".repeat(150), "]".repeat(150)),
+        format!("[{}]", vec!["0"; 10_001].join(",")),
+        " ".repeat(8 * 1024 * 1024 + 1),
+    ] {
+        let result = extract_for_ingestion("rows.json", input.as_bytes());
+        assert_ne!(result.status, ExtractionStatus::Complete);
+        assert!(result.records.is_empty());
+    }
+}
+
+#[test]
+fn structured_json_accepts_exact_property_bound_and_raw_scalar_records() {
+    let fields = (0..64)
+        .map(|i| format!(r#""p{i}":0"#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let result = extract_for_ingestion("rows.json", format!("{{{fields}}}").as_bytes());
+    assert_eq!(result.status, ExtractionStatus::Complete);
+    assert_eq!(result.records[0].properties.len(), 64);
+    for (input, expected) in [
+        ("null", "null"),
+        (r#""\u03c0""#, r#""\u03c0""#),
+        ("1.20e+2", "1.20e+2"),
+    ] {
+        let result = extract_for_ingestion("root.json", input.as_bytes());
+        assert_eq!(result.status, ExtractionStatus::Complete);
+        assert_eq!(result.records[0].fields[0], expected);
+        assert_eq!(result.records[0].locator.value, "");
+        assert!(result.records[0].properties.is_empty());
+    }
+    let result = extract_for_ingestion(
+        "root.json",
+        br#"{"":"empty name","raw:":null,"a/b~c":true}"#,
+    );
+    assert_eq!(result.records[0].properties.get("").unwrap(), "empty name");
+    assert_eq!(result.records[0].properties.get("raw:").unwrap(), "null");
+    assert_eq!(result.records[0].properties.get("a/b~c").unwrap(), "true");
+}

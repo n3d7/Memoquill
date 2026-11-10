@@ -38,6 +38,7 @@ fn reviewed_omissions_and_empty_records_survive_restart_and_require_explicit_reo
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let review = ReviewIngestionJob {
         contract_version: 1,
@@ -137,6 +138,7 @@ fn reviewed_removed_key_remains_in_lineage_and_never_deletes_live_material() {
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let mut make_job = |db: &mut Database, bytes: &[u8], revision: u64| {
         let asset = db
@@ -311,6 +313,7 @@ fn partial_reimport_preserves_unselected_lineage_in_next_generation() {
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let mut make_job = |db: &mut Database, bytes: &[u8], source_revision: u64| {
         let asset = db
@@ -532,6 +535,7 @@ fn undone_import_cannot_be_a_baseline_but_allows_a_new_visible_import() {
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let first = db
         .apply_ingestion_job(
@@ -629,6 +633,7 @@ fn independently_archived_material_is_not_reported_as_an_unchanged_success() {
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let job = db
         .apply_ingestion_job(
@@ -716,6 +721,7 @@ fn canonical_search_survives_missing_or_corrupt_originals_after_restart() {
                         key_column: 0,
                         title_column: 0,
                         body_column: 1,
+                        json_properties: None,
                     },
                     selected: vec![0],
                 },
@@ -970,6 +976,7 @@ fn reviewed_subset_is_atomic_and_exact_retry_never_duplicates_resources() {
             key_column: 0,
             title_column: 0,
             body_column: 1,
+            json_properties: None,
         },
         selected: vec![1],
     };
@@ -1084,6 +1091,7 @@ fn invalid_later_selected_record_rolls_back_the_whole_batch() {
             key_column: 1,
             title_column: 0,
             body_column: 1,
+            json_properties: None,
         },
         selected: vec![0, 1],
     };
@@ -1150,6 +1158,7 @@ fn undo_archives_only_unchanged_imports_and_refuses_later_human_edits() {
                     key_column: 0,
                     title_column: 0,
                     body_column: 1,
+                    json_properties: None,
                 },
                 selected: vec![0],
             },
@@ -1266,6 +1275,7 @@ fn reimport_preview_detects_changed_source_and_manual_document_edits() {
         key_column: 0,
         title_column: 0,
         body_column: 1,
+        json_properties: None,
     };
     let applied = db
         .apply_ingestion_job(
@@ -2009,4 +2019,453 @@ fn typed_service_lists_saves_and_previews_without_caller_paths() {
         );
         service.shutdown().await.unwrap();
     });
+}
+
+// These tests catch positional JSON mapping, missing-property fallback, duplicate
+// collapse, and loss of durable keyed identity across changed source layouts.
+#[test]
+fn structured_json_real_database_restart_reimport_and_ambiguous_records() {
+    let (temp, mut db, mut request) = fixture();
+    fn stage(db: &mut Database, request: &mut SaveSource, bytes: &[u8]) -> IngestionJob {
+        let asset = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(bytes),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        request.source.id = Uuid::new_v4();
+        request.source.filename = "rows.json".into();
+        request.source.digest = asset.digest;
+        request.operation_id = OperationId::generate();
+        let source = db.save_source(RequestContext::local_ui(), request).unwrap();
+        request.expected_revision += 1;
+        db.create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap()
+    }
+    let old = stage(&mut db, &mut request, r#"[{"id":"κ","title":"Title","body":{"x":1}}, {"id":"missing","body":"no title"}, {"id":"a","id":"b","title":"bad","body":"bad"}]"#.as_bytes());
+    assert_eq!(old.handler_version, 2);
+    let mapping: IngestionMapping = serde_json::from_value(serde_json::json!({"keyColumn":0,"titleColumn":0,"bodyColumn":0,"jsonProperties":{"key":"id","title":"title","body":"body"}})).unwrap();
+    let mut apply = ApplyIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: old.id,
+        expected_revision: 0,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping: mapping.clone(),
+        selected: vec![1],
+    };
+    for index in [1, 2] {
+        apply.selected = vec![index];
+        assert_eq!(
+            db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+                .unwrap_err()
+                .code,
+            ErrorCode::InvalidRequest
+        );
+        assert!(
+            db.ingestion_job(RequestContext::local_ui(), old.id)
+                .unwrap()
+                .outcomes
+                .is_empty()
+        );
+    }
+    let reviewed = db
+        .review_ingestion_job(
+            RequestContext::local_ui(),
+            &ReviewIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: old.id,
+                expected_revision: 0,
+                previous_job_id: None,
+                expected_previous_revision: None,
+                mapping: mapping.clone(),
+                decisions: vec![
+                    IngestionDecision {
+                        index: Some(1),
+                        key: None,
+                        disposition: IngestionDisposition::Unresolved,
+                    },
+                    IngestionDecision {
+                        index: Some(2),
+                        key: None,
+                        disposition: IngestionDisposition::Unresolved,
+                    },
+                ],
+            },
+        )
+        .unwrap();
+    apply.expected_revision = reviewed.revision;
+    apply.selected = vec![0];
+    let applied = db
+        .apply_ingestion_job(RequestContext::local_ui(), &apply)
+        .unwrap();
+    let resource = applied.outcomes[0].resource_id;
+    assert_eq!(applied.outcomes[0].key, "κ");
+    assert_eq!(
+        db.read_document(RequestContext::local_ui(), resource, None)
+            .unwrap()
+            .unwrap()
+            .document
+            .text(),
+        r#"{"x":1}"#
+    );
+    let new = stage(
+        &mut db,
+        &mut request,
+        r#"[{"extra":"new schema","body":[ 1,2 ],"title":"Title 2","id":"κ"}]"#.as_bytes(),
+    );
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+            .unwrap(),
+        applied
+    );
+    let loaded = db
+        .ingestion_job(RequestContext::local_ui(), new.id)
+        .unwrap();
+    assert_eq!(loaded, new);
+    let preview = db
+        .preview_ingestion_reimport(RequestContext::local_ui(), new.id, old.id, &mapping)
+        .unwrap();
+    assert_eq!(preview.items[0].status, ReimportStatus::Changed);
+    let reimport = ApplyReimportJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: new.id,
+        previous_job_id: old.id,
+        expected_revision: 0,
+        expected_previous_revision: applied.revision,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping,
+        selected: vec![0],
+        resolutions: vec![],
+    };
+    let updated = db
+        .apply_ingestion_reimport(RequestContext::local_ui(), &reimport)
+        .unwrap();
+    assert_eq!(updated.outcomes[0].resource_id, resource);
+    assert_eq!(
+        db.read_document(RequestContext::local_ui(), resource, None)
+            .unwrap()
+            .unwrap()
+            .document
+            .text(),
+        "[ 1,2 ]"
+    );
+    assert_eq!(
+        db.apply_ingestion_reimport(RequestContext::local_ui(), &reimport)
+            .unwrap(),
+        updated
+    );
+}
+
+#[test]
+fn legacy_json_persisted_job_and_receipts_keep_raw_mapping_and_fingerprints() {
+    let (temp, mut db, mut source_request) = fixture();
+    let raw = r#"{"id":"first","id":"second"}"#;
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(raw.as_bytes()),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    source_request.source.filename = "legacy.json".into();
+    source_request.source.digest = asset.digest;
+    let source = db
+        .save_source(RequestContext::local_ui(), &source_request)
+        .unwrap();
+    let create = CreateIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        source_id: source.id,
+        source_revision: source.revision,
+    };
+    let job = db
+        .create_ingestion_job(RequestContext::local_ui(), &create)
+        .unwrap();
+    // Literal historical DTO without any version-2 fields; persist the actual
+    // job and receipt, then reopen through ordinary database verification.
+    let legacy_wire = serde_json::json!({
+        "id":job.id, "handlerVersion":1, "revision":0, "status":"staged", "previousJobId":null,
+        "source":source, "mapping":null, "outcomes":[], "decisions":[],
+        "extraction":{"contractVersion":1,"format":"json","status":"complete","diagnostic":null,
+        "records":[{"locator":{"kind":"jsonPointer","value":""},"fields":[raw]}]},
+    });
+    let legacy: IngestionJob = serde_json::from_value(legacy_wire.clone()).unwrap();
+    db.connection
+        .execute(
+            "UPDATE ingestion_jobs SET data=?1 WHERE id=?2",
+            params![legacy_wire.to_string(), job.id.to_string()],
+        )
+        .unwrap();
+    let receipt = operations::applied(
+        create.operation_id.clone(),
+        OperationOutcome::IngestionJob(Box::new(legacy.clone())),
+    );
+    db.connection
+        .execute(
+            "UPDATE operations SET result=?1 WHERE id=?2",
+            params![
+                serde_json::to_string(&receipt).unwrap(),
+                create.operation_id.as_str()
+            ],
+        )
+        .unwrap();
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.ingestion_job(RequestContext::local_ui(), job.id)
+            .unwrap(),
+        legacy
+    );
+    assert_eq!(
+        db.create_ingestion_job(RequestContext::local_ui(), &create)
+            .unwrap(),
+        legacy
+    );
+    let mapping: IngestionMapping =
+        serde_json::from_str(r#"{"keyColumn":0,"titleColumn":0,"bodyColumn":0}"#).unwrap();
+    let apply = ApplyIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: job.id,
+        expected_revision: 0,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping,
+        selected: vec![0],
+    };
+    let legacy_request = format!(
+        r#"[1,"ingestion-apply",{{"contractVersion":1,"workspaceId":"{}","operationId":"{}","jobId":"{}","expectedRevision":0,"expectedLibraryRevision":{},"mapping":{{"keyColumn":0,"titleColumn":0,"bodyColumn":0}},"selected":[0]}}]"#,
+        db.id.as_str(),
+        apply.operation_id.as_str(),
+        job.id,
+        apply.expected_library_revision
+    );
+    assert_eq!(
+        operations::request_hash("ingestion-apply", &apply).unwrap(),
+        migrations::checksum(legacy_request.as_bytes())
+    );
+    let applied = db
+        .apply_ingestion_job(RequestContext::local_ui(), &apply)
+        .unwrap();
+    assert_eq!(applied.outcomes[0].key, raw);
+    let id = applied.outcomes[0].resource_id;
+    assert_eq!(
+        db.read_document(RequestContext::local_ui(), id, None)
+            .unwrap()
+            .unwrap()
+            .document
+            .text(),
+        raw
+    );
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+            .unwrap(),
+        applied
+    );
+    assert_eq!(
+        db.ingestion_job(RequestContext::local_ui(), job.id)
+            .unwrap(),
+        applied
+    );
+}
+
+#[test]
+fn json_property_null_is_explicit_raw_and_missing_selector_is_rejected() {
+    assert!(serde_json::from_value::<IngestionMapping>(serde_json::json!({"keyColumn":0,"titleColumn":0,"bodyColumn":0,"jsonProperties":{"key":null,"title":null}})).is_err());
+    let raw: IngestionMapping = serde_json::from_value(serde_json::json!({"keyColumn":0,"titleColumn":0,"bodyColumn":0,"jsonProperties":{"key":null,"title":null,"body":null}})).unwrap();
+    let missing: IngestionMapping = serde_json::from_value(serde_json::json!({"keyColumn":0,"titleColumn":0,"bodyColumn":0,"jsonProperties":{"key":"missing","title":null,"body":null}})).unwrap();
+    let extracted = extraction::extract_for_ingestion("rows.json", br#"{"id":"one"}"#);
+    // Different explicit selectors must produce different idempotency hashes.
+    assert_ne!(
+        operations::request_hash("mapping", &raw).unwrap(),
+        operations::request_hash("mapping", &missing).unwrap()
+    );
+    assert_eq!(extracted.records[0].fields[0], r#"{"id":"one"}"#);
+}
+
+#[test]
+fn structured_json_explicit_raw_selection_and_missing_property_have_distinct_durable_receipts() {
+    let (temp, mut db, mut request) = fixture();
+    let raw = r#"{"id":"κ"}"#;
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(raw.as_bytes()),
+            MAX_SOURCE_BYTES,
+        )
+        .unwrap();
+    request.source.filename = "raw.json".into();
+    request.source.digest = asset.digest;
+    let source = db
+        .save_source(RequestContext::local_ui(), &request)
+        .unwrap();
+    let job = db
+        .create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap();
+    let mapping: IngestionMapping = serde_json::from_value(serde_json::json!({"keyColumn":0,"titleColumn":0,"bodyColumn":0,"jsonProperties":{"key":null,"title":null,"body":null}})).unwrap();
+    let apply = ApplyIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: job.id,
+        expected_revision: 0,
+        expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+        mapping,
+        selected: vec![0],
+    };
+    let mut missing = apply.clone();
+    missing.mapping.json_properties.as_mut().unwrap().body = Some("absent".into());
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &missing)
+            .unwrap_err()
+            .code,
+        ErrorCode::InvalidRequest
+    );
+    let applied = db
+        .apply_ingestion_job(RequestContext::local_ui(), &apply)
+        .unwrap();
+    assert_eq!(applied.outcomes[0].key, raw);
+    assert_eq!(
+        db.read_document(
+            RequestContext::local_ui(),
+            applied.outcomes[0].resource_id,
+            None
+        )
+        .unwrap()
+        .unwrap()
+        .document
+        .text(),
+        raw
+    );
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &apply)
+            .unwrap(),
+        applied
+    );
+    assert_eq!(
+        db.apply_ingestion_job(RequestContext::local_ui(), &missing)
+            .unwrap_err()
+            .code,
+        ErrorCode::IdempotencyConflict
+    );
+    // Historical v1 jobs must also remain usable as raw lineage baselines for
+    // new handler-2 jobs, without treating their bytes as named properties.
+    let mut legacy = applied.clone();
+    legacy.handler_version = 1;
+    legacy.mapping = Some(IngestionMapping {
+        key_column: 0,
+        title_column: 0,
+        body_column: 0,
+        json_properties: None,
+    });
+    legacy.extraction = serde_json::from_value(serde_json::json!({"contractVersion":1,"format":"json","status":"complete","diagnostic":null,"records":[{"locator":{"kind":"jsonPointer","value":""},"fields":[raw]}]})).unwrap();
+    db.connection
+        .execute(
+            "UPDATE ingestion_jobs SET data=?1 WHERE id=?2",
+            params![
+                serde_json::to_string(&legacy).unwrap(),
+                legacy.id.to_string()
+            ],
+        )
+        .unwrap();
+    let next = db
+        .create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap();
+    assert_eq!(next.handler_version, 2);
+    let legacy_mapping = legacy.mapping.clone().unwrap();
+    let preview = db
+        .preview_ingestion_reimport(
+            RequestContext::local_ui(),
+            next.id,
+            legacy.id,
+            &legacy_mapping,
+        )
+        .unwrap();
+    assert_eq!(preview.items[0].status, ReimportStatus::Unchanged);
+    let library = db.library(RequestContext::local_ui()).unwrap();
+    let updated = db
+        .apply_ingestion_reimport(
+            RequestContext::local_ui(),
+            &ApplyReimportJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: next.id,
+                previous_job_id: legacy.id,
+                expected_revision: 0,
+                expected_previous_revision: legacy.revision,
+                expected_library_revision: library.revision,
+                mapping: legacy_mapping,
+                selected: vec![0],
+                resolutions: vec![],
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        updated.outcomes[0].resource_id,
+        applied.outcomes[0].resource_id
+    );
+    drop(db);
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        db.ingestion_job(RequestContext::local_ui(), updated.id)
+            .unwrap(),
+        updated
+    );
 }

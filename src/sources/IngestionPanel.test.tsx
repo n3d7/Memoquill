@@ -69,3 +69,81 @@ it('continues a reviewed-only child lineage while keeping its parent protected',
   expect(await screen.findByRole('option', { name: 'a' })).toBeInTheDocument();
   expect(screen.getByLabelText('Reimport from')).toHaveValue('a');
 });
+
+
+it('identifies JSON properties and original pointers and blocks ambiguous records', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.json', mediaType: 'application/json', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 80 };
+  const job = { id: 'j', handlerVersion: 2, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 2, format: 'json', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'jsonPointer', value: '/0' }, fields: ['{"id":"κ","title":"Привіт","body":{"n":1}}'], properties: { id: 'κ', title: 'Привіт', body: '{"n":1}' } }, { locator: { kind: 'jsonPointer', value: '/1' }, fields: ['{"id":1,"id":2}'], duplicateProperties: ['id'] }] } } as IngestionJob;
+  const apply = vi.fn().mockResolvedValue({ ...job, revision: 1 });
+  const review = vi.fn().mockImplementation(async request => ({ ...job, revision: 1, mapping: request.mapping, decisions: request.decisions }));
+  const port = { list: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue(job), apply, review } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={1} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  expect(await screen.findByLabelText('Key property')).toBeVisible();
+  await user.selectOptions(screen.getByLabelText('Key property'), 'property:id');
+  await user.selectOptions(screen.getByLabelText('Title property'), 'property:title');
+  await user.selectOptions(screen.getByLabelText('Body property'), 'property:body');
+  expect(screen.getByText('Original JSON pointer: /0')).toBeVisible();
+  expect(screen.getByText('Selected values — key: κ; title: Привіт; body: {"n":1}')).toBeVisible();
+  expect(screen.getByText('Duplicate JSON properties: id — unresolved')).toBeVisible();
+  expect(screen.getByLabelText('Select record 2')).toBeDisabled();
+  await user.click(screen.getByLabelText('Select record 1'));
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(apply).toHaveBeenCalledWith(expect.objectContaining({ mapping: { keyColumn: 0, titleColumn: 0, bodyColumn: 0, jsonProperties: { key: 'id', title: 'title', body: 'body' } }, selected: [0] }));
+  await user.click(screen.getByRole('button', { name: 'Exclude record 2' }));
+  expect(review).toHaveBeenCalledWith(expect.objectContaining({ decisions: [{ index: 1, key: null, disposition: 'unresolved' }] }));
+});
+
+
+it('keeps persisted handler-one JSON jobs in their original raw numeric contract', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'old.json', mediaType: 'application/json', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 20 };
+  const job: IngestionJob = { id: 'old', handlerVersion: 1, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 1, format: 'json', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'jsonPointer', value: '' }, fields: ['{"id":1,"id":2}'] }] } };
+  const apply = vi.fn().mockResolvedValue({ ...job, revision: 1 });
+  const port = { list: vi.fn().mockResolvedValue([{ id: 'old' }]), read: vi.fn().mockResolvedValue(job), apply } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={1} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Open import old' }));
+  expect(screen.queryByLabelText('Key property')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Key column')).toHaveValue(1);
+  await user.click(screen.getByLabelText('Select record 1'));
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(apply).toHaveBeenCalledWith(expect.objectContaining({ mapping: { keyColumn: 0, titleColumn: 0, bodyColumn: 0 }, selected: [0] }));
+});
+
+
+it('explicitly continues a legacy raw baseline with a version-two JSON job', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.json', mediaType: 'application/json', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 12 };
+  const mapping = { keyColumn: 0, titleColumn: 0, bodyColumn: 0 };
+  const legacy: IngestionJob = { id: 'old', handlerVersion: 1, revision: 1, status: 'staged', previousJobId: null, source, mapping, outcomes: [{ index: 0, key: '{"id":"one"}', resourceId: 'material', documentRevisionId: 'rev' }], extraction: { contractVersion: 1, format: 'json', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'jsonPointer', value: '' }, fields: ['{"id":"one"}'] }] } };
+  const job: IngestionJob = { ...legacy, id: 'new', handlerVersion: 2, revision: 0, mapping: null, outcomes: [], extraction: { ...legacy.extraction, contractVersion: 2, records: [{ ...legacy.extraction.records[0], properties: { id: 'one' } }] } };
+  const compare = vi.fn().mockResolvedValue({ jobId: 'new', previousJobId: 'old', items: [{ index: 0, key: '{"id":"one"}', resourceId: 'material', status: 'unchanged', currentRevisionId: null, currentTitle: null }] });
+  const reimportApply = vi.fn().mockResolvedValue({ ...job, revision: 1, mapping, previousJobId: 'old', outcomes: legacy.outcomes });
+  const port = { list: vi.fn().mockResolvedValue([{ id: 'old', eligibleBaseline: true }]), create: vi.fn().mockResolvedValue(job), read: vi.fn().mockResolvedValue(legacy), reimportPreview: compare, reimportApply } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={1} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  await user.click(screen.getByLabelText('Use legacy raw JSON mapping'));
+  expect(screen.getByLabelText('Key property')).toHaveValue('raw:');
+  expect(screen.getByText('Selected values — key: {"id":"one"}; title: {"id":"one"}; body: {"id":"one"}')).toBeVisible();
+  await user.selectOptions(screen.getByLabelText('Reimport from'), 'old');
+  await user.click(screen.getByRole('button', { name: 'Compare reimport' }));
+  expect(compare).toHaveBeenCalledWith('new', 'old', mapping);
+  await user.click(await screen.findByLabelText('Select record 1'));
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(reimportApply).toHaveBeenCalledWith(expect.objectContaining({ mapping, selected: [0], previousJobId: 'old' }));
+});
+
+
+it('treats absent prototype-like property names as missing instead of inherited values', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.json', mediaType: 'application/json', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 50 };
+  const job: IngestionJob = { id: 'j', handlerVersion: 2, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 2, format: 'json', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'jsonPointer', value: '/0' }, fields: ['{"constructor":"safe"}'], properties: { constructor: 'safe' } }, { locator: { kind: 'jsonPointer', value: '/1' }, fields: ['{"id":"two"}'], properties: { id: 'two' } }] } };
+  const port = { list: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue(job) } as unknown as IngestionPort;
+  render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={1} onChanged={vi.fn()} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  await user.selectOptions(screen.getByLabelText('Key property'), 'property:constructor');
+  expect(screen.getByLabelText('Select record 1')).toBeEnabled();
+  expect(screen.getByLabelText('Select record 2')).toBeDisabled();
+  expect(screen.getByText('Missing selected JSON property — unresolved')).toBeVisible();
+});

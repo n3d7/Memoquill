@@ -13,8 +13,8 @@ mod validation;
 pub use ingestion::{
     ApplyIngestionJob, ApplyReimportJob, CancelIngestionJob, CreateIngestionJob, IngestionDecision,
     IngestionDisposition, IngestionJob, IngestionJobSummary, IngestionMapping, IngestionOutcome,
-    IngestionStatus, ReimportItem, ReimportPreview, ReimportResolution, ReimportStatus,
-    ReviewIngestionJob, UndoIngestionJob, UndoPreview,
+    IngestionStatus, JsonPropertyMapping, ReimportItem, ReimportPreview, ReimportResolution,
+    ReimportStatus, ReviewIngestionJob, UndoIngestionJob, UndoPreview,
 };
 pub use types::*;
 #[cfg(test)]

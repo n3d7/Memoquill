@@ -9,12 +9,94 @@ pub(super) fn extract(filename: &str, bytes: &[u8], truncated: bool) -> SourceEx
     extract_bounded(filename, bytes, truncated, INPUT_BYTES, RECORDS)
 }
 
-pub(super) fn extract_for_ingestion(filename: &str, bytes: &[u8]) -> SourceExtraction {
+pub(super) fn extract_for_ingestion_legacy(filename: &str, bytes: &[u8]) -> SourceExtraction {
     let mut result = extract_bounded(filename, bytes, false, 8 * 1024 * 1024, 10_000);
     if result.status != ExtractionStatus::Complete {
         result.records.clear();
     }
     result
+}
+
+/// Version 2 is restricted to JSON jobs; preview and handler-1 jobs stay raw-only.
+pub(super) fn extract_for_ingestion(filename: &str, bytes: &[u8]) -> SourceExtraction {
+    let mut result = extract_for_ingestion_legacy(filename, bytes);
+    if result.format != ExtractionFormat::Json {
+        return result;
+    }
+    result.contract_version = 2;
+    if result.status != ExtractionStatus::Complete {
+        return result;
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for record in &mut result.records {
+        let raw = &record.fields[0];
+        if !raw.trim_start().starts_with('{') {
+            continue;
+        }
+        // Parse entries before building a map, so escaped duplicate names cannot
+        // be silently overwritten. The legacy parser already validated depth.
+        let entries: JsonProperties = match serde_json::from_str(raw) {
+            Ok(value) => value,
+            Err(_) => {
+                result.records.clear();
+                return result
+                    .with_diagnostic(ExtractionStatus::Failed, ExtractionDiagnostic::FieldLimit);
+            }
+        };
+        for (name, value) in entries.0 {
+            names.insert(name.clone());
+            if names.len() > FIELDS {
+                result.records.clear();
+                return result
+                    .with_diagnostic(ExtractionStatus::Failed, ExtractionDiagnostic::FieldLimit);
+            }
+            let value = if value.get().starts_with('"') {
+                // The raw value has been validated; decode only string scalars.
+                serde_json::from_str::<String>(value.get()).expect("validated JSON string")
+            } else {
+                value.get().to_owned()
+            };
+            if record.properties.insert(name.clone(), value).is_some() {
+                record.duplicate_properties.push(name);
+            }
+        }
+        record.duplicate_properties.sort();
+        record.duplicate_properties.dedup();
+        if !record.duplicate_properties.is_empty() {
+            // No collapsed projection may be mistaken for a resolved record.
+            record.properties.clear();
+        }
+    }
+    result
+}
+
+struct JsonProperties(Vec<(String, Box<serde_json::value::RawValue>)>);
+impl<'de> serde::Deserialize<'de> for JsonProperties {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        struct PropertiesVisitor;
+        impl<'de> serde::de::Visitor<'de> for PropertiesVisitor {
+            type Value = JsonProperties;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a bounded JSON object")
+            }
+            fn visit_map<M: serde::de::MapAccess<'de>>(
+                self,
+                mut map: M,
+            ) -> std::result::Result<Self::Value, M::Error> {
+                let mut entries = Vec::new();
+                while let Some(entry) = map.next_entry()? {
+                    if entries.len() == FIELDS {
+                        return Err(serde::de::Error::custom("JSON property limit"));
+                    }
+                    entries.push(entry);
+                }
+                Ok(JsonProperties(entries))
+            }
+        }
+        deserializer.deserialize_map(PropertiesVisitor)
+    }
 }
 
 fn extract_bounded(
@@ -121,6 +203,8 @@ impl SourceExtraction {
         self.records.push(ExtractionRecord {
             locator: ExtractionLocator { kind, value },
             fields,
+            properties: Default::default(),
+            duplicate_properties: Vec::new(),
         });
         true
     }

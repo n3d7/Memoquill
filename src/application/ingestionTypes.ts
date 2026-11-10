@@ -1,6 +1,7 @@
 import type { OriginalSource, SourceExtraction } from './sourceTypes';
 type Envelope = { contractVersion: 1; workspaceId: string; operationId: string };
-export type Mapping = { keyColumn: number; titleColumn: number; bodyColumn: number };
+export type JsonPropertyMapping = { key: string | null; title: string | null; body: string | null };
+export type Mapping = { keyColumn: number; titleColumn: number; bodyColumn: number; jsonProperties?: JsonPropertyMapping };
 export type IngestionStatus = 'staged' | 'cancelled' | 'undone';
 export interface Outcome { index: number; key: string; resourceId: string; documentRevisionId: string; beforeRevisionId?: string | null; beforeTitle?: string | null }
 export type Disposition = 'pending' | 'omitted' | 'empty' | 'unresolved' | 'removedRetained';

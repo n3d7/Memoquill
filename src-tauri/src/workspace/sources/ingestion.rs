@@ -28,6 +28,25 @@ pub struct IngestionMapping {
     pub key_column: usize,
     pub title_column: usize,
     pub body_column: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub json_properties: Option<JsonPropertyMapping>,
+}
+
+/// Required name-or-null selectors: an absent selector is not an implicit raw selection.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct JsonPropertyMapping {
+    #[serde(deserialize_with = "required_json_property")]
+    pub key: Option<String>,
+    #[serde(deserialize_with = "required_json_property")]
+    pub title: Option<String>,
+    #[serde(deserialize_with = "required_json_property")]
+    pub body: Option<String>,
+}
+fn required_json_property<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error> {
+    Option::deserialize(deserializer)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -252,7 +271,9 @@ impl Database {
         } else {
             None
         };
-        if job.extraction.status != ExtractionStatus::Complete {
+        if (request.mapping.json_properties.is_some() && job.handler_version != 2)
+            || job.extraction.status != ExtractionStatus::Complete
+        {
             return Err(invalid());
         }
         let mut seen = std::collections::HashSet::new();
@@ -284,7 +305,7 @@ impl Database {
                                 preview.items.iter().find(|item| item.index == Some(index))
                             })
                             .is_some_and(|item| item.status == ReimportStatus::Unresolved)
-                            || mapped_fields(&record.fields, &request.mapping).is_none_or(
+                            || mapped_fields(record, &request.mapping).is_none_or(
                                 |(key, title, _)| {
                                     key.is_empty()
                                         || title.is_empty()
@@ -294,10 +315,9 @@ impl Database {
                                             .records
                                             .iter()
                                             .filter(|other| {
-                                                mapped_fields(&other.fields, &request.mapping)
-                                                    .is_some_and(|(other_key, _, _)| {
-                                                        other_key == key
-                                                    })
+                                                mapped_fields(other, &request.mapping).is_some_and(
+                                                    |(other_key, _, _)| other_key == key,
+                                                )
                                             })
                                             .take(2)
                                             .count()
@@ -388,8 +408,7 @@ impl Database {
                     .records
                     .get(outcome.index)
                     .ok_or_else(corrupt)?;
-                let (key, title, body) =
-                    mapped_fields(&record.fields, mapping).ok_or_else(corrupt)?;
+                let (key, title, body) = mapped_fields(record, mapping).ok_or_else(corrupt)?;
                 if key != outcome.key || key.is_empty() {
                     return Err(corrupt());
                 }
@@ -493,13 +512,12 @@ impl Database {
                 }
                 continue;
             }
-            let fields = &job
+            let record = job
                 .extraction
                 .records
                 .get(outcome.index)
-                .ok_or_else(corrupt)?
-                .fields;
-            let (_, title, _) = mapped_fields(fields, job.mapping.as_ref().ok_or_else(corrupt)?)
+                .ok_or_else(corrupt)?;
+            let (_, title, _) = mapped_fields(record, job.mapping.as_ref().ok_or_else(corrupt)?)
                 .ok_or_else(corrupt)?;
             let resource = snapshot
                 .resources
@@ -708,13 +726,8 @@ impl Database {
             {
                 return Err(AppError::new(ErrorCode::RevisionConflict));
             }
-            let fields = &job
-                .extraction
-                .records
-                .get(index)
-                .ok_or_else(invalid)?
-                .fields;
-            let (key, title, body) = mapped_fields(fields, &request.mapping).ok_or_else(invalid)?;
+            let record = job.extraction.records.get(index).ok_or_else(invalid)?;
+            let (key, title, body) = mapped_fields(record, &request.mapping).ok_or_else(invalid)?;
             let value = serde_json::json!({"schemaVersion":1,"blocks":[{"id":Uuid::new_v4(),"content":{"type":"paragraph","inlines":[{"text":body,"marks":[]}]}}]});
             let document = crate::document::Document::parse(
                 &serde_json::to_vec(&value).map_err(|_| invalid())?,
@@ -834,7 +847,8 @@ impl Database {
         let previous = self.ingestion_job(context, previous_job_id)?;
         self.verify_ingestion_job(&job)?;
         self.verify_ingestion_job(&previous)?;
-        if job.id == previous.id
+        if (mapping.json_properties.is_some() && job.handler_version != 2)
+            || job.id == previous.id
             || previous.status == IngestionStatus::Undone
             || (previous.status == IngestionStatus::Cancelled && previous.outcomes.is_empty())
             || job.source.resource_id != previous.source.resource_id
@@ -846,7 +860,7 @@ impl Database {
         let snapshot = self.library(context)?;
         let mut counts = std::collections::HashMap::new();
         for record in &job.extraction.records {
-            if let Some(key) = record.fields.get(mapping.key_column) {
+            if let Some(key) = mapped_key(record, mapping) {
                 *counts.entry(key.trim().to_string()).or_insert(0usize) += 1;
             }
         }
@@ -857,7 +871,7 @@ impl Database {
         }
         let mut items = Vec::new();
         for (index, record) in job.extraction.records.iter().enumerate() {
-            let Some((key, title, body)) = mapped_fields(&record.fields, mapping) else {
+            let Some((key, title, body)) = mapped_fields(record, mapping) else {
                 items.push(ReimportItem {
                     index: Some(index),
                     key: String::new(),
@@ -984,7 +998,7 @@ impl Database {
         }
         let job = IngestionJob {
             id: Uuid::new_v4(),
-            handler_version: 1,
+            handler_version: extraction.contract_version,
             revision: 0,
             status: IngestionStatus::Staged,
             previous_job_id: None,
@@ -1105,7 +1119,8 @@ impl Database {
         if job.revision != request.expected_revision || job.status != IngestionStatus::Staged {
             return Err(AppError::new(ErrorCode::RevisionConflict));
         }
-        if job.extraction.status != ExtractionStatus::Complete
+        if (request.mapping.json_properties.is_some() && job.handler_version != 2)
+            || job.extraction.status != ExtractionStatus::Complete
             || job.mapping.as_ref().is_some_and(|m| m != &request.mapping)
         {
             return Err(invalid());
@@ -1125,26 +1140,9 @@ impl Database {
             {
                 return Err(invalid());
             }
-            let fields = &job
-                .extraction
-                .records
-                .get(index)
-                .ok_or_else(invalid)?
-                .fields;
-            let key = fields
-                .get(request.mapping.key_column)
-                .ok_or_else(invalid)?
-                .trim()
-                .to_string();
-            let title = fields
-                .get(request.mapping.title_column)
-                .ok_or_else(invalid)?
-                .trim()
-                .to_string();
-            let body = fields
-                .get(request.mapping.body_column)
-                .ok_or_else(invalid)?
-                .clone();
+            let record = job.extraction.records.get(index).ok_or_else(invalid)?;
+            let (key, title, body) = mapped_fields(record, &request.mapping).ok_or_else(invalid)?;
+            let (key, title, body) = (key.to_owned(), title.to_owned(), body.to_owned());
             if key.is_empty() || key.len() > 1024 || !keys.insert(key.clone()) {
                 return Err(invalid());
             }
@@ -1220,7 +1218,7 @@ impl Database {
 
     pub(in crate::workspace) fn verify_ingestion_job(&self, job: &IngestionJob) -> Result<()> {
         let source = storage::find(&self.connection, job.source.id)?;
-        if source != job.source || job.handler_version != 1 {
+        if source != job.source || !matches!(job.handler_version, 1 | 2) {
             return Err(corrupt());
         }
         let info = AssetInfo {
@@ -1229,9 +1227,16 @@ impl Database {
         };
         assets::verify(self.owner.root(), &info).map_err(|_| corrupt())?;
         let bytes = preview::read_bytes(self.owner.root(), &info, 8 * 1024 * 1024 + 1)?;
+        let extraction = match job.handler_version {
+            1 => extraction::extract_for_ingestion_legacy(&source.filename, &bytes),
+            2 if job.extraction.format == ExtractionFormat::Json => {
+                extraction::extract_for_ingestion(&source.filename, &bytes)
+            }
+            _ => return Err(corrupt()),
+        };
         if (source.byte_length == bytes.len() as u64
             && migrations::checksum(&bytes) != source.digest.as_str())
-            || extraction::extract_for_ingestion(&source.filename, &bytes) != job.extraction
+            || extraction != job.extraction
         {
             return Err(corrupt());
         }
@@ -1239,14 +1244,37 @@ impl Database {
     }
 }
 
+fn mapped_value<'a>(
+    record: &'a ExtractionRecord,
+    column: usize,
+    property: Option<&Option<String>>,
+) -> Option<&'a str> {
+    if !record.duplicate_properties.is_empty() {
+        return None;
+    }
+    match property {
+        Some(Some(name)) => record.properties.get(name).map(String::as_str),
+        Some(None) => record.fields.first().map(String::as_str),
+        None => record.fields.get(column).map(String::as_str),
+    }
+}
+fn mapped_key<'a>(record: &'a ExtractionRecord, mapping: &IngestionMapping) -> Option<&'a str> {
+    mapped_value(
+        record,
+        mapping.key_column,
+        mapping.json_properties.as_ref().map(|p| &p.key),
+    )
+    .map(str::trim)
+}
 fn mapped_fields<'a>(
-    fields: &'a [String],
+    record: &'a ExtractionRecord,
     mapping: &IngestionMapping,
 ) -> Option<(&'a str, &'a str, &'a str)> {
+    let properties = mapping.json_properties.as_ref();
     Some((
-        fields.get(mapping.key_column)?.trim(),
-        fields.get(mapping.title_column)?.trim(),
-        fields.get(mapping.body_column)?,
+        mapped_key(record, mapping)?,
+        mapped_value(record, mapping.title_column, properties.map(|p| &p.title))?.trim(),
+        mapped_value(record, mapping.body_column, properties.map(|p| &p.body))?,
     ))
 }
 

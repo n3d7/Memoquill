@@ -12,7 +12,7 @@ export interface SourceExtraction {
   contractVersion: number;
   format: 'text' | 'markdown' | 'csv' | 'json' | 'unsupported';
   status: 'complete' | 'partial' | 'attachmentOnly' | 'failed';
-  records: { locator: { kind: 'line' | 'csvRecord' | 'jsonPointer'; value: string }; fields: string[] }[];
+  records: { locator: { kind: 'line' | 'csvRecord' | 'jsonPointer'; value: string }; fields: string[]; properties?: Record<string, string>; duplicateProperties?: string[] }[];
   diagnostic: 'unsupportedFormat' | 'inputLimit' | 'invalidUtf8' | 'malformedInput' | 'recordLimit' | 'fieldLimit' | null;
 }
 export type SaveSource = Envelope & { source: NewSource };
