@@ -33,6 +33,35 @@ it('loads later job pages and retains reachable baselines after a saved operatio
   expect(screen.getByRole('button', { name: 'Load more import jobs' })).toBeDisabled();
 });
 
+it('serializes page loading, mutations and refresh so later baselines cannot disappear or be skipped', async () => {
+  const first = Array.from({ length: 20 }, (_, i) => summary(`j${i}`));
+  const second = Array.from({ length: 20 }, (_, i) => summary(`j${i + 20}`));
+  let finishPage!: (value: JobSummary[]) => void;
+  let finishRefresh!: (value: JobSummary[]) => void;
+  const page = new Promise<JobSummary[]>(resolve => { finishPage = resolve; });
+  const refresh = new Promise<JobSummary[]>(resolve => { finishRefresh = resolve; });
+  const list = vi.fn().mockResolvedValueOnce(first).mockReturnValueOnce(page)
+    .mockReturnValueOnce(refresh).mockResolvedValueOnce(second).mockResolvedValueOnce([summary('j40')]);
+  const create = vi.fn().mockResolvedValue(job);
+  render(panel(portWith({ list, create })));
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Load more import jobs' }));
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  expect(create).not.toHaveBeenCalled();
+  await act(async () => finishPage(second));
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  expect(create).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole('button', { name: 'Load more import jobs' }));
+  expect(list).not.toHaveBeenCalledWith('r', 40);
+  await act(async () => finishRefresh(first));
+  expect(screen.getByRole('button', { name: 'Open import j20' })).toBeVisible();
+  expect(screen.getByRole('option', { name: 'j20' })).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Load more import jobs' }));
+  expect(await screen.findByRole('button', { name: 'Open import j40' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Open import j20' })).toBeVisible();
+  expect(list.mock.calls.map(call => call[1])).toEqual([0, 20, 0, 20, 40]);
+});
+
 it('shows prior, human and source values with locators and revokes approvals when content changes', async () => {
   const port = portWith(); const user = userEvent.setup();
   const view = render(panel(port)); await compare(user);
@@ -116,15 +145,16 @@ it('uses the first saved source when sources arrive after mount and can reopen a
 
 it('ignores delayed old-course list errors and comparison responses', async () => {
   let resolve!: (value: unknown) => void; let reject!: (value: unknown) => void;
-  const firstList = Promise.resolve([summary('old')]);
   const laterList = new Promise<JobSummary[]>((_, fail) => { reject = fail; });
   const preview = new Promise(done => { resolve = done; });
-  const list = vi.fn().mockReturnValueOnce(firstList).mockReturnValue(laterList);
+  const list = vi.fn().mockResolvedValue([summary('old')]);
   const port = portWith({ list, reimportPreview: vi.fn().mockReturnValue(preview) });
   const view = render(panel(port)); const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Create import preview' }));
   await user.selectOptions(screen.getByLabelText('Reimport from'), 'old');
   await user.click(screen.getByRole('button', { name: 'Compare reimport' }));
+  const stalled = portWith({ list: vi.fn().mockReturnValue(laterList) });
+  view.rerender(panel(stalled, 1, 'interim'));
   const next = portWith({ list: vi.fn().mockResolvedValue([]) });
   view.rerender(panel(next, 1, 'next'));
   await act(async () => { reject({ code: 'invalid_request' }); resolve(comparison); });

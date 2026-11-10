@@ -63,7 +63,8 @@ export function IngestionPanel({ port, sources, workspaceId, resourceId, library
       if (generation.current !== current) return;
       setJob(result); setMapping(initialMapping(result)); setPending(null); invalidateComparison(); setPreviousId(result.previousJobId ?? ''); setPage(0); setStatus('Import operation saved locally.');
       if (action.kind === 'apply' || action.kind === 'reimport' || action.kind === 'undo') onChanged();
-      void Promise.all(Array.from({ length: loadedPages.current }, (_, page) => port.list(resourceId, page * 20))).then(pages => { if (generation.current === current) { setJobs(pages.flat()); setHasMoreJobs(pages.at(-1)?.length === 20); } }, () => { if (generation.current === current) setError('Import jobs could not be refreshed.'); });
+      setListing(true);
+      void Promise.all(Array.from({ length: loadedPages.current }, (_, page) => port.list(resourceId, page * 20))).then(pages => { if (generation.current === current) { setJobs(pages.flat()); setHasMoreJobs(pages.at(-1)?.length === 20); } }, () => { if (generation.current === current) setError('Import jobs could not be refreshed.'); }).finally(() => { if (generation.current === current) setListing(false); });
     } catch (reason) { if (generation.current === current) { setError(failureMessage(reason)); if (isConfirmedRejection(reason)) { setPending(null); invalidateComparison(); } } }
     finally { if (generation.current === current) setBusy(false); }
   }
@@ -85,7 +86,7 @@ export function IngestionPanel({ port, sources, workspaceId, resourceId, library
     if (!job || (previousId !== '' && (!preview || previousRevision === null))) return;
     void send({ kind: 'review', request: { ...envelope(), jobId: job.id, expectedRevision: job.revision, previousJobId: previousId || null, expectedPreviousRevision: previousId ? previousRevision : null, mapping, decisions } });
   }
-  const locked = busy || pending !== null; const records = job?.extraction.records ?? [];
+  const locked = busy || pending !== null || listing; const records = job?.extraction.records ?? [];
   const keyCounts = new Map<string, number>();
   for (const record of records) { const key = selectedValues(record, mapping)?.key.trim(); if (key) keyCounts.set(key, (keyCounts.get(key) ?? 0) + 1); }
   const reviewedCount = job?.decisions?.filter(item => item.index !== null).length ?? 0;
