@@ -35,6 +35,17 @@ fn main() {
             "save_source",
             "source_preview",
             "search_resources",
+            "ingestion_create",
+            "ingestion_read",
+            "ingestion_list",
+            "ingestion_cancel",
+            "ingestion_apply",
+            "ingestion_review",
+            "ingestion_reimport_preview",
+            "ingestion_reimport_apply",
+            "ingestion_undo_preview",
+            "ingestion_undo",
+            "rebuild_search_index",
         ]),
     ))
     .expect("Tauri build configuration must be valid");

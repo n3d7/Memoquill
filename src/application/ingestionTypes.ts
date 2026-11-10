@@ -15,8 +15,9 @@ export interface ApplyReimport extends ApplyJob { previousJobId: string; expecte
 export interface UndoJob extends JobAction { expectedLibraryRevision: number }
 export interface ReviewJob extends JobAction { previousJobId: string | null; expectedPreviousRevision: number | null; mapping: Mapping; decisions: Decision[] }
 export type ReimportStatus = 'unchanged' | 'new' | 'changed' | 'conflict' | 'removed' | 'unresolved';
-export interface ReimportPreview { jobId: string; previousJobId: string; items: { index: number | null; key: string; resourceId: string | null; status: ReimportStatus; currentRevisionId: string | null; currentTitle: string | null }[] }
-export interface UndoPreview { jobId: string; canUndo: boolean; resources: string[] }
+export interface ReimportValues { title: string; body: string; locator: IngestionJob['extraction']['records'][number]['locator'] }
+export interface ReimportPreview { jobId: string; previousJobId: string; items: { index: number | null; key: string; resourceId: string | null; status: ReimportStatus; currentRevisionId: string | null; currentTitle: string | null; currentBody?: string | null; prior?: ReimportValues | null; incoming?: ReimportValues | null }[] }
+export interface UndoPreview { jobId: string; canUndo: boolean; resources: string[]; diagnostics?: string[] }
 export interface IngestionPort {
   create(request: CreateJob): Promise<IngestionJob>; read(jobId: string): Promise<IngestionJob>;
   list(resourceId: string, offset: number): Promise<JobSummary[]>; cancel(request: JobAction): Promise<IngestionJob>;

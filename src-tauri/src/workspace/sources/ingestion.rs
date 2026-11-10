@@ -142,6 +142,14 @@ pub enum ReimportStatus {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReimportValues {
+    pub title: String,
+    pub body: String,
+    pub locator: ExtractionLocator,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ReimportItem {
     pub index: Option<usize>,
     pub key: String,
@@ -149,6 +157,9 @@ pub struct ReimportItem {
     pub status: ReimportStatus,
     pub current_revision_id: Option<Uuid>,
     pub current_title: Option<String>,
+    pub current_body: Option<String>,
+    pub prior: Option<ReimportValues>,
+    pub incoming: Option<ReimportValues>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +195,7 @@ pub struct UndoPreview {
     pub job_id: Uuid,
     pub can_undo: bool,
     pub resources: Vec<ResourceId>,
+    pub diagnostics: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,6 +229,7 @@ pub struct IngestionJobSummary {
 
 struct LineageItem {
     outcome: IngestionOutcome,
+    locator: ExtractionLocator,
     title: String,
     body: String,
 }
@@ -423,6 +436,7 @@ impl Database {
                         key.to_owned(),
                         LineageItem {
                             outcome: outcome.clone(),
+                            locator: record.locator.clone(),
                             title: title.to_owned(),
                             body: body.to_owned(),
                         },
@@ -482,6 +496,11 @@ impl Database {
         let job = self.ingestion_job(context, job_id)?;
         self.verify_ingestion_job(&job)?;
         let mut can_undo = job.status != IngestionStatus::Undone && !job.outcomes.is_empty();
+        let mut diagnostics = Vec::new();
+        let mut resources = Vec::new();
+        if !can_undo {
+            diagnostics.push("There are no applied changes available to undo.".into());
+        }
         let previous = job
             .previous_job_id
             .map(|id| self.ingestion_job(context, id))
@@ -494,6 +513,10 @@ impl Database {
             .transpose()?;
         let descendant: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM ingestion_jobs WHERE json_extract(data,'$.previousJobId')=?1 AND json_extract(data,'$.status')<>'undone' AND (json_extract(data,'$.status')<>'cancelled' OR json_array_length(json_extract(data,'$.outcomes'))>0) AND json_extract(data,'$.revision')>0)", [job.id.to_string()], |r| r.get(0))?;
         can_undo &= !descendant;
+        if descendant {
+            diagnostics
+                .push("A later import depends on this job. Undo the later import first.".into());
+        }
         let snapshot = self.library(context)?;
         for outcome in &job.outcomes {
             let old = lineage
@@ -527,15 +550,36 @@ impl Database {
                 .read_document(context, outcome.resource_id, None)?
                 .ok_or_else(corrupt)?;
             let dependent: bool = self.connection.query_row("SELECT EXISTS(SELECT 1 FROM annotations WHERE resource_id=?1 UNION ALL SELECT 1 FROM reading_positions WHERE resource_id=?1 UNION ALL SELECT 1 FROM unit_resources WHERE resource_id=?1 UNION ALL SELECT 1 FROM placements WHERE resource_id=?1 UNION ALL SELECT 1 FROM tag_resources WHERE resource_id=?1 UNION ALL SELECT 1 FROM original_sources WHERE resource_id=?1 UNION ALL SELECT 1 FROM lesson_resource_owners WHERE resource_id=?1 UNION ALL SELECT 1 FROM lesson_dependencies WHERE kind='resource' AND target_id=?1)", [outcome.resource_id.to_string()], |r| r.get(0))?;
-            can_undo &= !resource.archived
+            let draft_dependent: bool = self.connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM lesson_drafts d, json_each(d.data,'$.draft.composition.bindings') b WHERE json_extract(b.value,'$.targetKind')='resource' AND json_extract(b.value,'$.targetId')=?1 UNION ALL SELECT 1 FROM lesson_drafts d, json_each(d.data,'$.dependencies') p WHERE json_extract(p.value,'$.kind')='Resource' AND json_extract(p.value,'$.target')=?1)",
+                [outcome.resource_id.to_string()], |r| r.get(0),
+            )?;
+            let unchanged = !resource.archived
                 && resource.title == title
-                && head.id == outcome.document_revision_id
-                && !dependent;
+                && head.id == outcome.document_revision_id;
+            can_undo &= unchanged && !dependent && !draft_dependent;
+            resources.push(outcome.resource_id);
+            if !unchanged {
+                diagnostics.push(format!(
+                    "Material {} was edited or archived after this import.",
+                    outcome.resource_id
+                ));
+            }
+            if dependent {
+                diagnostics.push(format!("Material {} has saved annotations, reading history, organization or lesson references.", outcome.resource_id));
+            }
+            if draft_dependent {
+                diagnostics.push(format!(
+                    "Material {} is referenced by a saved lesson draft.",
+                    outcome.resource_id
+                ));
+            }
         }
         Ok(UndoPreview {
             job_id,
             can_undo,
-            resources: job.outcomes.iter().map(|x| x.resource_id).collect(),
+            resources,
+            diagnostics,
         })
     }
 
@@ -870,89 +914,120 @@ impl Database {
             return Err(invalid());
         }
         let mut items = Vec::new();
+        let mut preview_bytes = 0usize;
         for (index, record) in job.extraction.records.iter().enumerate() {
-            let Some((key, title, body)) = mapped_fields(record, mapping) else {
-                items.push(ReimportItem {
-                    index: Some(index),
-                    key: String::new(),
-                    resource_id: None,
-                    status: ReimportStatus::Unresolved,
-                    current_revision_id: None,
-                    current_title: None,
-                });
-                continue;
-            };
+            let fields = mapped_fields(record, mapping);
+            let incoming = fields.map(|(_, title, body)| ReimportValues {
+                title: title.into(),
+                body: body.into(),
+                locator: record.locator.clone(),
+            });
+            let key = fields.map(|(key, _, _)| key).unwrap_or("");
             if key.is_empty() || counts.get(key).copied().unwrap_or(0) != 1 {
                 if !key.is_empty() {
                     seen.insert(key.to_string());
                 }
-                items.push(ReimportItem {
+                let item = ReimportItem {
                     index: Some(index),
                     key: key.into(),
                     resource_id: None,
                     status: ReimportStatus::Unresolved,
                     current_revision_id: None,
                     current_title: None,
-                });
+                    current_body: None,
+                    prior: None,
+                    incoming,
+                };
+                preview_bytes = preview_bytes
+                    .checked_add(comparison_bytes(&item))
+                    .ok_or_else(invalid)?;
+                if preview_bytes > 32 * 1024 * 1024 {
+                    return Err(AppError::new(ErrorCode::BudgetExceeded));
+                }
+                items.push(item);
                 continue;
             }
             seen.insert(key.to_string());
-            let mut current_revision_id = None;
-            let mut current_title = None;
             let old = old_by_key.get(key);
-            let (resource_id, status) = if let Some(old) = old {
-                let old_title = old.title.as_str();
-                let old_body = old.body.as_str();
+            let mut item = ReimportItem {
+                index: Some(index),
+                key: key.into(),
+                resource_id: None,
+                status: ReimportStatus::New,
+                current_revision_id: None,
+                current_title: None,
+                current_body: None,
+                prior: old.map(|old| ReimportValues {
+                    title: old.title.clone(),
+                    body: old.body.clone(),
+                    locator: old.locator.clone(),
+                }),
+                incoming,
+            };
+            if let Some(old) = old {
                 let resource = snapshot
                     .resources
                     .get(&old.outcome.resource_id)
                     .ok_or_else(corrupt)?;
-                if resource.archived {
-                    (Some(old.outcome.resource_id), ReimportStatus::Unresolved)
-                } else if title == old_title && body == old_body {
-                    (Some(old.outcome.resource_id), ReimportStatus::Unchanged)
+                let head = self
+                    .read_document(context, old.outcome.resource_id, None)?
+                    .ok_or_else(corrupt)?;
+                let edited =
+                    resource.title != old.title || head.id != old.outcome.document_revision_id;
+                let (_, title, body) = fields.ok_or_else(corrupt)?;
+                item.resource_id = Some(old.outcome.resource_id);
+                item.current_revision_id = Some(head.id);
+                item.current_title = Some(resource.title.clone());
+                item.current_body = Some(head.document.text());
+                item.status = if resource.archived {
+                    ReimportStatus::Unresolved
+                } else if title == old.title && body == old.body {
+                    ReimportStatus::Unchanged
+                } else if edited {
+                    ReimportStatus::Conflict
                 } else {
-                    let head = self
-                        .read_document(context, old.outcome.resource_id, None)?
-                        .ok_or_else(corrupt)?;
-                    let edited = resource.archived
-                        || resource.title != old_title
-                        || head.id != old.outcome.document_revision_id;
-                    if edited {
-                        current_revision_id = Some(head.id);
-                        current_title = Some(resource.title.clone());
-                    }
-                    (
-                        Some(old.outcome.resource_id),
-                        if edited {
-                            ReimportStatus::Conflict
-                        } else {
-                            ReimportStatus::Changed
-                        },
-                    )
-                }
-            } else {
-                (None, ReimportStatus::New)
-            };
-            items.push(ReimportItem {
-                index: Some(index),
-                key: key.into(),
-                resource_id,
-                status,
-                current_revision_id,
-                current_title,
-            });
+                    ReimportStatus::Changed
+                };
+            }
+            preview_bytes = preview_bytes
+                .checked_add(comparison_bytes(&item))
+                .ok_or_else(invalid)?;
+            if preview_bytes > 32 * 1024 * 1024 {
+                return Err(AppError::new(ErrorCode::BudgetExceeded));
+            }
+            items.push(item);
         }
         for (key, old) in old_by_key {
             if !seen.contains(&key) {
-                items.push(ReimportItem {
+                let resource = snapshot
+                    .resources
+                    .get(&old.outcome.resource_id)
+                    .ok_or_else(corrupt)?;
+                let head = self
+                    .read_document(context, old.outcome.resource_id, None)?
+                    .ok_or_else(corrupt)?;
+                let item = ReimportItem {
                     index: None,
                     key,
                     resource_id: Some(old.outcome.resource_id),
                     status: ReimportStatus::Removed,
-                    current_revision_id: None,
-                    current_title: None,
-                });
+                    current_revision_id: Some(head.id),
+                    current_title: Some(resource.title.clone()),
+                    current_body: Some(head.document.text()),
+                    prior: Some(ReimportValues {
+                        title: old.title,
+                        body: old.body,
+                        locator: old.locator,
+                    }),
+                    incoming: None,
+                };
+                preview_bytes = preview_bytes
+                    .checked_add(comparison_bytes(&item))
+                    .ok_or_else(invalid)?;
+                if preview_bytes > 32 * 1024 * 1024 {
+                    return Err(AppError::new(ErrorCode::BudgetExceeded));
+                }
+                items.push(item);
             }
         }
         Ok(ReimportPreview {
@@ -1292,4 +1367,16 @@ fn ensure_no_lineage_fork(connection: &Connection, job: Uuid, previous: Uuid) ->
         return Err(AppError::new(ErrorCode::RevisionConflict));
     }
     Ok(())
+}
+
+fn comparison_bytes(item: &ReimportItem) -> usize {
+    item.key.len()
+        + item.current_title.as_ref().map_or(0, String::len)
+        + item.current_body.as_ref().map_or(0, String::len)
+        + item
+            .prior
+            .iter()
+            .chain(item.incoming.iter())
+            .map(|v| v.title.len() + v.body.len() + v.locator.value.len())
+            .sum::<usize>()
 }

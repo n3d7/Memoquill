@@ -166,6 +166,196 @@ mod tests {
     };
 
     #[test]
+    fn ingestion_main_ipc_runs_durable_workflow_and_denies_foreign_surfaces() {
+        use serde_json::{Value, json};
+        use workspace::*;
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let course = manager.list().unwrap().selected_course_id;
+        let service = manager.service(course).unwrap();
+        let resource = crate::organization::ResourceId::generate();
+        let (workspace, source) = tauri::async_runtime::block_on(async {
+            let workspace = service
+                .status(RequestContext::local_ui())
+                .await
+                .unwrap()
+                .preferences
+                .workspace_id;
+            service
+                .apply_content(
+                    RequestContext::local_ui(),
+                    ApplyContent {
+                        contract_version: 1,
+                        workspace_id: workspace.clone(),
+                        operation_id: OperationId::generate(),
+                        expected_revision: 0,
+                        command: crate::organization::Command::CreateResource {
+                            id: resource,
+                            title: "Original".into(),
+                        },
+                    },
+                )
+                .await
+                .unwrap();
+            let asset = service
+                .register_asset(
+                    RequestContext::local_ui(),
+                    RegisterAsset {
+                        contract_version: 1,
+                        workspace_id: workspace.clone(),
+                        operation_id: OperationId::generate(),
+                    },
+                    Box::new(std::io::Cursor::new(b"one,body\n")),
+                    1024,
+                )
+                .await
+                .unwrap();
+            let source = service
+                .save_source(
+                    RequestContext::local_ui(),
+                    SaveSource {
+                        contract_version: 1,
+                        workspace_id: workspace.clone(),
+                        operation_id: OperationId::generate(),
+                        expected_revision: 0,
+                        source: NewSource {
+                            id: uuid::Uuid::new_v4(),
+                            resource_id: resource,
+                            digest: asset.digest,
+                            filename: "rows.csv".into(),
+                            media_type: "text/csv".into(),
+                            attribution: None,
+                            license: None,
+                            origin_url: None,
+                        },
+                    },
+                )
+                .await
+                .unwrap();
+            (workspace, source)
+        });
+        let other_course = uuid::Uuid::new_v4();
+        manager.create(other_course, "Other".into()).unwrap();
+        let app = mock_builder()
+            .manage(manager)
+            .invoke_handler(tauri::generate_handler![
+                ingestion_commands::ingestion_create,
+                ingestion_commands::ingestion_read,
+                ingestion_commands::ingestion_list,
+                ingestion_commands::ingestion_cancel,
+                ingestion_commands::ingestion_apply,
+                ingestion_commands::ingestion_review,
+                ingestion_commands::ingestion_reimport_preview,
+                ingestion_commands::ingestion_reimport_apply,
+                ingestion_commands::ingestion_undo_preview,
+                ingestion_commands::ingestion_undo,
+                authoring::library,
+                authoring::rebuild_search_index,
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        for command in [
+            "ingestion_create",
+            "ingestion_read",
+            "ingestion_list",
+            "ingestion_cancel",
+            "ingestion_apply",
+            "ingestion_review",
+            "ingestion_reimport_preview",
+            "ingestion_reimport_apply",
+            "ingestion_undo_preview",
+            "ingestion_undo",
+            "rebuild_search_index",
+        ] {
+            for (view, origin) in [
+                (&other, "tauri://localhost"),
+                (&main, "https://example.invalid"),
+            ] {
+                let error = raw_ipc(view, command, origin, json!({"courseId":course})).unwrap_err();
+                assert!(
+                    error.to_string().contains("not allowed"),
+                    "{command}: {error}"
+                );
+            }
+        }
+        let call = |command: &str, mut body: Value| -> Value {
+            body["courseId"] = json!(course);
+            raw_ipc(&main, command, "tauri://localhost", body)
+                .unwrap_or_else(|e| panic!("{command}: {e}"))
+                .deserialize()
+                .unwrap()
+        };
+        let create = || json!({"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"sourceId":source.id,"sourceRevision":source.revision});
+        let create_request = create();
+        let job = call("ingestion_create", json!({"request":create_request}));
+        assert_eq!(
+            call("ingestion_create", json!({"request":create_request})),
+            job
+        );
+        assert_eq!(call("ingestion_read", json!({"jobId":job["id"]})), job);
+        assert_eq!(
+            call("ingestion_list", json!({"resourceId":resource,"offset":0}))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            raw_ipc(
+                &main,
+                "ingestion_read",
+                "tauri://localhost",
+                json!({"courseId":other_course,"jobId":job["id"]})
+            )
+            .is_err()
+        );
+        let mapping = json!({"keyColumn":0,"titleColumn":0,"bodyColumn":1});
+        let revision = || call("library", json!({}))["revision"].clone();
+        let applied = call(
+            "ingestion_apply",
+            json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"jobId":job["id"],"expectedRevision":0,"expectedLibraryRevision":revision(),"mapping":mapping,"selected":[0]}}),
+        );
+        let next = call("ingestion_create", json!({"request":create()}));
+        let preview = call(
+            "ingestion_reimport_preview",
+            json!({"jobId":next["id"],"previousJobId":job["id"],"mapping":mapping}),
+        );
+        assert_eq!(preview["items"][0]["status"], "unchanged");
+        assert_eq!(preview["items"][0]["prior"]["body"], "body");
+        let next = call(
+            "ingestion_reimport_apply",
+            json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"jobId":next["id"],"previousJobId":job["id"],"expectedRevision":0,"expectedPreviousRevision":applied["revision"],"expectedLibraryRevision":revision(),"mapping":mapping,"selected":[0],"resolutions":[]}}),
+        );
+        assert_eq!(
+            call("ingestion_undo_preview", json!({"jobId":next["id"]}))["canUndo"],
+            true
+        );
+        let undone = call(
+            "ingestion_undo",
+            json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"jobId":next["id"],"expectedRevision":next["revision"],"expectedLibraryRevision":revision()}}),
+        );
+        assert_eq!(undone["status"], "undone");
+        let review = call("ingestion_create", json!({"request":create()}));
+        let reviewed = call(
+            "ingestion_review",
+            json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"jobId":review["id"],"expectedRevision":0,"previousJobId":null,"expectedPreviousRevision":null,"mapping":mapping,"decisions":[{"index":0,"key":null,"disposition":"omitted"}]}}),
+        );
+        let cancelled = call(
+            "ingestion_cancel",
+            json!({"request":{"contractVersion":1,"workspaceId":workspace,"operationId":uuid::Uuid::new_v4(),"jobId":review["id"],"expectedRevision":reviewed["revision"]}}),
+        );
+        assert_eq!(cancelled["status"], "cancelled");
+        call("rebuild_search_index", json!({}));
+        tauri::async_runtime::block_on(app.state::<CourseManager>().shutdown()).unwrap();
+    }
+
+    #[test]
     fn course_routes_reject_missing_and_unknown_course_ids() {
         let temp = tempfile::tempdir().unwrap();
         let manager = CourseManager::open(temp.path().to_owned()).unwrap();

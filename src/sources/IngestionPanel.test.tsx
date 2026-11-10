@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IngestionPanel } from './IngestionPanel';
 import type { IngestionJob, IngestionPort } from '../application/ingestionTypes';
@@ -14,7 +14,7 @@ it('reviews a selected subset and retries an unconfirmed apply with the same ope
   render(<IngestionPanel port={port} sources={[source]} workspaceId="w" resourceId="r" libraryRevision={2} onChanged={reload} />);
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Create import preview' }));
-  await user.clear(screen.getByLabelText('Body column')); await user.type(screen.getByLabelText('Body column'), '2');
+  fireEvent.change(screen.getByLabelText('Body column'), { target: { value: '2' } });
   await user.click(await screen.findByLabelText('Select record 2'));
   await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
   await user.click(await screen.findByRole('button', { name: 'Retry same import' }));

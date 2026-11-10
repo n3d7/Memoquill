@@ -1412,10 +1412,35 @@ fn reimport_preview_detects_changed_source_and_manual_document_edits() {
         },
     )
     .unwrap();
+    db.apply_content(
+        RequestContext::local_ui(),
+        &ApplyContent {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+            command: Command::RenameResource {
+                id: saved.resource_id,
+                title: "Human title".into(),
+            },
+        },
+    )
+    .unwrap();
+    let human = db
+        .read_document(RequestContext::local_ui(), saved.resource_id, None)
+        .unwrap()
+        .unwrap();
     let preview = db
         .preview_ingestion_reimport(RequestContext::local_ui(), new.id, old.id, &mapping)
         .unwrap();
     assert_eq!(preview.items[0].status, ReimportStatus::Conflict);
+    let values = serde_json::to_value(&preview.items[0]).unwrap();
+    assert_eq!(values["prior"]["body"], "old");
+    assert_eq!(values["prior"]["locator"]["value"], "1");
+    assert_eq!(values["currentBody"], "human");
+    assert_eq!(values["incoming"]["body"], "new");
+    assert_eq!(values["incoming"]["locator"]["value"], "1");
+
     let retry_job = db
         .create_ingestion_job(
             RequestContext::local_ui(),
@@ -1471,6 +1496,10 @@ fn reimport_preview_detects_changed_source_and_manual_document_edits() {
         .text(),
         "new"
     );
+    let reimported = db
+        .read_document(RequestContext::local_ui(), saved.resource_id, None)
+        .unwrap()
+        .unwrap();
     let undo = UndoIngestionJob {
         contract_version: 1,
         workspace_id: db.id.clone(),
@@ -1492,6 +1521,30 @@ fn reimport_preview_detects_changed_source_and_manual_document_edits() {
         .document
         .text(),
         "human"
+    );
+    assert_eq!(
+        db.library(RequestContext::local_ui()).unwrap().resources[&saved.resource_id].title,
+        "Human title"
+    );
+    assert_eq!(
+        db.read_document(
+            RequestContext::local_ui(),
+            saved.resource_id,
+            Some(human.id)
+        )
+        .unwrap()
+        .unwrap(),
+        human
+    );
+    assert_eq!(
+        db.read_document(
+            RequestContext::local_ui(),
+            saved.resource_id,
+            Some(reimported.id)
+        )
+        .unwrap()
+        .unwrap(),
+        reimported
     );
 }
 
@@ -2468,4 +2521,199 @@ fn structured_json_explicit_raw_selection_and_missing_property_have_distinct_dur
             .unwrap(),
         updated
     );
+}
+
+#[test]
+fn undo_guard_preserves_saved_draft_pins_through_real_service_reopen() {
+    use crate::workspace::lessons::{
+        ApplyLessonDraft, Binding, CreateLessonDraft, EditLessonDraft, LessonDraftScope,
+        LessonOperation,
+    };
+    let (temp, mut db, mut request) = fixture();
+    request.source.filename = "rows.txt".into();
+    let source = db
+        .save_source(RequestContext::local_ui(), &request)
+        .unwrap();
+    let job = db
+        .create_ingestion_job(
+            RequestContext::local_ui(),
+            &CreateIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                source_id: source.id,
+                source_revision: source.revision,
+            },
+        )
+        .unwrap();
+    let applied = db
+        .apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: job.id,
+                expected_revision: job.revision,
+                expected_library_revision: db.library(RequestContext::local_ui()).unwrap().revision,
+                mapping: IngestionMapping {
+                    key_column: 0,
+                    title_column: 0,
+                    body_column: 0,
+                    json_properties: None,
+                },
+                selected: vec![0],
+            },
+        )
+        .unwrap();
+    let imported = &applied.outcomes[0];
+    let unit = Uuid::new_v4().to_string();
+    db.connection
+        .execute("INSERT INTO units VALUES(?1,'Lesson','goal',0)", [&unit])
+        .unwrap();
+    let draft = db
+        .lesson_create(
+            RequestContext::local_ui(),
+            &CreateLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                unit_id: unit.clone(),
+                expected_head_revision: None,
+            },
+        )
+        .unwrap();
+    let draft = db
+        .lesson_edit(
+            RequestContext::local_ui(),
+            &EditLessonDraft {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                unit_id: unit.clone(),
+                draft_id: draft.id.clone(),
+                expected_draft_revision: draft.revision,
+                operations: vec![LessonOperation::BindReference {
+                    binding: Binding {
+                        binding_id: "import".into(),
+                        target_kind: "resource".into(),
+                        target_id: imported.resource_id.to_string(),
+                        revision_id: imported.document_revision_id.to_string(),
+                        locator: None,
+                    },
+                }],
+            },
+        )
+        .unwrap();
+    let snapshot = db.library(RequestContext::local_ui()).unwrap();
+    let head = db
+        .read_document(RequestContext::local_ui(), imported.resource_id, None)
+        .unwrap()
+        .unwrap();
+    let undo = UndoIngestionJob {
+        contract_version: 1,
+        workspace_id: db.id.clone(),
+        operation_id: OperationId::generate(),
+        job_id: applied.id,
+        expected_revision: applied.revision,
+        expected_library_revision: snapshot.revision,
+    };
+    drop(db);
+    tauri::async_runtime::block_on(async {
+        let service = ApplicationService::start(temp.path().join("workspace")).unwrap();
+        let preview = service
+            .preview_ingestion_undo(RequestContext::local_ui(), applied.id)
+            .await
+            .unwrap();
+        assert!(
+            !preview.can_undo,
+            "a durable draft pin must prevent archival"
+        );
+        let diagnostics = serde_json::to_value(&preview).unwrap();
+        assert!(
+            diagnostics["diagnostics"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str().unwrap().contains("draft"))
+        );
+        assert_eq!(
+            service
+                .undo_ingestion_job(RequestContext::local_ui(), undo)
+                .await
+                .unwrap_err()
+                .code,
+            ErrorCode::RevisionConflict
+        );
+        assert_eq!(
+            service.library(RequestContext::local_ui()).await.unwrap(),
+            snapshot
+        );
+        assert_eq!(
+            service
+                .read_document(RequestContext::local_ui(), imported.resource_id, None)
+                .await
+                .unwrap()
+                .unwrap(),
+            head
+        );
+        assert_eq!(
+            service
+                .lesson_list_drafts(RequestContext::local_ui(), unit.clone())
+                .await
+                .unwrap(),
+            vec![draft.clone()]
+        );
+        let preview = service
+            .lesson_preview(
+                RequestContext::local_ui(),
+                LessonDraftScope {
+                    contract_version: 1,
+                    workspace_id: WorkspaceId::try_from(snapshot.workspace_id.to_string()).unwrap(),
+                    unit_id: unit.clone(),
+                    draft_id: draft.id.clone(),
+                    expected_draft_revision: draft.revision,
+                },
+            )
+            .await
+            .unwrap();
+        service
+            .lesson_apply(
+                RequestContext::local_ui(),
+                ApplyLessonDraft {
+                    contract_version: 1,
+                    workspace_id: WorkspaceId::try_from(snapshot.workspace_id.to_string()).unwrap(),
+                    operation_id: OperationId::generate(),
+                    unit_id: unit.clone(),
+                    draft_id: draft.id,
+                    expected_draft_revision: draft.revision,
+                    expected_head_revision: draft.base_head_revision,
+                    preview_hash: preview.hash,
+                },
+            )
+            .await
+            .unwrap();
+        assert!(
+            !service
+                .preview_ingestion_undo(RequestContext::local_ui(), applied.id)
+                .await
+                .unwrap()
+                .can_undo,
+            "published pins must also prevent archival"
+        );
+        assert_eq!(
+            service
+                .lesson_resource(
+                    RequestContext::local_ui(),
+                    unit,
+                    imported.document_revision_id.to_string()
+                )
+                .await
+                .unwrap()
+                .unwrap()
+                .document,
+            head.document
+        );
+        service.shutdown().await.unwrap();
+    });
 }

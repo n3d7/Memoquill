@@ -40,6 +40,17 @@
     "allow-lesson-discard-draft",
     "allow-lesson-get-receipt",
     "allow-lesson-read-source",
-    "allow-lesson-validate-draft"
+    "allow-lesson-validate-draft",
+    "allow-ingestion-create",
+    "allow-ingestion-read",
+    "allow-ingestion-list",
+    "allow-ingestion-cancel",
+    "allow-ingestion-apply",
+    "allow-ingestion-review",
+    "allow-ingestion-reimport-preview",
+    "allow-ingestion-reimport-apply",
+    "allow-ingestion-undo-preview",
+    "allow-ingestion-undo",
+    "allow-rebuild-search-index"
   ]
 }
