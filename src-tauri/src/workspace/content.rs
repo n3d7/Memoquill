@@ -11,6 +11,23 @@ mod persistence_tests;
 mod types;
 pub use types::*;
 
+/// Read-only package admission: reuse the same organization/document invariants
+/// as runtime reads after the package reader has verified the exact trusted DDL.
+pub(super) fn validate_native_data(connection: &Connection, workspace: &WorkspaceId) -> Result<()> {
+    organization_store::load_connection(connection, workspace)?;
+    let mut query = connection.prepare("SELECT resource_id,id FROM resource_revisions")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let resource: String = row.get(0)?;
+        let revision: String = row.get(1)?;
+        let resource =
+            serde_json::from_value(serde_json::Value::String(resource)).map_err(|_| corrupt())?;
+        let revision = uuid(&revision)?;
+        documents::read(connection, resource, Some(revision))?.ok_or_else(corrupt)?;
+    }
+    Ok(())
+}
+
 impl Database {
     pub(super) fn library(&self, context: RequestContext) -> Result<organization::Snapshot> {
         context.authorize()?;

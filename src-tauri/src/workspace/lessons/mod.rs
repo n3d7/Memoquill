@@ -6,6 +6,7 @@ mod diagnostics;
 mod storage;
 mod types;
 mod validation;
+pub(super) use storage::validate_native_data;
 pub use types::*;
 #[cfg(test)]
 use validation::validate_composition;

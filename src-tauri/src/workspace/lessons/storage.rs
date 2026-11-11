@@ -55,6 +55,25 @@ impl Pending {
         }
     }
 }
+
+/// Package admission reuses runtime revision and draft validation read-only.
+pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Result<()> {
+    let mut query = connection.prepare("SELECT unit_id,id FROM lesson_revisions")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let unit: String = row.get(0)?;
+        let revision: String = row.get(1)?;
+        read(connection, &unit, Some(&revision))?.ok_or_else(corrupt)?;
+    }
+    let mut query = connection.prepare("SELECT unit_id,id FROM lesson_drafts")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let unit: String = row.get(0)?;
+        let id: String = row.get(1)?;
+        state(connection, &id, &unit)?;
+    }
+    Ok(())
+}
 fn request_budget(request: &impl Serialize) -> Result<()> {
     if bytes(request)?.len() > 2 * MAX_COMPOSITION {
         return Err(super::diagnostics::envelope(

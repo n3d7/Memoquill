@@ -1,5 +1,14 @@
 # Dependency notices
 
+2026-11-11: G1 native recovery adds pinned `zip`9.5.0 with default features
+disabled and deflate enabled, and promotes already pinned `tempfile`3.27.0 to a
+runtime dependency for private staging. Existing dependency versions were
+preserved. The installed Linux graph, original upstream license texts and Cargo
+lock fingerprint were regenerated using the reused bounded collector in
+`.superpowers/sdd/2026-11-09-m3-completion/collect-notices-g1.py`. Eight newly
+represented Linux components have actual notices; optional platform lock entries
+do not imply those components are linked or shipped on Linux.
+
 2026-11-09: inventory and Cargo-lock fingerprint refreshed for M3 CSV extraction
 (`csv` 1.4.0, `csv-core` 0.1.13, `ryu` 1.0.23). Actual installed notices were
 collected offline, also filling nine already-locked native inventory omissions;

@@ -26,6 +26,7 @@ enum Request {
         u64,
         Reply<AssetInfo>,
     ),
+    CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
@@ -710,6 +711,19 @@ impl ApplicationService {
         )
         .await
     }
+    /// Rust-only capture seam; ZIP work happens after the serialized writer releases.
+    pub async fn capture_native(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+    ) -> Result<NativeCapture> {
+        self.request(
+            context,
+            |reply| Request::CaptureNative(context, source_course_id, reply),
+            false,
+        )
+        .await
+    }
     pub async fn reopen(&self, context: RequestContext) -> Result<WorkspaceStatus> {
         self.request(context, Request::Reopen, false).await
     }
@@ -795,6 +809,9 @@ impl Store {
                 let _ = reply.send(
                     self.access(|db| db.register_asset(context, &request, &mut reader, limit)),
                 );
+            }
+            Request::CaptureNative(context, course_id, reply) => {
+                let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
             }
             Request::Reopen(reply) => {
                 self.database = Err(AppError::new(ErrorCode::OwnerUnavailable));

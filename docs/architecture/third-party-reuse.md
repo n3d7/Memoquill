@@ -1,5 +1,20 @@
 # Third-party reuse and attribution
 
+## G1 native package implementation (2026-11-11)
+
+Pinned `zip`9.5.0 is linked with default features disabled and deflate enabled.
+Its installed MIT text retains Mathijs van de Nes copyright2014; source
+archive/checksum and complete license text are in the dependency inventory/notices.
+The selected version is newer than the corrected RustSec advisory ranges in the
+task dependency evidence; application EOCD/metadata, path, overlap and expansion
+limits remain necessary. No ZIP implementation is copied or vendored.
+`tempfile`3.27.0, already pinned for tests, is promoted to runtime for explicitly
+0700 private staging. New Linux notice entries cover zip, zopfli, typed-path,
+constant_time_eq, zeroize, zeroize_derive, bumpalo and rustversion, retaining their
+installed original license texts. Original dependency versions are preserved;
+refreshed lock edges include platform feature unification. Collector and bounded
+metadata evidence are in `.superpowers/sdd/2026-11-09-m3-completion/`.
+
 Memoquill's project license is Apache License 2.0 subject to Commons Clause 1.0 (`LICENSE`), adopted on 2026-11-01 at the user's explicit request. The combined terms are source-available, not OSI-approved open source. Earlier MIT grants are not revoked; separately licensed dependencies and adapted guidance are not relicensed by this change. Adapted material and components retain their applicable licenses. No license exception from another project applies here.
 
 ## Incorporated operational guidance

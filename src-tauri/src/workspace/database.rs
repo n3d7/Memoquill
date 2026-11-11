@@ -223,7 +223,7 @@ pub(super) fn snapshot(source: &Connection, root: &Path, from: i64) -> Result<Pa
     owner::sync_directory(&folder)?;
     Ok(path)
 }
-fn bounded_backup(source: &Connection, destination: &mut Connection) -> Result<()> {
+pub(super) fn bounded_backup(source: &Connection, destination: &mut Connection) -> Result<()> {
     let backup = Backup::new(source, destination)?;
     let start = Instant::now();
     loop {
