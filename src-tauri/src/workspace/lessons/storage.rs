@@ -840,3 +840,66 @@ pub(in crate::workspace) fn validate_native_outcome(receipt: &OperationReceipt) 
     }
     Ok(())
 }
+
+/// Portable import checks every published row, including unpinned authored history.
+pub(in crate::workspace) fn validate_portable_data(c: &Connection) -> Result<()> {
+    validate_native_data(c)?;
+    let mut query =
+        c.prepare("SELECT id,unit_id,source_id,data,digest FROM lesson_source_bindings")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let unit: String = row.get(1)?;
+        let source: String = row.get(2)?;
+        let data: String = row.get(3)?;
+        let digest: String = row.get(4)?;
+        let snapshot: SourceBindingRevision = serde_json::from_str(&data).map_err(|_| corrupt())?;
+        validate_source(c, &snapshot, &unit)?;
+        if snapshot.id != id || snapshot.source_id != source || hash(&snapshot)? != digest {
+            return Err(corrupt());
+        }
+    }
+    let mut query = c.prepare("SELECT definition,digest FROM lesson_activity_revisions")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let data: String = row.get(0)?;
+        let digest: String = row.get(1)?;
+        let definition: Value = serde_json::from_str(&data).map_err(|_| corrupt())?;
+        activity(&definition)?;
+        if hash(&definition)? != digest {
+            return Err(corrupt());
+        }
+    }
+    // Pins must exactly reflect each published composition, not merely point to valid rows.
+    let mut query = c.prepare("SELECT id,data FROM lesson_revisions")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let data: String = row.get(1)?;
+        let composition: Composition = serde_json::from_str(&data).map_err(|_| corrupt())?;
+        let mut expected = std::collections::BTreeSet::new();
+        for b in &composition.bindings {
+            expected.insert((
+                b.target_kind.clone(),
+                b.target_id.clone(),
+                b.revision_id.clone(),
+            ));
+        }
+        let mut q = c.prepare(
+            "SELECT kind,target_id,revision_id FROM lesson_dependencies WHERE composition_id=?1",
+        )?;
+        let actual = q
+            .query_map([&id], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<std::result::Result<std::collections::BTreeSet<_>, _>>()?;
+        if actual != expected {
+            return Err(corrupt());
+        }
+    }
+    Ok(())
+}

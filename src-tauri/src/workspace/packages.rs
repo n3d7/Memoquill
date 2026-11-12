@@ -1,6 +1,8 @@
 //! Selected-course native recovery packages. No renderer filesystem authority.
 mod archive;
+mod portable;
 mod validation;
+pub use portable::{PortableCapture, PortableImportReport, PortableManifest};
 
 use super::{
     assets,

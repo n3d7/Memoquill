@@ -43,7 +43,7 @@ pub(super) fn write<W: Write + Seek>(capture: &NativeCapture, writer: W) -> Resu
 }
 
 pub(super) fn read<R: Read + Seek>(mut reader: R) -> Result<NativeCapture> {
-    let directory = preflight(&mut reader)?;
+    let directory = preflight(&mut reader, valid_name)?;
     reader.seek(SeekFrom::Start(0))?;
     let mut archive = ZipArchive::new(reader).map_err(zip_error)?;
     if archive.len() != directory.count
@@ -176,9 +176,9 @@ fn validate_manifest(manifest: &NativeManifest) -> Result<()> {
     Ok(())
 }
 
-struct Directory {
-    count: usize,
-    offset: u64,
+pub(super) struct Directory {
+    pub(super) count: usize,
+    pub(super) offset: u64,
 }
 fn u16_at(bytes: &[u8], index: usize) -> u16 {
     u16::from_le_bytes([bytes[index], bytes[index + 1]])
@@ -188,7 +188,10 @@ fn u32_at(bytes: &[u8], index: usize) -> u32 {
 }
 
 /// Bound metadata BEFORE ZipArchive allocates its central directory structures.
-fn preflight<R: Read + Seek>(reader: &mut R) -> Result<Directory> {
+pub(super) fn preflight<R: Read + Seek>(
+    reader: &mut R,
+    valid_name: fn(&str) -> bool,
+) -> Result<Directory> {
     let length = reader.seek(SeekFrom::End(0))?;
     if !(22..=MAX_ARCHIVE).contains(&length) {
         return Err(budget());

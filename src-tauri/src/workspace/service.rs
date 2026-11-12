@@ -27,6 +27,7 @@ enum Request {
         Reply<AssetInfo>,
     ),
     CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
+    CapturePortable(RequestContext, uuid::Uuid, bool, Reply<PortableCapture>),
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
@@ -724,6 +725,20 @@ impl ApplicationService {
         )
         .await
     }
+    /// Course-scoped serialized capture; originals require an explicit native caller choice.
+    pub async fn capture_portable(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+        include_originals: bool,
+    ) -> Result<PortableCapture> {
+        self.request(
+            context,
+            |reply| Request::CapturePortable(context, source_course_id, include_originals, reply),
+            false,
+        )
+        .await
+    }
     pub async fn reopen(&self, context: RequestContext) -> Result<WorkspaceStatus> {
         self.request(context, Request::Reopen, false).await
     }
@@ -812,6 +827,10 @@ impl Store {
             }
             Request::CaptureNative(context, course_id, reply) => {
                 let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
+            }
+            Request::CapturePortable(context, course_id, originals, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.capture_portable(context, course_id, originals)));
             }
             Request::Reopen(reply) => {
                 self.database = Err(AppError::new(ErrorCode::OwnerUnavailable));

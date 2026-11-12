@@ -1,7 +1,7 @@
 //! Course routing metadata only. Each course keeps the existing isolated workspace format.
 use super::{
-    AppError, ApplicationService, ErrorCode, NativeCapture, NativeRestoreReport, error::Result,
-    owner,
+    AppError, ApplicationService, ErrorCode, NativeCapture, NativeRestoreReport, PortableCapture,
+    PortableImportReport, error::Result, owner,
 };
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
@@ -47,6 +47,38 @@ impl CourseManager {
         package: &NativeCapture,
         allow_incomplete: bool,
     ) -> Result<NativeRestoreReport> {
+        self.admit_package(
+            operation_id,
+            title,
+            package,
+            allow_incomplete,
+            package.identity()?,
+        )
+    }
+    /// Content-only import: trusted rebuilt data, new course, manifest-bound durable retry.
+    pub fn import_portable(
+        &self,
+        operation_id: Uuid,
+        title: String,
+        package: &PortableCapture,
+    ) -> Result<PortableImportReport> {
+        self.admit_package(
+            operation_id,
+            title,
+            package.native(),
+            true,
+            package.identity()?,
+        )?;
+        Ok(package.report(operation_id))
+    }
+    fn admit_package(
+        &self,
+        operation_id: Uuid,
+        title: String,
+        package: &NativeCapture,
+        allow_incomplete: bool,
+        identity: String,
+    ) -> Result<NativeRestoreReport> {
         validate_id(operation_id)?;
         validate_title(&title)?;
         if !package.manifest().complete && !allow_incomplete {
@@ -57,7 +89,6 @@ impl CourseManager {
             return Err(unavailable());
         }
         let current = catalogue(&state.connection)?;
-        let identity = package.identity()?;
         let journal = self.app_data.join("courses/restore-operations");
         owner::create_private_tree(&journal)?;
         owner::private_directory(&journal)?;

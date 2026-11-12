@@ -353,7 +353,7 @@ fn exact_operation_rejects_a_different_package_even_with_the_same_title() {
     assert_eq!(manager.list().unwrap(), before);
 }
 
-fn populated() -> (tempfile::TempDir, Database) {
+pub(super) fn populated() -> (tempfile::TempDir, Database) {
     let temp = tempfile::tempdir().unwrap();
     let mut db = Database::open(&temp.path().join("source")).unwrap();
     let resource = crate::organization::ResourceId::generate();
