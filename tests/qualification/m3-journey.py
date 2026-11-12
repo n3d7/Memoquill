@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import zipfile
 
 os.environ.setdefault('MEMOQUILL_CAPTURE_SCREENSHOTS', os.environ.get('MEMOQUILL_M3_SCREENSHOTS', '0'))
 spec = importlib.util.spec_from_file_location('native_driver', Path(__file__).with_name('atspi-journey.py'))
@@ -74,17 +75,79 @@ def save_original(filename):
     d.key('ctrl+l')
     d.command('xdotool', 'type', '--clearmodifiers', str(destination))
     d.key('Return')
-    if not destination.exists():
-        try:
-            click('Save')
-        except LookupError:
-            pass
+    d.wait_for(lambda: destination.exists() or visible_button('Save'), 'native save destination accepted', record=False)
+    if not destination.exists() and visible_button('Save'):
+        click('Save')
     d.wait_for(destination.exists, f'{filename} original copied')
     expected = hashlib.sha256((Path('/input') / filename).read_bytes()).hexdigest()
     actual = hashlib.sha256(destination.read_bytes()).hexdigest()
     if actual != expected:
         raise AssertionError(f'Original bytes changed: {filename}')
     results.append({'check': f'preserved original copy {filename}', 'passed': True, 'sha256': actual})
+
+
+
+def visible_button(name):
+    try:
+        state = d.find('button', name).getState()
+        return state.contains(d.pyatspi.STATE_ENABLED) and state.contains(d.pyatspi.STATE_SHOWING)
+    except LookupError:
+        return False
+
+
+def chooser_visible():
+    return any(node.getRoleName() in ('dialog', 'file chooser') and node.getState().contains(d.pyatspi.STATE_SHOWING) for node in d.nodes())
+
+
+def choose_native_path(path, saving=False):
+    d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), 'package native chooser opened')
+    d.key('ctrl+l')
+    d.command('xdotool', 'type', '--clearmodifiers', str(path))
+    d.key('Return')
+    if saving:
+        d.wait_for(lambda: Path(path).exists() or visible_button('Save'), 'native package destination accepted', record=False)
+        if not Path(path).exists() and visible_button('Save'):
+            click('Save')
+        d.wait_for(lambda: Path(path).exists(), 'package published to selected destination')
+    else:
+        d.wait_for(lambda: not chooser_visible() or visible_button('Open'), 'native package source accepted', record=False)
+        if visible_button('Open'):
+            click('Open')
+
+
+def package_roundtrips():
+    packages = (
+        ('Export full recovery package', 'native', 'M3 native restored course'),
+        ('Export shareable content package', 'portable', 'M3 portable imported course'),
+    )
+    for label, kind, _ in packages:
+        destination = Path('/evidence') / f'{kind}.zip'
+        click(label)
+        choose_native_path(destination, saving=True)
+        with zipfile.ZipFile(destination) as archive:
+            names = set(archive.namelist())
+            manifest = json.loads(archive.read('manifest.json'))
+            if kind == 'native':
+                assert 'database.sqlite3' in names and manifest['complete'] is True
+                assert any(name.startswith('assets/') for name in names)
+            else:
+                assert 'database.sqlite3' not in names
+                assert 'content.ndjson' in names and 'readable/content.txt' in names
+                assert manifest['kind'] == 'portableContent'
+                assert manifest['originalsRequested'] is False
+                assert manifest['intentionallyOmittedAssets']
+                assert not any(name.startswith('assets/') for name in names)
+        results.append({'check': f'{kind} native-selected export payload and completeness', 'passed': True, 'sha256': hashlib.sha256(destination.read_bytes()).hexdigest()})
+    for _, kind, title in packages:
+        click('Choose package to inspect')
+        choose_native_path(Path('/evidence') / f'{kind}.zip')
+        d.wait_for(lambda: d.find('entry', 'New course title'), f'{kind} package inspection review available')
+        field('New course title', title)
+        click('Confirm import into new course')
+        d.wait_for(lambda: d.find('button', title), f'{kind} new course admitted')
+        click(title)
+        d.wait_for(lambda: d.find('button', 'First quantum record'), f'{kind} canonical content restored')
+        results.append({'check': f'{kind} inspected and confirmed into new isolated course', 'passed': True})
 
 
 def select_index(name, index):
@@ -228,7 +291,10 @@ def main():
             save_original(filename)
     else:
         results.append({'check': 'original copy', 'status': 'not_run', 'reason': 'intermediate candidate; native copy action pending'})
-    results.append({'check': 'ingestion/search native subset', 'passed': True, 'packageRecovery': 'not_run'})
+    if os.environ.get('MEMOQUILL_M3_PACKAGE_AUDIT', '1') == '1':
+        package_roundtrips()
+    else:
+        results.append({'check': 'package recovery', 'status': 'not_run', 'reason': 'explicit subset run'})
     if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
         d.capture('m3-imported-records')
     d.key('alt+F4')
@@ -236,8 +302,8 @@ def main():
 
 try:
     main()
-    scope = 'JSON mapping subset' if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1' else 'ingestion/search/reimport/originals subset'
-    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': scope + '; full M3 qualification pending', 'checks': results}, ensure_ascii=False, indent=2))
+    scope = 'JSON mapping subset' if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1' else 'ingestion/search/reimport/originals/packages journey'
+    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': scope, 'checks': results}, ensure_ascii=False, indent=2))
 except Exception as error:
     controls = []
     for node in d.nodes():
