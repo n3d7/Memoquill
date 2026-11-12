@@ -185,6 +185,97 @@ pub(super) fn durable_commit(transaction: Transaction<'_>) -> Result<()> {
         .map_err(|_| AppError::new(ErrorCode::OutcomeUnconfirmed))
 }
 
+/// Check receipts independently of current mutable heads: historical results are durable.
+pub(super) fn validate_native_data(connection: &Connection, workspace: &WorkspaceId) -> Result<()> {
+    let corrupt = || AppError::new(ErrorCode::RecoveryRequired);
+    let mut query = connection.prepare(
+        "SELECT id,workspace_id,principal,request_hash,kind,state,result FROM operations",
+    )?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let id = OperationId::try_from(id).map_err(|_| corrupt())?;
+        let owner: String = row.get(1)?;
+        let principal: String = row.get(2)?;
+        let hash: String = row.get(3)?;
+        let kind: String = row.get(4)?;
+        if owner != workspace.as_str()
+            || principal != "local-ui"
+            || AssetDigest::try_from(hash.clone()).is_err()
+            || !matches!(
+                kind.as_str(),
+                "preferences"
+                    | "asset"
+                    | "organization"
+                    | "document"
+                    | "lesson"
+                    | "annotation"
+                    | "reading_position"
+                    | "ingestion"
+            )
+        {
+            return Err(corrupt());
+        }
+        let record = OperationRecord {
+            hash,
+            state: row.get(5)?,
+            result: row.get(6)?,
+        };
+        if record.state == "prepared" && (kind != "asset" || record.result.is_some()) {
+            return Err(corrupt());
+        }
+        let receipt = decode(&id, record)?;
+        let ReceiptResult::Applied(outcome) = &receipt.result else {
+            continue;
+        };
+        let expected = match outcome {
+            OperationOutcome::Preferences(_) => "preferences",
+            // Existing runtime source writes share the asset receipt family.
+            OperationOutcome::Asset(_) | OperationOutcome::Source(_) => "asset",
+            OperationOutcome::Organization(_) => "organization",
+            OperationOutcome::Document(_) => "document",
+            OperationOutcome::LessonDraft(_)
+            | OperationOutcome::Lesson(_)
+            | OperationOutcome::LessonDiscarded(_) => "lesson",
+            OperationOutcome::Annotation(_) => "annotation",
+            OperationOutcome::ReadingPosition(_) => "reading_position",
+            OperationOutcome::IngestionJob(_) => "ingestion",
+        };
+        if kind != expected {
+            return Err(corrupt());
+        }
+        match outcome {
+            OperationOutcome::Preferences(value) => {
+                if value.revision > MAX_REVISION {
+                    return Err(corrupt());
+                }
+                preferences_outcome(receipt, workspace)?;
+            }
+            OperationOutcome::Asset(value) => {
+                let length: i64 = connection.query_row(
+                    "SELECT byte_length FROM assets WHERE digest=?1",
+                    [value.digest.as_str()],
+                    |r| r.get(0),
+                )?;
+                if length < 0 || value.byte_length != length as u64 {
+                    return Err(corrupt());
+                }
+            }
+            OperationOutcome::Organization(_)
+            | OperationOutcome::Document(_)
+            | OperationOutcome::Annotation(_)
+            | OperationOutcome::ReadingPosition(_) => {
+                content::validate_native_outcome(connection, workspace, outcome)?
+            }
+            OperationOutcome::Source(_) | OperationOutcome::IngestionJob(_) => {
+                sources::validate_native_outcome(connection, outcome)?
+            }
+            _ => lessons::validate_native_outcome(&receipt)?,
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

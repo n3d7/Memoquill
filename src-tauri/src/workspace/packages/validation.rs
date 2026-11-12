@@ -136,6 +136,8 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     }
     super::super::content::validate_native_data(&connection, &manifest.workspace_id)?;
     super::super::lessons::validate_native_data(&connection)?;
+    super::super::sources::validate_native_data(&connection)?;
+    super::super::operations::validate_native_data(&connection, &manifest.workspace_id)?;
     let mut jobs = connection.prepare("SELECT id,source_id,data FROM ingestion_jobs")?;
     let mut rows = jobs.query([])?;
     while let Some(row) = rows.next()? {

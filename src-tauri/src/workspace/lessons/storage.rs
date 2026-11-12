@@ -801,3 +801,42 @@ impl Database {
         })
     }
 }
+
+pub(in crate::workspace) fn validate_native_outcome(receipt: &OperationReceipt) -> Result<()> {
+    match &receipt.result {
+        ReceiptResult::Applied(OperationOutcome::LessonDraft(value)) => {
+            uuid(&value.id).map_err(|_| corrupt())?;
+            uuid(&value.unit_id).map_err(|_| corrupt())?;
+            if value.revision == 0
+                || value.revision > crate::workspace::types::MAX_REVISION as u64
+                || value.unit_id != value.composition.unit_id
+            {
+                return Err(corrupt());
+            }
+            if let Some(id) = &value.base_head_revision {
+                uuid(id).map_err(|_| corrupt())?;
+            }
+            draft_outcome(receipt.clone())?;
+        }
+        ReceiptResult::Applied(OperationOutcome::Lesson(value)) => {
+            if value.operation_id != receipt.operation_id
+                || value.saved.unit_id != value.saved.composition.unit_id
+                || value.saved.registry_contract_version != 1
+                || value.old_head != value.saved.parent_revision_id
+            {
+                return Err(corrupt());
+            }
+            uuid(&value.saved.id).map_err(|_| corrupt())?;
+            uuid(&value.saved.unit_id).map_err(|_| corrupt())?;
+            if let Some(id) = &value.old_head {
+                uuid(id).map_err(|_| corrupt())?;
+            }
+            receipt_outcome(receipt.clone())?;
+        }
+        ReceiptResult::Applied(OperationOutcome::LessonDiscarded(id)) => {
+            uuid(id).map_err(|_| corrupt())?;
+        }
+        _ => return Err(corrupt()),
+    }
+    Ok(())
+}

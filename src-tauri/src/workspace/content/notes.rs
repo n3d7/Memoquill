@@ -266,3 +266,60 @@ fn annotation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AnnotationRow> {
         row.get(4)?,
     ))
 }
+
+// Validate every persisted row, including notes pinned to historical revisions.
+pub(super) fn validate_native_data(connection: &Connection) -> Result<()> {
+    let mut query = connection
+        .prepare("SELECT resource_id,id,revision_id,revision,anchor,body FROM annotations")?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let id = serde_json::from_value(serde_json::Value::String(id)).map_err(|_| corrupt())?;
+        decode_annotation(
+            connection,
+            id,
+            (
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ),
+        )?;
+    }
+    let mut query = connection.prepare(
+        "SELECT resource_id,revision_id,block_id,offset_utf16,revision FROM reading_positions",
+    )?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let id = serde_json::from_value(serde_json::Value::String(id)).map_err(|_| corrupt())?;
+        decode_position(
+            connection,
+            id,
+            (row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?),
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn validate_native_outcome(
+    connection: &Connection,
+    outcome: &OperationOutcome,
+) -> Result<()> {
+    match outcome {
+        OperationOutcome::Annotation(value) => {
+            if value.revision == 0 || value.revision > super::super::types::MAX_REVISION as u64 {
+                return Err(corrupt());
+            }
+            validate_note_reference(connection, value)
+        }
+        OperationOutcome::ReadingPosition(value) => {
+            if value.revision == 0 || value.revision > super::super::types::MAX_REVISION as u64 {
+                return Err(corrupt());
+            }
+            validate_position(connection, value)
+        }
+        _ => Err(corrupt()),
+    }
+}

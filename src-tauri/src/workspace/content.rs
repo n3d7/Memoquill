@@ -15,6 +15,7 @@ pub use types::*;
 /// as runtime reads after the package reader has verified the exact trusted DDL.
 pub(super) fn validate_native_data(connection: &Connection, workspace: &WorkspaceId) -> Result<()> {
     organization_store::load_connection(connection, workspace)?;
+    notes::validate_native_data(connection)?;
     let mut query = connection.prepare("SELECT resource_id,id FROM resource_revisions")?;
     let mut rows = query.query([])?;
     while let Some(row) = rows.next()? {
@@ -179,6 +180,31 @@ fn organization_outcome(receipt: OperationReceipt) -> Result<organization::Snaps
         }
         ReceiptResult::Interrupted(code) => Err(AppError::new(code)),
         _ => Err(corrupt()),
+    }
+}
+
+pub(super) fn validate_native_outcome(
+    connection: &Connection,
+    workspace: &WorkspaceId,
+    outcome: &OperationOutcome,
+) -> Result<()> {
+    match outcome {
+        OperationOutcome::Organization(value) => {
+            if value.workspace_id.to_string() != workspace.as_str() {
+                return Err(corrupt());
+            }
+            organization::Organization::from_snapshot((**value).clone()).map_err(|_| corrupt())?;
+            Ok(())
+        }
+        OperationOutcome::Document(value) => {
+            let persisted = documents::read(connection, value.resource_id, Some(value.id))?
+                .ok_or_else(corrupt)?;
+            if persisted != *value {
+                return Err(corrupt());
+            }
+            Ok(())
+        }
+        _ => notes::validate_native_outcome(connection, outcome),
     }
 }
 

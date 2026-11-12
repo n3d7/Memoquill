@@ -353,8 +353,7 @@ fn exact_operation_rejects_a_different_package_even_with_the_same_title() {
     assert_eq!(manager.list().unwrap(), before);
 }
 
-#[test]
-fn native_snapshot_preserves_real_json_jobs_lessons_receipts_and_all_rows() {
+fn populated() -> (tempfile::TempDir, Database) {
     let temp = tempfile::tempdir().unwrap();
     let mut db = Database::open(&temp.path().join("source")).unwrap();
     let resource = crate::organization::ResourceId::generate();
@@ -556,6 +555,12 @@ fn native_snapshot_preserves_real_json_jobs_lessons_receipts_and_all_rows() {
         },
     )
     .unwrap();
+    (temp, db)
+}
+
+#[test]
+fn native_snapshot_preserves_real_json_jobs_lessons_receipts_and_all_rows() {
+    let (_temp, mut db) = populated();
     let package = roundtrip(
         &db.capture_native(RequestContext::local_ui(), Uuid::new_v4())
             .unwrap(),
@@ -754,4 +759,164 @@ fn native_wal_snapshot_roundtrips_without_changing_existing_course() {
             .unwrap(),
         restored
     );
+}
+
+#[test]
+fn malformed_annotation_domain_is_rejected_before_native_admission() {
+    let (_temp, mut db) = populated();
+    let mut package = db
+        .capture_native(RequestContext::local_ui(), Uuid::new_v4())
+        .unwrap();
+    let path = package.staging.path().join("database.sqlite3");
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .execute("UPDATE annotations SET anchor='{}'", [])
+        .unwrap();
+    package.manifest.table_counts = validation::table_counts(&connection).unwrap();
+    drop(connection);
+    let (hash, size) = hash_file(&path, MAX_DATABASE).unwrap();
+    package.manifest.payloads[0].sha256 = hash;
+    package.manifest.payloads[0].byte_length = size;
+    let mut archive = Cursor::new(Vec::new());
+    package.write_to(&mut archive).unwrap();
+    assert!(
+        NativeCapture::read_from(Cursor::new(archive.into_inner())).is_err(),
+        "malformed anchor admitted despite valid schema/FKs/counts/hashes"
+    );
+}
+
+fn reject_mutation(sql: &str) {
+    let (_temp, mut db) = populated();
+    let mut package = db
+        .capture_native(RequestContext::local_ui(), Uuid::new_v4())
+        .unwrap();
+    let path = package.staging.path().join("database.sqlite3");
+    let connection = Connection::open(&path).unwrap();
+    assert!(
+        connection.execute(sql, []).unwrap() > 0,
+        "mutation matched no rows: {sql}"
+    );
+    package.manifest.table_counts = validation::table_counts(&connection).unwrap();
+    drop(connection);
+    let (hash, size) = hash_file(&path, MAX_DATABASE).unwrap();
+    package.manifest.payloads[0].sha256 = hash;
+    package.manifest.payloads[0].byte_length = size;
+    let mut archive = Cursor::new(Vec::new());
+    package.write_to(&mut archive).unwrap();
+    assert!(
+        NativeCapture::read_from(Cursor::new(archive.into_inner())).is_err(),
+        "domain mutation admitted: {sql}"
+    );
+}
+
+#[test]
+fn malformed_note_position_and_source_domains_are_rejected() {
+    for sql in [
+        "UPDATE annotations SET anchor=json_set(anchor,'$.startUtf16',2)",
+        "UPDATE annotations SET anchor=json_set(anchor,'$.exactQuote','wrong')",
+        "UPDATE annotations SET body=char(0)",
+        "UPDATE reading_positions SET offset_utf16=2",
+        "UPDATE reading_positions SET block_id='00000000-0000-4000-8000-000000000001'",
+        "UPDATE original_sources SET filename='../source.json'",
+        "UPDATE original_sources SET origin_url='file:///etc/passwd'",
+        "UPDATE source_revisions SET revision=revision+1",
+        "UPDATE original_sources SET revision=revision+1",
+    ] {
+        reject_mutation(sql);
+    }
+}
+
+#[test]
+fn malformed_operation_receipt_domains_are_rejected() {
+    for sql in [
+        "UPDATE operations SET result=json_set(result,'$.operationId','00000000-0000-4000-8000-000000000001')",
+        "UPDATE operations SET state='interrupted' WHERE state='applied'",
+        "UPDATE operations SET kind='preferences' WHERE kind='annotation'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.anchor.startUtf16',2) WHERE kind='annotation'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.offsetUtf16',2) WHERE kind='reading_position'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.filename','../invalid') WHERE json_extract(result,'$.result.value.kind')='source'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.saved.hash','wrong') WHERE json_extract(result,'$.result.value.kind')='lesson'",
+    ] {
+        reject_mutation(sql);
+    }
+}
+
+#[test]
+fn malformed_lesson_receipt_envelopes_are_rejected() {
+    for sql in [
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.revision',9007199254740992) WHERE json_extract(result,'$.result.value.kind')='lesson_draft'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.unitId','00000000-0000-4000-8000-000000000001') WHERE json_extract(result,'$.result.value.kind')='lesson_draft'",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.saved.unitId','00000000-0000-4000-8000-000000000001') WHERE json_extract(result,'$.result.value.kind')='lesson'",
+    ] {
+        reject_mutation(sql);
+    }
+}
+
+#[test]
+fn historical_receipts_and_notes_survive_changed_heads_and_mutable_values() {
+    let (_temp, mut db) = populated();
+    let raw: String = db
+        .connection
+        .query_row("SELECT resource_id FROM annotations", [], |r| r.get(0))
+        .unwrap();
+    let resource = serde_json::from_value(serde_json::Value::String(raw)).unwrap();
+    let mut note = db
+        .annotations(RequestContext::local_ui(), resource)
+        .unwrap()
+        .remove(0);
+    let old_revision = note.revision;
+    note.body = "Updated annotation".into();
+    db.save_annotation(
+        RequestContext::local_ui(),
+        &SaveAnnotation {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: old_revision,
+            annotation: note.clone(),
+        },
+    )
+    .unwrap();
+    let mut position = db
+        .reading_position(RequestContext::local_ui(), resource)
+        .unwrap()
+        .unwrap();
+    let old_revision = position.revision;
+    position.offset_utf16 = 3;
+    db.save_reading_position(
+        RequestContext::local_ui(),
+        &SaveReadingPosition {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: old_revision,
+            position,
+        },
+    )
+    .unwrap();
+    let saved =
+        super::super::content::documents::read(&db.connection, resource, Some(note.revision_id))
+            .unwrap()
+            .unwrap();
+    db.save_document(
+        RequestContext::local_ui(),
+        &SaveDocument {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            resource_id: resource,
+            expected_revision: saved.revision,
+            document: saved.document,
+        },
+    )
+    .unwrap();
+    roundtrip(
+        &db.capture_native(RequestContext::local_ui(), Uuid::new_v4())
+            .unwrap(),
+    );
+}
+
+#[test]
+fn prepared_receipts_require_actual_asset_journal_shape() {
+    reject_mutation("UPDATE operations SET state='prepared',result=NULL WHERE kind='annotation'");
 }

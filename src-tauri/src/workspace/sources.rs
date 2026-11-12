@@ -114,3 +114,32 @@ fn source_outcome(receipt: OperationReceipt, request: &SaveSource) -> Result<Ori
         _ => Err(corrupt()),
     }
 }
+
+pub(super) fn validate_native_data(connection: &Connection) -> Result<()> {
+    storage::validate_native_data(connection)
+}
+
+pub(super) fn validate_native_outcome(
+    connection: &Connection,
+    outcome: &OperationOutcome,
+) -> Result<()> {
+    match outcome {
+        OperationOutcome::Source(value) => {
+            validation::original(value)?;
+            if storage::find(connection, value.id)? != **value {
+                return Err(corrupt());
+            }
+        }
+        OperationOutcome::IngestionJob(value) => {
+            if value.id.is_nil()
+                || value.revision > super::types::MAX_REVISION as u64
+                || !matches!(value.handler_version, 1 | 2)
+                || storage::find(connection, value.source.id)? != value.source
+            {
+                return Err(corrupt());
+            }
+        }
+        _ => return Err(corrupt()),
+    }
+    Ok(())
+}
