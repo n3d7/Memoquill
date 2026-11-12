@@ -5,7 +5,9 @@ pub mod document;
 pub mod draft;
 mod ingestion_commands;
 mod lesson_commands;
+mod native_files;
 pub mod organization;
+mod package_commands;
 pub mod workspace;
 
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -62,6 +64,7 @@ fn check_draft(draft: draft::Draft) -> Result<draft::DraftSummary, String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(package_commands::PackageReviews::default())
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
             course_commands::courses_list,
@@ -97,6 +100,11 @@ pub fn run() {
             attachments::sources,
             attachments::save_source,
             attachments::source_preview,
+            package_commands::save_original,
+            package_commands::package_export,
+            package_commands::package_inspect,
+            package_commands::package_confirm,
+            package_commands::package_discard,
             ingestion_commands::ingestion_create,
             ingestion_commands::ingestion_read,
             ingestion_commands::ingestion_list,

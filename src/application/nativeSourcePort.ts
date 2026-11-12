@@ -11,7 +11,8 @@ export function createNativeSourcePort(courseId: string): SourcePort {
   function saveSource(request: SaveSource): Promise<OriginalSource> { return invoke('save_source', { courseId, request }); }
   function sourcePreview(sourceId: string): Promise<SourcePreview> { return invoke('source_preview', { courseId, sourceId }); }
 
-  return { pickSource, sources, saveSource, sourcePreview };
+  async function saveOriginal(sourceId: string): Promise<null | boolean> { const result = await invoke<boolean | null>('save_original', { courseId, sourceId }); return result === null ? null : true; }
+  return { pickSource, sources, saveSource, sourcePreview, saveOriginal };
 }
 export const pickSource: SourcePort['pickSource'] = async () => { throw new Error('A course-bound application provider is required.'); };
 export const sources: SourcePort['sources'] = async () => { throw new Error('A course-bound application provider is required.'); };

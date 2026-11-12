@@ -38,6 +38,9 @@ pub struct CourseManager {
 }
 
 impl CourseManager {
+    pub(crate) fn managed_root(&self) -> &std::path::Path {
+        &self.app_data
+    }
     /// Admit only a verified package, always to a NEW isolated course. Operation UUID
     /// is its catalogue ID; durable intent survives a root-publish/admission crash.
     pub fn restore_native(

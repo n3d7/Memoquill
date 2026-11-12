@@ -14,6 +14,7 @@ export interface ApplicationPorts {
   identity: IdentityPort;
   lessons?: LessonPort;
   ingestion?: IngestionPort;
+  packages?: import('./packageTypes').PackagePort;
 }
 // Defaults keep existing bridge consumers compatible; providers replace services per tree.
 const defaults: ApplicationPorts = { content, sources, workspace, identity: localGuestIdentity };

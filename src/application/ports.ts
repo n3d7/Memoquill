@@ -16,6 +16,7 @@ export interface ContentPort {
   saveAnnotation(request: Envelope & { annotation: Annotation }): Promise<Annotation>;
 }
 export interface SourcePort {
+  saveOriginal?(sourceId: string): Promise<null | boolean>;
   pickSource(request: Omit<Envelope, 'expectedRevision'>): Promise<SelectedSource | null>;
   sources(resourceId: string): Promise<SourceList>;
   saveSource(request: SaveSource): Promise<OriginalSource>;

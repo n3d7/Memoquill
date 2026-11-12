@@ -62,6 +62,7 @@ enum NotesRequest {
     ),
 }
 enum SourcesRequest {
+    Original(RequestContext, uuid::Uuid, Reply<(String, Vec<u8>)>),
     List(
         RequestContext,
         crate::organization::ResourceId,
@@ -374,6 +375,18 @@ impl ApplicationService {
             context,
             |reply| Request::Sources(SourcesRequest::Save(context, Box::new(request), reply)),
             true,
+        )
+        .await
+    }
+    pub async fn original_copy(
+        &self,
+        context: RequestContext,
+        source_id: uuid::Uuid,
+    ) -> Result<(String, Vec<u8>)> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Original(context, source_id, reply)),
+            false,
         )
         .await
     }
@@ -883,6 +896,9 @@ impl Store {
     }
     fn handle_sources(&mut self, request: SourcesRequest) {
         match request {
+            SourcesRequest::Original(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.original_copy(context, id)));
+            }
             SourcesRequest::List(context, id, reply) => {
                 let _ = reply.send(self.access(|db| db.sources(context, id)));
             }

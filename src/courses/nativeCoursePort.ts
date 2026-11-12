@@ -1,3 +1,4 @@
+import { createNativePackagePort } from '../application/nativePackagePort';
 import { invoke } from '@tauri-apps/api/core';
 import { createNativeContentPort } from '../application/nativeContentPort';
 import { createNativeSourcePort } from '../application/nativeSourcePort';
@@ -14,5 +15,5 @@ export const nativeCoursePort: CoursePort = {
 };
 /** Each closure retains its originating identity through awaits, retries and course switching. */
 export function createNativeCoursePorts(courseId: string): ApplicationPorts {
-  return Object.freeze({ content: createNativeContentPort(courseId), sources: createNativeSourcePort(courseId), workspace: createNativeWorkspacePort(courseId), lessons: createNativeLessonPort(courseId), ingestion: createNativeIngestionPort(courseId), identity: localGuestIdentity });
+  return Object.freeze({ packages: createNativePackagePort(courseId), content: createNativeContentPort(courseId), sources: createNativeSourcePort(courseId), workspace: createNativeWorkspacePort(courseId), lessons: createNativeLessonPort(courseId), ingestion: createNativeIngestionPort(courseId), identity: localGuestIdentity });
 }

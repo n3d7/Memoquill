@@ -54,6 +54,28 @@ impl Database {
         commit_source(tx, &self.id, &request.operation_id, &hash, &value)?;
         Ok(value)
     }
+    pub(super) fn original_copy(
+        &self,
+        context: RequestContext,
+        id: uuid::Uuid,
+    ) -> Result<(String, Vec<u8>)> {
+        context.authorize()?;
+        let source = storage::find(&self.connection, id)?;
+        let info = AssetInfo {
+            digest: source.digest,
+            byte_length: source.byte_length,
+        };
+        if info.byte_length > 64 * 1024 * 1024 {
+            return Err(AppError::new(ErrorCode::BudgetExceeded));
+        }
+        assets::verify(self.owner.root(), &info)?;
+        let bytes = preview::read_bytes(self.owner.root(), &info, 64 * 1024 * 1024)?;
+        use sha2::{Digest, Sha256};
+        if format!("{:x}", Sha256::digest(&bytes)) != info.digest.as_str() {
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
+        Ok((source.filename, bytes))
+    }
     pub(super) fn source_preview(
         &self,
         context: RequestContext,

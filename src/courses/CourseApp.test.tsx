@@ -124,3 +124,19 @@ it('allows correcting a definitively invalid course title without retaining a do
   expect(vi.mocked(port.create).mock.calls[1][0]).not.toBe(vi.mocked(port.create).mock.calls[0][0]);
   expect(vi.mocked(port.create).mock.calls[1][1]).toBe('Corrected');
 });
+
+it('keeps a package export outcome with its originating course during a course switch', async () => {
+  const { port, ports, factory } = fixtures();
+  let finish!: (value: null) => void;
+  const a = ports.get('a')!; const b = ports.get('b')!;
+  a.packages = { exportPackage: vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; })), inspect: vi.fn(), confirm: vi.fn(), discard: vi.fn() };
+  b.packages = { exportPackage: vi.fn(), inspect: vi.fn(), confirm: vi.fn(), discard: vi.fn() };
+  render(<CourseApp coursePort={port} makePorts={factory} />); const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Export full recovery package' }));
+  await user.click(screen.getByRole('button', { name: 'Course B' }));
+  await act(async () => { finish(null); });
+  expect(screen.queryByText('Package export cancelled.')).not.toBeVisible();
+  await user.click(screen.getByRole('button', { name: '<script>A</script>' }));
+  expect(screen.getByText('Package export cancelled.')).toBeVisible();
+  expect(b.packages.exportPackage).not.toHaveBeenCalled();
+});

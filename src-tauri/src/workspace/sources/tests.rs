@@ -2717,3 +2717,65 @@ fn undo_guard_preserves_saved_draft_pins_through_real_service_reopen() {
         service.shutdown().await.unwrap();
     });
 }
+
+#[test]
+fn original_only_formats_copy_exact_bytes_and_fail_closed_on_missing_or_changed_source() {
+    for name in [
+        "original.pdf",
+        "original.epub",
+        "original.docx",
+        "hostile.epub",
+        "hostile.html",
+    ] {
+        let (temp, mut db, mut request) = fixture();
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../tests/fixtures/m3")
+                .join(name),
+        )
+        .unwrap();
+        let info = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(&bytes),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        request.source.filename = name.into();
+        request.source.digest = info.digest.clone();
+        let source = db
+            .save_source(RequestContext::local_ui(), &request)
+            .unwrap();
+        let (filename, copy) = db
+            .original_copy(RequestContext::local_ui(), source.id)
+            .unwrap();
+        assert_eq!(filename, name);
+        assert_eq!(copy, bytes);
+        let out = temp.path().join("exported");
+        crate::native_files::publish(&temp.path().join("workspace"), &out, |file| {
+            use std::io::Write;
+            file.write_all(&copy)?;
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(std::fs::read(&out).unwrap(), bytes);
+        let path = assets::asset_path(&temp.path().join("workspace"), &info.digest);
+        std::fs::write(&path, vec![b'x'; bytes.len()]).unwrap();
+        assert!(
+            db.original_copy(RequestContext::local_ui(), source.id)
+                .is_err()
+        );
+        assert_eq!(std::fs::read(&out).unwrap(), bytes);
+        std::fs::remove_file(&path).unwrap();
+        assert!(
+            db.original_copy(RequestContext::local_ui(), source.id)
+                .is_err()
+        );
+        assert_eq!(std::fs::read(&out).unwrap(), bytes);
+    }
+}

@@ -256,3 +256,25 @@ it('protects unsaved source drafts from window close and releases the close guar
   window.dispatchEvent(cleanClose);
   expect(cleanClose.defaultPrevented).toBe(false);
 });
+
+it('saves a selected original through the bound native command and announces cancellation', async () => {
+  native.invoke.mockImplementation(async (command: string) => command === 'sources' ? { revision: 1, sources: [original] } : null);
+  render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);
+  await userEvent.setup().click(await screen.findByRole('button', {name:'Save original notes.txt'}));
+  expect(await screen.findByText('Saving original cancelled.')).toBeVisible();
+  expect(native.invoke).toHaveBeenCalledWith('save_original', expect.objectContaining({courseId:'test-course',sourceId:'source'}));
+});
+it('retains originals and enables a fresh save after a failed native-selected copy', async () => {
+  let failed = false;
+  native.invoke.mockImplementation(async (command: string) => {
+    if (command === 'sources') return {revision:1,sources:[original]};
+    if (!failed) {failed = true; throw {code:'storage_failure'};}
+    return true;
+  });
+  render(<SourcesPanel workspaceId="workspace" resourceId="resource" />);const user=userEvent.setup();
+  await user.click(await screen.findByRole('button',{name:'Save original notes.txt'}));
+  expect(await screen.findByRole('alert')).toBeVisible();
+  await user.click(screen.getByRole('button',{name:'Save original notes.txt'}));
+  expect(await screen.findByText('Saved original bytes.')).toBeVisible();
+  expect(screen.getByRole('button',{name:'Preview original notes.txt'})).toBeEnabled();
+});
