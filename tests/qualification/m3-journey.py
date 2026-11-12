@@ -3,26 +3,39 @@
 Runs only in the isolated qualification desktop. No direct IPC/SQL/DOM mutation.
 """
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
-import subprocess
+import re
 import sys
 
 os.environ.setdefault('MEMOQUILL_CAPTURE_SCREENSHOTS', os.environ.get('MEMOQUILL_M3_SCREENSHOTS', '0'))
 spec = importlib.util.spec_from_file_location('native_driver', Path(__file__).with_name('atspi-journey.py'))
 d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
-results = d.results
+
+
+class Journal(list):
+    def append(self, result):
+        super().append(result)
+        Path('/evidence/m3-progress.json').write_text(json.dumps(self, ensure_ascii=False, indent=2))
+
+
+results = d.results = Journal()
 
 
 def shown(value):
-    return any(value in d.text(node) for node in d.nodes())
+    return any(value in (d.text(node) + ' ' + (node.name or '')) for node in d.nodes())
 
 
 def click(name):
-    d.focus('button', name)
-    d.key('space')
+    d.wait_for(lambda: d.find('button', name).getState().contains(d.pyatspi.STATE_ENABLED), f'{name} enabled', record=False)
+    node = d.focus('button', name)
+    d.wait_for(lambda: node.getState().contains(d.pyatspi.STATE_SHOWING), f'{name} in viewport', record=False)
+    bounds = node.queryComponent().getExtents(d.pyatspi.DESKTOP_COORDS)
+    d.command('xdotool', 'mousemove', '--sync', str(bounds.x + bounds.width // 2), str(bounds.y + bounds.height // 2))
+    d.command('xdotool', 'click', '1')
 
 
 def field(name, value):
@@ -37,6 +50,7 @@ def field(name, value):
 
 
 def attach(path):
+    filename = Path(path).name
     click('Choose source file')
     d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), 'source chooser opened')
     d.key('ctrl+l')
@@ -49,7 +63,110 @@ def attach(path):
     field('Attribution', 'Original synthetic M3 qualification fixture')
     field('License', 'Original project test fixture')
     click('Attach selected source')
-    d.wait_for(lambda: d.find('button', 'Preview original import.csv'), 'original attached with provenance')
+    d.wait_for(lambda: d.find('button', f'Preview original {filename}'), f'{filename} attached with provenance')
+
+
+def save_original(filename):
+    destination = Path('/evidence/originals') / filename
+    destination.parent.mkdir(exist_ok=True)
+    click(f'Save original {filename}')
+    d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), f'{filename} native destination chooser opened')
+    d.key('ctrl+l')
+    d.command('xdotool', 'type', '--clearmodifiers', str(destination))
+    d.key('Return')
+    if not destination.exists():
+        try:
+            click('Save')
+        except LookupError:
+            pass
+    d.wait_for(destination.exists, f'{filename} original copied')
+    expected = hashlib.sha256((Path('/input') / filename).read_bytes()).hexdigest()
+    actual = hashlib.sha256(destination.read_bytes()).hexdigest()
+    if actual != expected:
+        raise AssertionError(f'Original bytes changed: {filename}')
+    results.append({'check': f'preserved original copy {filename}', 'passed': True, 'sha256': actual})
+
+
+def select_index(name, index):
+    node = d.focus('combo box', name)
+    bounds = node.queryComponent().getExtents(d.pyatspi.DESKTOP_COORDS)
+    d.command('xdotool', 'mousemove', '--sync', str(bounds.x + bounds.width // 2), str(bounds.y + bounds.height // 2))
+    d.command('xdotool', 'click', '1')
+    d.key('Home')
+    for _ in range(index):
+        d.key('Down')
+    d.key('Return')
+
+
+def reimport_and_undo():
+    baseline = next(node.name for node in d.nodes() if node.getRoleName() in ('button', 'push button') and node.name.startswith('Open import '))
+    click('First quantum record')
+    field('Learning document', 'Human authored preserved')
+    click('Save material')
+    d.wait_for(lambda: not d.find('button', 'Discard unsaved changes').getState().contains(d.pyatspi.STATE_ENABLED), 'human edit saved before reimport')
+    click('M3 original source holder')
+    attach('/input/import-changed.csv')
+    select_index('Saved source', 1)
+    if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
+        d.capture('m3-selected-changed-source')
+    click('Create import preview')
+    d.wait_for(lambda: shown('Changed source body λ'), 'changed source selected and staged')
+    field('Title column', '2')
+    field('Body column', '3')
+    select_index('Reimport from', 1)
+    d.wait_for(lambda: d.find('button', 'Compare reimport').getState().contains(d.pyatspi.STATE_ENABLED), 'reimport comparison ready')
+    click('Compare reimport')
+    d.wait_for(lambda: shown('alpha: conflict') and shown('Human authored preserved') and shown('Changed source body λ'), 'prior human and incoming versions displayed')
+    if d.find('check box', 'Select record 1').getState().contains(d.pyatspi.STATE_ENABLED):
+        raise AssertionError('Human conflict selectable without approval')
+    if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
+        d.capture('m3-human-conflict')
+    approval = next(node.name for node in d.nodes() if node.getRoleName() == 'check box' and node.name.startswith('Explicitly replace current human edits for alpha'))
+    d.focus('check box', approval)
+    d.key('space')
+    d.wait_for(lambda: d.find('check box', 'Select record 1').getState().contains(d.pyatspi.STATE_ENABLED), 'explicit conflict approval enables selection')
+    d.focus('check box', 'Select record 1')
+    d.key('space')
+    click('Apply selected records')
+    d.wait_for(lambda: shown('1/3 applied'), 'reviewed changed record applied')
+    click('Preview undo')
+    d.wait_for(lambda: d.find('button', 'Confirm undo'), 'compensating undo preview available')
+    click('Confirm undo')
+    d.wait_for(lambda: shown('undone'), 'reimport compensation acknowledged')
+    click('First quantum record')
+    d.wait_for(lambda: 'Human authored preserved' in d.text(d.find('entry', 'Learning document')), 'undo restores human-authored revision')
+    for title in ('Second quantum record', 'Last quantum record'):
+        d.find('button', title)
+    results.append({'check': 'partial undo retains parent materials', 'passed': True})
+    click('M3 original source holder')
+    click(baseline)
+    click('Preview undo')
+    d.wait_for(lambda: shown('Undo is unavailable because content or dependencies changed.'), 'initial import undo refuses later human edit')
+
+
+def json_property_import(source_index=2):
+    attach('/input/import.json')
+    select_index('Saved source', source_index)
+    click('Create import preview')
+    d.wait_for(lambda: d.find('combo box', 'Key property'), 'versioned JSON property mapping available')
+    select_index('Key property', 2)
+    select_index('Title property', 3)
+    select_index('Body property', 1)
+    if d.find('check box', 'Select record 3').getState().contains(d.pyatspi.STATE_ENABLED):
+        raise AssertionError('Ambiguous duplicate-property record is applyable')
+    click('Exclude record 3')
+    d.wait_for(lambda: d.find('button', 'Reopen record 3'), 'ambiguous JSON outcome recorded explicitly')
+    for index in (1, 2):
+        node = d.focus('check box', f'Select record {index}')
+        bounds = node.queryComponent().getExtents(d.pyatspi.DESKTOP_COORDS)
+        d.command('xdotool', 'mousemove', '--sync', str(bounds.x + bounds.width // 2), str(bounds.y + bounds.height // 2))
+        d.command('xdotool', 'click', '1')
+        d.wait_for(lambda index=index: d.find('check box', f'Select record {index}').getState().contains(d.pyatspi.STATE_CHECKED), f'JSON record {index} checked')
+    click('Apply selected records')
+    d.wait_for(lambda: shown('2/3 applied'), 'named JSON selection applied')
+    for title in ('JSON first material', 'JSON second material'):
+        d.wait_for(lambda title=title: d.find('button', title), f'named JSON material created: {title}')
+    d.wait_for(lambda: shown('0 pending.'), 'every JSON record reconciled')
 
 
 def main():
@@ -63,6 +180,12 @@ def main():
     field('New material', 'M3 original source holder')
     click('Create material')
     d.wait_for(lambda: d.find('entry', 'Learning document'), 'source holder opens')
+    if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1':
+        json_property_import(0)
+        if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
+            d.capture('m3-json-records')
+        d.key('alt+F4')
+        return
     attach('/input/import.csv')
     click('Preview original import.csv')
     d.wait_for(lambda: shown('beginneedle') and shown('endneedle'), 'original beginning and end retained')
@@ -77,7 +200,35 @@ def main():
     d.wait_for(lambda: shown('Import operation saved locally.'), 'reviewed import acknowledged')
     for title in ('First quantum record', 'Second quantum record', 'Last quantum record'):
         d.wait_for(lambda title=title: d.find('button', title), f'imported material visible: {title}')
-    results.append({'check': 'ingestion native subset', 'passed': True, 'packageRecovery': 'not_run'})
+    for query, title in (
+        ('beginneedle', 'First quantum record'),
+        ('middleneedle', 'Second quantum record'),
+        ('endneedle', 'Last quantum record'),
+    ):
+        field('Search titles, tags and text', query)
+        click('Search materials')
+        d.wait_for(lambda title=title: d.find('button', title) and shown('matches in this batch'), f'indexed search finds {query}')
+        d.wait_for(lambda: any(re.search(r'Original [0-9a-f-]{36},', d.text(node)) for node in d.nodes()), f'search locator accompanies {query}')
+    click('Show all materials')
+    click('Rebuild search index')
+    d.wait_for(lambda: d.find('button', 'Rebuild search index').getState().contains(d.pyatspi.STATE_ENABLED), 'index rebuild control becomes available')
+    field('Search titles, tags and text', 'beginneedle')
+    click('Search materials')
+    d.wait_for(lambda: d.find('button', 'First quantum record') and shown('matches in this batch'), 'canonical result remains available after explicit rebuild')
+    click('Show all materials')
+    if os.environ.get('MEMOQUILL_M3_REIMPORT_AUDIT', '1') == '1':
+        reimport_and_undo()
+        json_property_import()
+    if os.environ.get('MEMOQUILL_M3_ORIGINAL_COPY_AUDIT', '1') == '1':
+        save_original('import.csv')
+        for filename in ('original.pdf', 'original.epub', 'original.docx', 'hostile.epub', 'hostile.html'):
+            attach(f'/input/{filename}')
+            click(f'Preview original {filename}')
+            d.wait_for(lambda: shown('Original preview'), f'{filename} has an explicit passive preview')
+            save_original(filename)
+    else:
+        results.append({'check': 'original copy', 'status': 'not_run', 'reason': 'intermediate candidate; native copy action pending'})
+    results.append({'check': 'ingestion/search native subset', 'passed': True, 'packageRecovery': 'not_run'})
     if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
         d.capture('m3-imported-records')
     d.key('alt+F4')
@@ -85,7 +236,17 @@ def main():
 
 try:
     main()
-    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': 'ingestion subset; full M3 qualification pending', 'checks': results}, ensure_ascii=False, indent=2))
+    scope = 'JSON mapping subset' if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1' else 'ingestion/search/reimport/originals subset'
+    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': scope + '; full M3 qualification pending', 'checks': results}, ensure_ascii=False, indent=2))
 except Exception as error:
+    controls = []
+    for node in d.nodes():
+        try:
+            if node.name:
+                state = node.getState()
+                controls.append({'role': node.getRoleName(), 'name': node.name, 'enabled': state.contains(d.pyatspi.STATE_ENABLED), 'showing': state.contains(d.pyatspi.STATE_SHOWING)})
+        except d.GLib.Error:
+            pass
+    Path('/evidence/m3-controls.json').write_text(json.dumps(controls, ensure_ascii=False, indent=2))
     Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': 'ingestion subset', 'checks': results, 'failure': repr(error)}, ensure_ascii=False, indent=2))
     raise

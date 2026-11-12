@@ -44,7 +44,7 @@ fi
 "${app_command[@]}" >/evidence/app-x11.log 2>&1 &
 app_pid=$!
 printf '%s\n' "$app_pid" >/evidence/app-pid-x11
-timeout 180 python3 /input/m3-journey.py x11
+timeout 420 python3 /input/m3-journey.py x11
 # The journey closes the original window normally and may exercise a controlled restart.
 wait "$app_pid"
 printf '0\n' >/evidence/normal-exit-x11.txt
