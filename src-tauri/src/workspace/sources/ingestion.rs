@@ -1233,8 +1233,8 @@ impl Database {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         ensure_no_applied_descendants(&tx, job.id)?;
         let duplicate: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM ingestion_jobs j JOIN original_sources s ON s.id=j.source_id WHERE j.id<>?1 AND s.resource_id=?2 AND json_extract(j.data,'$.status')<>'undone' AND json_array_length(json_extract(j.data,'$.outcomes'))>0)",
-            params![job.id.to_string(), source.resource_id.to_string()],
+            "SELECT EXISTS(SELECT 1 FROM ingestion_jobs j JOIN original_sources s ON s.id=j.source_id WHERE j.id<>?1 AND s.resource_id=?2 AND s.digest=?3 AND json_extract(j.data,'$.status')<>'undone' AND json_array_length(json_extract(j.data,'$.outcomes'))>0)",
+            params![job.id.to_string(), source.resource_id.to_string(), source.digest.as_str()],
             |r| r.get(0),
         )?;
         if duplicate {

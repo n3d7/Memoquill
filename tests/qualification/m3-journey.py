@@ -248,11 +248,16 @@ def json_property_import(source_index=2):
     d.wait_for(lambda: d.find('button', 'Reopen record 3'), 'ambiguous JSON outcome recorded explicitly')
     for index in (1, 2):
         node = d.focus('check box', f'Select record {index}')
-        bounds = node.queryComponent().getExtents(d.pyatspi.DESKTOP_COORDS)
-        d.command('xdotool', 'mousemove', '--sync', str(bounds.x + bounds.width // 2), str(bounds.y + bounds.height // 2))
-        d.command('xdotool', 'click', '1')
+        d.key('space')
         d.wait_for(lambda index=index: d.find('check box', f'Select record {index}').getState().contains(d.pyatspi.STATE_CHECKED), f'JSON record {index} checked')
-    click('Apply selected records')
+    d.wait_for(lambda: all(d.find('check box', f'Select record {index}').getState().contains(d.pyatspi.STATE_CHECKED) for index in (1, 2)), 'both JSON records remain selected before apply')
+    node = d.focus('button', 'Apply selected records')
+    d.wait_for(lambda: all(d.find('check box', f'Select record {index}').getState().contains(d.pyatspi.STATE_CHECKED) for index in (1, 2)), 'JSON selection retained after apply focus')
+    action = node.queryAction()
+    names = [action.getName(index) for index in range(action.nActions)]
+    assert names, 'JSON apply button exposes no native accessibility action'
+    assert action.doAction(0), f'JSON native button action rejected: {names}'
+    results.append({'check': 'JSON apply native accessibility action dispatched', 'passed': True, 'actions': names})
     d.wait_for(lambda: shown('2/3 applied'), 'named JSON selection applied')
     for title in ('JSON first material', 'JSON second material'):
         d.wait_for(lambda title=title: d.find('button', title), f'named JSON material created: {title}')

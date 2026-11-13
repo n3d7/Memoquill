@@ -2779,3 +2779,82 @@ fn original_only_formats_copy_exact_bytes_and_fail_closed_on_missing_or_changed_
         assert_eq!(std::fs::read(&out).unwrap(), bytes);
     }
 }
+
+#[test]
+fn distinct_originals_on_one_material_import_independently_but_identical_bytes_do_not() {
+    let (_temp, mut db, mut request) = fixture();
+    let inputs: [(&str, &[u8], bool); 3] = [
+        ("first.csv", b"alpha,First body\n", true),
+        (
+            "second.json",
+            br#"[{"key":"json-a","title":"JSON title","body":"JSON body"}]"#,
+            true,
+        ),
+        ("renamed.csv", b"alpha,First body\n", false),
+    ];
+    for (index, (name, bytes, expected)) in inputs.into_iter().enumerate() {
+        let asset = db
+            .register_asset(
+                RequestContext::local_ui(),
+                &RegisterAsset {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                },
+                &mut Cursor::new(bytes),
+                MAX_SOURCE_BYTES,
+            )
+            .unwrap();
+        request.operation_id = OperationId::generate();
+        request.expected_revision = index as u64;
+        request.source.id = Uuid::new_v4();
+        request.source.filename = name.into();
+        request.source.digest = asset.digest;
+        let source = db
+            .save_source(RequestContext::local_ui(), &request)
+            .unwrap();
+        let job = db
+            .create_ingestion_job(
+                RequestContext::local_ui(),
+                &CreateIngestionJob {
+                    contract_version: 1,
+                    workspace_id: db.id.clone(),
+                    operation_id: OperationId::generate(),
+                    source_id: source.id,
+                    source_revision: source.revision,
+                },
+            )
+            .unwrap();
+        let before = db.library(RequestContext::local_ui()).unwrap();
+        let result = db.apply_ingestion_job(
+            RequestContext::local_ui(),
+            &ApplyIngestionJob {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                job_id: job.id,
+                expected_revision: job.revision,
+                expected_library_revision: before.revision,
+                mapping: IngestionMapping {
+                    key_column: 0,
+                    title_column: 0,
+                    body_column: 1,
+                    json_properties: name.ends_with(".json").then(|| JsonPropertyMapping {
+                        key: Some("key".into()),
+                        title: Some("title".into()),
+                        body: Some("body".into()),
+                    }),
+                },
+                selected: vec![0],
+            },
+        );
+        assert_eq!(result.is_ok(), expected, "{name}: {result:?}");
+        assert_eq!(
+            db.library(RequestContext::local_ui())
+                .unwrap()
+                .resources
+                .len(),
+            before.resources.len() + usize::from(expected)
+        );
+    }
+}
