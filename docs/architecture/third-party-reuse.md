@@ -1,5 +1,20 @@
 # Third-party reuse and attribution
 
+## G1 native package implementation (2026-11-11)
+
+Pinned `zip`9.5.0 is linked with default features disabled and deflate enabled.
+Its installed MIT text retains Mathijs van de Nes copyright2014; source
+archive/checksum and complete license text are in the dependency inventory/notices.
+The selected version is newer than the corrected RustSec advisory ranges in the
+task dependency evidence; application EOCD/metadata, path, overlap and expansion
+limits remain necessary. No ZIP implementation is copied or vendored.
+`tempfile`3.27.0, already pinned for tests, is promoted to runtime for explicitly
+0700 private staging. New Linux notice entries cover zip, zopfli, typed-path,
+constant_time_eq, zeroize, zeroize_derive, bumpalo and rustversion, retaining their
+installed original license texts. Original dependency versions are preserved;
+refreshed lock edges include platform feature unification. Collector and bounded
+metadata evidence are in `.superpowers/sdd/2026-11-09-m3-completion/`.
+
 Memoquill's project license is Apache License 2.0 subject to Commons Clause 1.0 (`LICENSE`), adopted on 2026-11-01 at the user's explicit request. The combined terms are source-available, not OSI-approved open source. Earlier MIT grants are not revoked; separately licensed dependencies and adapted guidance are not relicensed by this change. Adapted material and components retain their applicable licenses. No license exception from another project applies here.
 
 ## Incorporated operational guidance
@@ -11,6 +26,24 @@ Memoquill's project license is Apache License 2.0 subject to Commons Clause 1.0 
 The operational files include local-only material not all tracked in Scryntic, so a Git commit alone cannot identify their exact contents. Source hashes are recorded in `.agents/NOTICE`. The source working tree was read only. The 2026-10-28 revision restores useful workstation tool commands, resource boundaries, Context7/Firecrawl routes, document/MCP diagnostics, verification and handoff detail in Memoquill's skill references. The dated machine-wide catalog, product infrastructure/monitoring recipes, trading restrictions, license exceptions, and unrelated project identifiers remain omitted. Shared lab service instructions are bounded to authorized Memoquill targets. No executable helper or application code is copied by this guidance update; root licensing is unchanged.
 
 ## Reuse policy
+
+### M3 passive CSV preview (2026-11-09)
+
+Linked registry dependencies `csv` 1.4.0 and `csv-core` 0.1.13 are unmodified
+Andrew Gallant components from [rust-csv](https://github.com/BurntSushi/rust-csv),
+dual Unlicense/MIT; actual COPYING and MIT texts were inspected. `ryu` 1.0.23
+by David Tolnay is Apache-2.0 OR BSL-1.0. Exact source archives, license texts,
+holders and notice hashes are included in the refreshed
+[inventory](../licenses/dependency-inventory.json) and
+[notices](../licenses/THIRD-PARTY-NOTICES.txt), already configured as packaged
+resources. Preserve the original notices under their own terms.
+The handler uses [ReaderBuilder](https://docs.rs/csv/1.4.0/csv/struct.ReaderBuilder.html)
+over bounded bytes with no assumed headers; strict quote validation precedes the
+library's permissive recovery. No upstream source was copied or modified.
+
+The inventory refresh also captures nine already-locked native dependencies
+missing from the older inventory; existing component entries remain identical.
+This does not add those dependencies or claim a new dependency security audit.
 
 Before incorporating a dependency, copied/adapted source, dataset, documentation, media, or asset, inspect its actual license and per-file notices. Record project, source URL, authors/holder, version/commit or hash, incorporated paths, modifications, license, and obligations. Distinguish linking, vendoring, copying, and adaptation. Prefer maintained dependencies where appropriate.
 

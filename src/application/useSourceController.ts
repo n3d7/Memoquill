@@ -139,6 +139,19 @@ export function useSourceController(workspaceId: string, resourceId: string, onP
     discard: () => attachment.setState(emptyAttachment),
     updateDraft: (field: 'attribution' | 'license' | 'originUrl', value: string) => updateDraft(attachment, field, value),
     previewSource: (sourceId: string) => previewSource(port, sourceId, preview),
+    saveOriginal: async (sourceId: string) => {
+      const generation = attachment.generation.current;
+      attachment.setState(value => ({ ...value, busy: 'picking', error: '', status: '' }));
+      try {
+        if (!port.saveOriginal) throw { code: 'capability_unavailable' };
+        const result = await port.saveOriginal(sourceId);
+        if (attachment.generation.current === generation) attachment.setState(value => ({ ...value, status: result === null ? 'Saving original cancelled.' : 'Saved original bytes.' }));
+      } catch (failure) {
+        if (attachment.generation.current === generation) attachment.setState(value => ({ ...value, error: failureMessage(failure) }));
+      } finally {
+        if (attachment.generation.current === generation) attachment.setState(value => ({ ...value, busy: 'idle' }));
+      }
+    },
   };
 }
 export type SourceController = ReturnType<typeof useSourceController>;

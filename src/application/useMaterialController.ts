@@ -7,10 +7,11 @@ import { useSavedContext } from './useSavedContext';
 export function useMaterialController(workspaceId: string, resourceId: string, onDirty: (dirty: boolean) => void) {
   const material = useResourceDocument(workspaceId, resourceId);
   const [resume, setResume] = useState<{ blockId: string; offsetUtf16: number }>();
+  const [ingestionPending, setIngestionPending] = useState(false);
   const sources = useSourceController(workspaceId, resourceId);
   const context = useSavedContext(material.saved, workspaceId, setResume, material.busy || material.hasPending);
   const contextPending = context.dirty;
-  const dirty = material.dirty || material.hasPending || sources.pending || contextPending;
+  const dirty = material.dirty || material.hasPending || sources.pending || contextPending || ingestionPending;
   useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
   useEffect(() => {
     if (!dirty) return;
@@ -18,5 +19,5 @@ export function useMaterialController(workspaceId: string, resourceId: string, o
     window.addEventListener('beforeunload', preventClose);
     return () => window.removeEventListener('beforeunload', preventClose);
   }, [dirty]);
-  return { material, resume, setResume, contextPending, context, sources };
+  return { material, resume, setResume, contextPending, context, sources, setIngestionPending };
 }

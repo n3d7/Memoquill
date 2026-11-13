@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApplicationProvider, type ApplicationPorts } from '../application/ApplicationProvider';
+import type { ImportResult } from '../application/packageTypes';
+import { PackagePanel } from './PackagePanel';
 import { LibraryApp } from '../LibraryApp';
 import { failureMessage, isConfirmedRejection } from '../application/errors';
 import { createNativeCoursePorts, nativeCoursePort } from './nativeCoursePort';
@@ -9,6 +11,7 @@ type Action = { type: 'list' } | { type: 'select'; id: string } | { type: 'creat
 export function CourseApp({ coursePort = nativeCoursePort, makePorts = createNativeCoursePorts }: {
   coursePort?: CoursePort; makePorts?: (id: string) => ApplicationPorts;
 }) {
+  const [imported, setImported] = useState<ImportResult | null>(null);
   const [catalogue, setCatalogue] = useState<CourseCatalogue | null>(null);
   const [mounted, setMounted] = useState<{ id: string; ports: ApplicationPorts }[]>([]);
   const [title, setTitle] = useState(''); const [busy, setBusy] = useState(false);
@@ -42,8 +45,8 @@ export function CourseApp({ coursePort = nativeCoursePort, makePorts = createNat
     {pending && !busy && <button onClick={() => void run(pending)}>Retry course action</button>}
     {!catalogue && !error && <p role="status">Opening courses…</p>}
     </aside>
-    <div className="course-workspace">{mounted.map(course => <div key={course.id} hidden={catalogue?.selectedCourseId !== course.id} inert={catalogue?.selectedCourseId !== course.id} data-course-id={course.id}>
-      <ApplicationProvider ports={course.ports} active={catalogue?.selectedCourseId === course.id}><LibraryApp /></ApplicationProvider>
+    <div className="course-workspace">{imported && <section aria-label="Latest package import result"><p role="status">Created new course {imported.report.courseId}. Existing courses were preserved.</p><p>Course remap: {imported.report.sourceCourseId} → {imported.report.courseId}.</p><pre>{JSON.stringify(imported.report, null, 2)}</pre></section>}{mounted.map(course => <div key={course.id} hidden={catalogue?.selectedCourseId !== course.id} inert={catalogue?.selectedCourseId !== course.id} data-course-id={course.id}>
+      <ApplicationProvider ports={course.ports} active={catalogue?.selectedCourseId === course.id}>{course.ports.packages && <PackagePanel port={course.ports.packages} onImported={async result => { setImported(result); accept(await coursePort.list()); }} />}<LibraryApp /></ApplicationProvider>
     </div>)}</div>
   </div>;
 }

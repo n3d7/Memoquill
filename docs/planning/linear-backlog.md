@@ -215,6 +215,12 @@ These Foundation documents are currently local/uncommitted. This is a future imp
 
 ### M3.1 — Build preserved-source ingestion, reimport, and indexed discovery
 
+Current clarification (verified against KER-100 on 2026-11-09): sources are
+course-owned with explicit lesson bindings. EPUB is an M3 qualification target;
+PDF, DOCX, HTML and other relevant formats need an honest view/extract matrix,
+passive parsing/resource/security gates and original-only fallback. This
+supersedes the older EPUB exclusion below. See [readiness](m3-readiness.md).
+
 Purpose
 Convert existing information into manageable learning material without recreating it or losing originals.
 
@@ -241,7 +247,7 @@ Significant risks
 Lossy extraction, unstable upstream keys, parser complexity/security/licenses, inaccessible virtualized results.
 
 Exclusions
-No OCR/EPUB/full HTML crawl, semantic auto-merge, implicit external downloads, or AI requirement.
+No mandatory OCR/full HTML crawl, semantic auto-merge, implicit external downloads, or AI requirement. EPUB qualification is included; complex/OCR extraction remains conditional.
 
 Supporting documentation
 - `docs/architecture/content-ingestion.md`

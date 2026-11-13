@@ -1,5 +1,8 @@
 //! Course routing metadata only. Each course keeps the existing isolated workspace format.
-use super::{AppError, ApplicationService, ErrorCode, error::Result, owner};
+use super::{
+    AppError, ApplicationService, ErrorCode, NativeCapture, NativeRestoreReport, PortableCapture,
+    PortableImportReport, error::Result, owner,
+};
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf, sync::Mutex};
@@ -35,6 +38,172 @@ pub struct CourseManager {
 }
 
 impl CourseManager {
+    pub(crate) fn managed_root(&self) -> &std::path::Path {
+        &self.app_data
+    }
+    /// Admit only a verified package, always to a NEW isolated course. Operation UUID
+    /// is its catalogue ID; durable intent survives a root-publish/admission crash.
+    pub fn restore_native(
+        &self,
+        operation_id: Uuid,
+        title: String,
+        package: &NativeCapture,
+        allow_incomplete: bool,
+    ) -> Result<NativeRestoreReport> {
+        self.admit_package(
+            operation_id,
+            title,
+            package,
+            allow_incomplete,
+            package.identity()?,
+        )
+    }
+    /// Content-only import: trusted rebuilt data, new course, manifest-bound durable retry.
+    pub fn import_portable(
+        &self,
+        operation_id: Uuid,
+        title: String,
+        package: &PortableCapture,
+    ) -> Result<PortableImportReport> {
+        self.admit_package(
+            operation_id,
+            title,
+            package.native(),
+            true,
+            package.identity()?,
+        )?;
+        Ok(package.report(operation_id))
+    }
+    fn admit_package(
+        &self,
+        operation_id: Uuid,
+        title: String,
+        package: &NativeCapture,
+        allow_incomplete: bool,
+        identity: String,
+    ) -> Result<NativeRestoreReport> {
+        validate_id(operation_id)?;
+        validate_title(&title)?;
+        if !package.manifest().complete && !allow_incomplete {
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
+        let mut state = self.state.lock().map_err(|_| unavailable())?;
+        if state.closing {
+            return Err(unavailable());
+        }
+        let current = catalogue(&state.connection)?;
+        let journal = self.app_data.join("courses/restore-operations");
+        owner::create_private_tree(&journal)?;
+        owner::private_directory(&journal)?;
+        let record_path = journal.join(format!("{operation_id}.json"));
+        let intent = RestoreIntent {
+            operation_id,
+            identity,
+            title: title.clone(),
+        };
+        let root = self
+            .app_data
+            .join("courses/data")
+            .join(operation_id.to_string());
+        let known = match std::fs::symlink_metadata(&record_path) {
+            Ok(_) => {
+                let mut file = super::packages::open_regular(&record_path)?;
+                let mut bytes = Vec::new();
+                std::io::Read::read_to_end(&mut std::io::Read::take(&mut file, 16385), &mut bytes)?;
+                if bytes.len() > 16384 {
+                    return Err(AppError::new(ErrorCode::RecoveryRequired));
+                }
+                let existing: RestoreIntent = serde_json::from_slice(&bytes)
+                    .map_err(|_| AppError::new(ErrorCode::RecoveryRequired))?;
+                if existing != intent {
+                    return Err(AppError::new(ErrorCode::IdempotencyConflict));
+                }
+                true
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if current
+            .courses
+            .iter()
+            .any(|course| course.id == operation_id)
+        {
+            if !known {
+                return Err(AppError::new(ErrorCode::IdempotencyConflict));
+            }
+            return Ok(package.report(operation_id));
+        }
+        if current.courses.len() >= MAX_COURSES {
+            return Err(AppError::new(ErrorCode::BudgetExceeded));
+        }
+        if !known {
+            if std::fs::symlink_metadata(&root).is_ok() {
+                return Err(AppError::new(ErrorCode::RecoveryRequired));
+            }
+            let staged = tempfile::NamedTempFile::new_in(&journal)?;
+            let bytes = serde_json::to_vec(&intent)
+                .map_err(|_| AppError::new(ErrorCode::InvalidRequest))?;
+            std::io::Write::write_all(&mut staged.as_file(), &bytes)?;
+            staged.as_file().sync_all()?;
+            owner::publish_no_replace(staged.path(), &record_path)?;
+            owner::sync_directory(&journal)?;
+        }
+        let data = self.app_data.join("courses/data");
+        owner::private_directory(&data)?;
+        match std::fs::symlink_metadata(&root) {
+            Ok(_) if known => {
+                let marker = root.join("restore-intent.json");
+                let mut file = super::packages::open_regular(&marker)?;
+                let mut bytes = Vec::new();
+                std::io::Read::read_to_end(&mut std::io::Read::take(&mut file, 16385), &mut bytes)?;
+                if bytes.len() > 16384
+                    || serde_json::from_slice::<RestoreIntent>(&bytes)
+                        .ok()
+                        .as_ref()
+                        != Some(&intent)
+                {
+                    return Err(AppError::new(ErrorCode::RecoveryRequired));
+                }
+                package.matches_root(&root)?;
+            }
+            Ok(_) => return Err(AppError::new(ErrorCode::RecoveryRequired)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let staging = tempfile::Builder::new()
+                    .permissions({
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::Permissions::from_mode(0o700)
+                    })
+                    .prefix(".restore-")
+                    .tempdir_in(&data)?;
+                package.materialize(staging.path())?;
+                let mut marker =
+                    owner::create_private_file(&staging.path().join("restore-intent.json"))?;
+                std::io::Write::write_all(
+                    &mut marker,
+                    &serde_json::to_vec(&intent)
+                        .map_err(|_| AppError::new(ErrorCode::InvalidRequest))?,
+                )?;
+                marker.sync_all()?;
+                owner::sync_directory(staging.path())?;
+                owner::publish_no_replace(staging.path(), &root)?;
+                owner::sync_directory(&data)?;
+            }
+            Err(error) => return Err(error.into()),
+        }
+        super::faults::check(super::faults::Phase::Publish)?;
+        let tx = state.connection.transaction()?;
+        tx.execute(
+            "INSERT INTO courses(id,title,legacy,opened) VALUES(?1,?2,0,1)",
+            params![operation_id.to_string(), title],
+        )?;
+        tx.execute(
+            "UPDATE catalogue_meta SET selected=?1 WHERE singleton=1",
+            [operation_id.to_string()],
+        )?;
+        tx.commit()?;
+        super::faults::check(super::faults::Phase::AfterCommit)?;
+        Ok(package.report(operation_id))
+    }
     pub fn open(app_data: PathBuf) -> Result<Self> {
         let root = app_data.join("courses");
         let guard = owner::Owner::acquire(&root)?;
@@ -208,6 +377,14 @@ impl CourseManager {
         }
         result
     }
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+struct RestoreIntent {
+    operation_id: Uuid,
+    identity: String,
+    title: String,
 }
 
 fn unavailable() -> AppError {

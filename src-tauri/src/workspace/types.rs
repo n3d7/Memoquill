@@ -186,6 +186,7 @@ pub enum OperationOutcome {
     Annotation(Box<super::Annotation>),
     ReadingPosition(super::ReadingPosition),
     Source(Box<super::OriginalSource>),
+    IngestionJob(Box<super::IngestionJob>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

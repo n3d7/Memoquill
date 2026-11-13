@@ -4,6 +4,11 @@
 
 Preserve original bytes and attribution independently of extraction and pedagogical transformation. An import can succeed as a preserved attachment without claiming successful extraction. Editable lessons/activities are new revisioned objects with derivation links, not replacements for originals. AI-assisted organization uses the same proposal/application boundary as ordinary bulk edits.
 
+Current ownership: sources belong to one isolated course, with explicit lesson
+bindings. Reuse never grants access across courses. Selected folders grant only
+bounded intake of the selected entries, not arbitrary filesystem access. See
+[course workspaces](course-workspaces.md) and the [M3 readiness review](../planning/m3-readiness.md).
+
 Built-in handlers declare format/MIME/version, limits, extraction capability, normalized output schema, source-key strategy, warnings, and deterministic transformation version. They receive only staged selected bytes and an operation context, never broad filesystem/network authority. A handler returns normalized resource candidates and optional structured records, not executable commands. A new format adds a handler and tests; no plugin marketplace is needed.
 
 ## Pipeline and states
@@ -28,7 +33,9 @@ Each job/item also supports cancelled, failed, unsupported, duplicate, unchanged
 | JSON / Memoquill package | Accept documented versioned schemas/mapping, bounded nesting and counts. No arbitrary object-to-database deserialization. Preserve unknown supported-future payloads inertly; reject invalid references before apply. |
 | PDF | Always preserve and explicitly open original. Conditional born-digital extraction/passive viewer gate in M3: maintained parser/renderer, no active content/remote loads, bounded execution, useful source anchors, licensed packaged dependencies. If it fails, ship attachment-only with clear limits. OCR is post-V1. |
 | Image/media/code files | Preserve as attachments with type/size checks, captions/alt text, language hints for code, and explicit user viewing. Treat code as text. No implicit programs, macros, audio transcription, OCR, or media network retrieval. |
-| EPUB / full HTML / remote documentation crawl | Post-V1 handlers. A user can import a text/Markdown export or attach the original now. No hidden web crawler. |
+| EPUB | Explicit M3 qualification target under the November 1 clarification. Qualify passive offline archive/XML parsing, bounded expansion, locators and honest coverage; preserve attachment-only fallback if extraction is unqualified. No active content, external entities or linked-resource fetching. |
+| DOCX / HTML / additional document or image formats | Qualify a view/extract capability matrix in M3; developer conversion tools do not establish product support. Originals remain usable with explicit unsupported/partial/failed extraction status. Macros/scripts and external loads cannot execute. |
+| Full HTML / remote documentation crawl | No implicit crawler. Bounded selected-file HTML qualification is separate from remote crawling, which remains deferred. |
 
 Do not choose an unmaintained parser simply to fill the table. M3 must compare the available Rust PDF extraction path against a packaged local PDF.js viewer/worker and select a pinned, qualified option; neither is incorporated by this planning assignment. Source preservation and typed extraction boundaries are decided now; the bounded dependency choice follows actual packaged evidence.
 

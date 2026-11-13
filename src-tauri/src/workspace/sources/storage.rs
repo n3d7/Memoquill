@@ -156,3 +156,17 @@ fn original(source: NewSource, revision: u64, byte_length: u64) -> OriginalSourc
         byte_length,
     }
 }
+
+pub(super) fn validate_native_data(connection: &Connection) -> Result<()> {
+    let mut query = connection.prepare(
+        "SELECT resource_id FROM original_sources UNION SELECT resource_id FROM source_revisions",
+    )?;
+    let mut rows = query.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let id = serde_json::from_value(serde_json::Value::String(id)).map_err(|_| corrupt())?;
+        resource(connection, id, false)?;
+        list(connection, id)?;
+    }
+    Ok(())
+}

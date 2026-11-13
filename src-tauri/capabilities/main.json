@@ -27,6 +27,11 @@
     "allow-sources",
     "allow-save-source",
     "allow-source-preview",
+    "allow-save-original",
+    "allow-package-export",
+    "allow-package-inspect",
+    "allow-package-confirm",
+    "allow-package-discard",
     "allow-search-resources",
     "allow-lesson-discover",
     "allow-lesson-read",
@@ -40,6 +45,17 @@
     "allow-lesson-discard-draft",
     "allow-lesson-get-receipt",
     "allow-lesson-read-source",
-    "allow-lesson-validate-draft"
+    "allow-lesson-validate-draft",
+    "allow-ingestion-create",
+    "allow-ingestion-read",
+    "allow-ingestion-list",
+    "allow-ingestion-cancel",
+    "allow-ingestion-apply",
+    "allow-ingestion-review",
+    "allow-ingestion-reimport-preview",
+    "allow-ingestion-reimport-apply",
+    "allow-ingestion-undo-preview",
+    "allow-ingestion-undo",
+    "allow-rebuild-search-index"
   ]
 }

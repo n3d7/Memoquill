@@ -4,10 +4,18 @@ use crate::organization::ResourceId;
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use uuid::Uuid;
 
+mod extraction;
+mod ingestion;
 mod preview;
 mod storage;
 mod types;
 mod validation;
+pub use ingestion::{
+    ApplyIngestionJob, ApplyReimportJob, CancelIngestionJob, CreateIngestionJob, IngestionDecision,
+    IngestionDisposition, IngestionJob, IngestionJobSummary, IngestionMapping, IngestionOutcome,
+    IngestionStatus, JsonPropertyMapping, ReimportItem, ReimportPreview, ReimportResolution,
+    ReimportStatus, ReviewIngestionJob, UndoIngestionJob, UndoPreview,
+};
 pub use types::*;
 #[cfg(test)]
 mod tests;
@@ -45,6 +53,28 @@ impl Database {
         let value = storage::insert(&tx, &root, request)?;
         commit_source(tx, &self.id, &request.operation_id, &hash, &value)?;
         Ok(value)
+    }
+    pub(super) fn original_copy(
+        &self,
+        context: RequestContext,
+        id: uuid::Uuid,
+    ) -> Result<(String, Vec<u8>)> {
+        context.authorize()?;
+        let source = storage::find(&self.connection, id)?;
+        let info = AssetInfo {
+            digest: source.digest,
+            byte_length: source.byte_length,
+        };
+        if info.byte_length > 64 * 1024 * 1024 {
+            return Err(AppError::new(ErrorCode::BudgetExceeded));
+        }
+        assets::verify(self.owner.root(), &info)?;
+        let bytes = preview::read_bytes(self.owner.root(), &info, 64 * 1024 * 1024)?;
+        use sha2::{Digest, Sha256};
+        if format!("{:x}", Sha256::digest(&bytes)) != info.digest.as_str() {
+            return Err(AppError::new(ErrorCode::RecoveryRequired));
+        }
+        Ok((source.filename, bytes))
     }
     pub(super) fn source_preview(
         &self,
@@ -105,4 +135,31 @@ fn source_outcome(receipt: OperationReceipt, request: &SaveSource) -> Result<Ori
         ReceiptResult::Interrupted(code) => Err(AppError::new(code)),
         _ => Err(corrupt()),
     }
+}
+
+pub(super) fn validate_native_data(connection: &Connection) -> Result<()> {
+    storage::validate_native_data(connection)
+}
+
+pub(super) fn validate_native_outcome(
+    connection: &Connection,
+    outcome: &OperationOutcome,
+) -> Result<()> {
+    match outcome {
+        OperationOutcome::Source(value) => {
+            validation::original(value)?;
+            if storage::find(connection, value.id)? != **value {
+                return Err(corrupt());
+            }
+        }
+        OperationOutcome::IngestionJob(value) => {
+            ingestion::validate_native_job(connection, value)?;
+        }
+        _ => return Err(corrupt()),
+    }
+    Ok(())
+}
+
+pub(super) fn validate_native_job(connection: &Connection, job: &IngestionJob) -> Result<()> {
+    ingestion::validate_native_job(connection, job)
 }

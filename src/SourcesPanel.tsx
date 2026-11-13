@@ -1,4 +1,5 @@
 import type { OriginalSource, SourcePreview } from './sourceBridge';
+import { ExtractionPreview } from './sources/ExtractionPreview';
 import { useSourceController, type SourceController } from './application/useSourceController';
 
 function SourceDraftForm({ draft, pending, busy, onChange, onAttach, onDiscard }: {
@@ -17,12 +18,13 @@ function SourceDraftForm({ draft, pending, busy, onChange, onAttach, onDiscard }
   </div>;
 }
 
-function SourceRecord({ source, busy, onPreview }: { source: OriginalSource; busy: boolean; onPreview: (sourceId: string) => void }) {
+function SourceRecord({ source, busy, onPreview, onSave }: { source: OriginalSource; busy: boolean; onPreview: (sourceId: string) => void; onSave: (sourceId: string) => void }) {
   return <li>
     <strong>{source.filename}</strong> <span>({source.byteLength} bytes)</span>
     {source.attribution && <p>Attribution: <span>{source.attribution}</span></p>}
     {source.license && <p>License: <span>{source.license}</span></p>}
     {source.originUrl && <p>Source URL: <span>{source.originUrl}</span></p>}
+    <button disabled={busy} onClick={() => onSave(source.id)}>Save original {source.filename}</button>
     <button disabled={busy} onClick={() => onPreview(source.id)}>Preview original {source.filename}</button>
   </li>;
 }
@@ -32,6 +34,7 @@ function OriginalPreview({ preview }: { preview: SourcePreview }) {
     <h4>Original preview</h4>
     {preview.text !== null ? <pre>{preview.text}</pre> : <><p>Binary source: only a hexadecimal preview is available. Open the preserved original with a suitable application outside this preview.</p><pre>{preview.hex ?? 'No preview available.'}</pre></>}
     {preview.truncated && <p>Preview is truncated. The preserved original is unchanged.</p>}
+    {preview.extraction && <ExtractionPreview extraction={preview.extraction} />}
   </section>;
 }
 
@@ -62,8 +65,8 @@ export function SourcesView({ model }: { model: SourceController }) {
       onChange={(field, value) => model.updateDraft(field, value)}
       onAttach={() => void model.attach()}
       onDiscard={() => model.discard()} />}
-    {model.list && <ul>{model.list.sources.map(source => <SourceRecord key={source.id} source={source} busy={model.preview.busy}
-      onPreview={sourceId => void model.previewSource(sourceId)} />)}</ul>}
+    {model.list && <ul>{model.list.sources.map(source => <SourceRecord key={source.id} source={source} busy={busy || model.preview.busy}
+      onSave={sourceId => void model.saveOriginal(sourceId)} onPreview={sourceId => void model.previewSource(sourceId)} />)}</ul>}
     {model.preview.preview && <OriginalPreview preview={model.preview.preview} />}
   </section>;
 }

@@ -5,6 +5,7 @@ import * as workspace from '../workspaceBridge';
 import type { LessonPort } from '../lessons/types';
 import { localGuestIdentity, type IdentityPort } from './identity';
 import type { ContentPort, SourcePort, WorkspacePort } from './ports';
+import type { IngestionPort } from './ingestionTypes';
 
 export interface ApplicationPorts {
   content: ContentPort;
@@ -12,6 +13,8 @@ export interface ApplicationPorts {
   workspace: WorkspacePort;
   identity: IdentityPort;
   lessons?: LessonPort;
+  ingestion?: IngestionPort;
+  packages?: import('./packageTypes').PackagePort;
 }
 // Defaults keep existing bridge consumers compatible; providers replace services per tree.
 const defaults: ApplicationPorts = { content, sources, workspace, identity: localGuestIdentity };
@@ -27,6 +30,7 @@ export const useSourcePort = () => useContext(ApplicationContext).sources;
 export const useWorkspacePort = () => useContext(ApplicationContext).workspace;
 export const useIdentityPort = () => useContext(ApplicationContext).identity;
 export const useOptionalLessonPort = () => useContext(ApplicationContext).lessons;
+export const useOptionalIngestionPort = () => useContext(ApplicationContext).ingestion;
 export function useLessonPort(): LessonPort {
   const port = useContext(ApplicationContext).lessons;
   if (!port) throw new Error('A lesson application port must be supplied by the application root');

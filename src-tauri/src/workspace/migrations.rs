@@ -28,6 +28,14 @@ pub(super) const MIGRATIONS: &[Migration] = &[
         version: 5,
         sql: include_str!("migrations/005_lessons.sql"),
     },
+    Migration {
+        version: 6,
+        sql: include_str!("migrations/006_ingestion.sql"),
+    },
+    Migration {
+        version: 7,
+        sql: include_str!("migrations/007_search_projection.sql"),
+    },
 ];
 
 pub(super) fn checksum(bytes: &[u8]) -> String {
@@ -99,6 +107,47 @@ fn apply_transaction(
 mod lesson_upgrade_tests {
     use super::*;
     #[test]
+    fn schema_six_to_seven_preserves_ingestion_and_marks_index_for_rebuild() {
+        let mut c = Connection::open_in_memory().unwrap();
+        c.pragma_update(None, "foreign_keys", true).unwrap();
+        apply(&mut c, 0, &MIGRATIONS[..6]).unwrap();
+        c.execute("INSERT INTO workspace_meta VALUES(1,'workspace')", [])
+            .unwrap();
+        c.execute("INSERT INTO operations VALUES('op','workspace','local-ui','hash','asset','applied','{}',NULL)", []).unwrap();
+        c.execute("INSERT INTO assets VALUES(?1,4,'op')", ["a".repeat(64)])
+            .unwrap();
+        c.execute("INSERT INTO resources VALUES('resource','Original',0)", [])
+            .unwrap();
+        c.execute("INSERT INTO original_sources VALUES('source','resource',?1,'source.txt','text/plain',NULL,NULL,NULL,1,4)", ["a".repeat(64)]).unwrap();
+        c.execute(
+            "INSERT INTO ingestion_jobs VALUES('job','op','hash','source','{}')",
+            [],
+        )
+        .unwrap();
+        c.execute("UPDATE search_index_state SET dirty=0", [])
+            .unwrap();
+        apply(&mut c, 6, MIGRATIONS).unwrap();
+        validate(&c, 7).unwrap();
+        assert_eq!(
+            c.query_row(
+                "SELECT count(*) FROM ingestion_jobs WHERE id='job'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+        assert!(
+            c.query_row("SELECT dirty FROM search_index_state WHERE id=1", [], |r| r
+                .get::<_, bool>(0))
+                .unwrap()
+        );
+        assert!(
+            c.pragma_query_value(None, "foreign_keys", |r| r.get::<_, bool>(0))
+                .unwrap()
+        );
+    }
+    #[test]
     fn schema_four_assets_sources_and_receipts_survive_rebuild_with_enforcement_restored() {
         let mut c = Connection::open_in_memory().unwrap();
         c.pragma_update(None, "foreign_keys", true).unwrap();
@@ -111,7 +160,7 @@ mod lesson_upgrade_tests {
         c.execute("INSERT INTO resources VALUES('resource','Original',0)", [])
             .unwrap();
         c.execute("INSERT INTO original_sources VALUES('source','resource',?1,'source.pdf','application/pdf','Author','CC0',NULL,1,4)",["a".repeat(64)]).unwrap();
-        apply(&mut c, 4, MIGRATIONS).unwrap();
+        apply(&mut c, 4, &MIGRATIONS[..5]).unwrap();
         assert!(
             c.pragma_query_value(None, "foreign_keys", |r| r.get::<_, bool>(0))
                 .unwrap()
@@ -132,11 +181,11 @@ mod lesson_upgrade_tests {
         c.pragma_update(None, "foreign_keys", true).unwrap();
         apply(&mut c, 0, MIGRATIONS).unwrap();
         let bad = [Migration {
-            version: 6,
+            version: 8,
             sql: "CREATE TABLE broken(id TEXT REFERENCES resources(id)); INSERT INTO broken VALUES('missing');",
         }];
         assert_eq!(
-            apply(&mut c, 5, &bad).unwrap_err().code,
+            apply(&mut c, 7, &bad).unwrap_err().code,
             ErrorCode::RecoveryRequired
         );
         assert!(
@@ -146,7 +195,7 @@ mod lesson_upgrade_tests {
         assert_eq!(
             c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            5
+            7
         );
         assert_eq!(
             c.query_row(
@@ -157,6 +206,6 @@ mod lesson_upgrade_tests {
             .unwrap(),
             0
         );
-        validate(&c, 5).unwrap();
+        validate(&c, 7).unwrap();
     }
 }

@@ -6,12 +6,16 @@ work is standalone and inactive after that cycle. Every main stage still preserv
 its explicit portability boundary. See the [platform contract](../architecture/platform-portability.md)
 and ADR-10 in [decisions](../architecture/decisions.md).
 
-Current authorized phase (2026-11-08): consolidate post-M2 requirements in
-docs/Linear only. M2 PR #3 is merged by the owner with all substep commits
-preserved. Course-level isolation is a separate post-M2 step, not a reopened M2.
+Current continuation (2026-11-09): the user requested checking completed work,
+tool-catalog discovery and resuming Memoquill. M2 and post-M2 course isolation
+KER-127–130 are Done in Linear; current frontend/native-library checks pass.
+The user subsequently approved starting M3/KER-100 in the proposed order; its
+first passive extraction-preview slice is in implementation. See
+[M3 readiness](m3-readiness.md) and its linked design/plan. KER-100 is not complete.
+M2 PR #3 was merged by the owner. Course-level isolation is a separate post-M2 step, not a reopened M2.
 [Requirements and substep map](learning-productivity-followup.md) owns the latest
 course/AI/manual-edit/research-schedule clarification. Full visual design remains
-deferred. This planning does not begin implementation, schedules or publication.
+deferred. No GUI, schedules or publication started in this continuation review.
 
 Core Foundation spans M1–M7. M8 remains the final optional lesson-local extension
 and does not block the core M7 release. Other platforms do not start automatically
@@ -86,7 +90,7 @@ marketplace remain outside the core cycle. New ideas require explicit scope revi
 
 The November1 architecture hold was superseded by the November4 execution authority
 and completed KER-117 contracts; the November6 pause was superseded by resumed M2 work and its merged PR.
-The current November8 task is post-M2 requirements/backlog consolidation. Historical research/reports remain evidence, not current execution policy.
+The November8 course foundation is now complete; the November9 continuation checks the next M3 step. Historical research/reports remain evidence, not current execution policy.
 The [lesson requirements](lesson-composition-requirements.md), [source admission](../research/composable-learning-screening.md)
 and [execution ledger](m2-execution.md) retain their valid ownership, science,
 source/provenance and subject-independence decisions.

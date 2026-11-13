@@ -11,6 +11,7 @@ const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
     Search(RequestContext, String, u64, Reply<SearchPage>),
+    RebuildSearch(RequestContext, Reply<()>),
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
@@ -25,6 +26,8 @@ enum Request {
         u64,
         Reply<AssetInfo>,
     ),
+    CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
+    CapturePortable(RequestContext, uuid::Uuid, bool, Reply<PortableCapture>),
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
@@ -59,6 +62,7 @@ enum NotesRequest {
     ),
 }
 enum SourcesRequest {
+    Original(RequestContext, uuid::Uuid, Reply<(String, Vec<u8>)>),
     List(
         RequestContext,
         crate::organization::ResourceId,
@@ -66,6 +70,27 @@ enum SourcesRequest {
     ),
     Save(RequestContext, Box<SaveSource>, Reply<OriginalSource>),
     Preview(RequestContext, uuid::Uuid, Reply<SourcePreview>),
+    CreateIngestion(RequestContext, Box<CreateIngestionJob>, Reply<IngestionJob>),
+    Ingestion(RequestContext, uuid::Uuid, Reply<IngestionJob>),
+    IngestionList(
+        RequestContext,
+        crate::organization::ResourceId,
+        u64,
+        Reply<Vec<IngestionJobSummary>>,
+    ),
+    CancelIngestion(RequestContext, Box<CancelIngestionJob>, Reply<IngestionJob>),
+    ApplyIngestion(RequestContext, Box<ApplyIngestionJob>, Reply<IngestionJob>),
+    ReviewIngestion(RequestContext, Box<ReviewIngestionJob>, Reply<IngestionJob>),
+    ReimportPreview(
+        RequestContext,
+        uuid::Uuid,
+        uuid::Uuid,
+        IngestionMapping,
+        Reply<ReimportPreview>,
+    ),
+    Reimport(RequestContext, Box<ApplyReimportJob>, Reply<IngestionJob>),
+    UndoPreview(RequestContext, uuid::Uuid, Reply<UndoPreview>),
+    UndoIngestion(RequestContext, Box<UndoIngestionJob>, Reply<IngestionJob>),
 }
 
 enum LessonsRequest {
@@ -321,6 +346,14 @@ impl ApplicationService {
         )
         .await
     }
+    pub async fn rebuild_search_index(&self, context: RequestContext) -> Result<()> {
+        self.request(
+            context,
+            |reply| Request::RebuildSearch(context, reply),
+            true,
+        )
+        .await
+    }
     pub async fn sources(
         &self,
         context: RequestContext,
@@ -345,6 +378,18 @@ impl ApplicationService {
         )
         .await
     }
+    pub async fn original_copy(
+        &self,
+        context: RequestContext,
+        source_id: uuid::Uuid,
+    ) -> Result<(String, Vec<u8>)> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Original(context, source_id, reply)),
+            false,
+        )
+        .await
+    }
     pub async fn source_preview(
         &self,
         context: RequestContext,
@@ -354,6 +399,183 @@ impl ApplicationService {
             context,
             |reply| Request::Sources(SourcesRequest::Preview(context, source_id, reply)),
             false,
+        )
+        .await
+    }
+
+    pub async fn create_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: CreateIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::CreateIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
+        )
+        .await
+    }
+
+    pub async fn ingestion_job(
+        &self,
+        context: RequestContext,
+        id: uuid::Uuid,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Ingestion(context, id, reply)),
+            false,
+        )
+        .await
+    }
+
+    pub async fn list_ingestion_jobs(
+        &self,
+        context: RequestContext,
+        resource_id: crate::organization::ResourceId,
+        offset: u64,
+    ) -> Result<Vec<IngestionJobSummary>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::IngestionList(
+                    context,
+                    resource_id,
+                    offset,
+                    reply,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+
+    pub async fn cancel_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: CancelIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::CancelIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
+        )
+        .await
+    }
+
+    pub async fn apply_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: ApplyIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::ApplyIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
+        )
+        .await
+    }
+    pub async fn review_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: ReviewIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::ReviewIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
+        )
+        .await
+    }
+
+    pub async fn preview_ingestion_reimport(
+        &self,
+        context: RequestContext,
+        job_id: uuid::Uuid,
+        previous_job_id: uuid::Uuid,
+        mapping: IngestionMapping,
+    ) -> Result<ReimportPreview> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::ReimportPreview(
+                    context,
+                    job_id,
+                    previous_job_id,
+                    mapping,
+                    reply,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+
+    pub async fn apply_ingestion_reimport(
+        &self,
+        context: RequestContext,
+        request: ApplyReimportJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::Reimport(context, Box::new(request), reply)),
+            true,
+        )
+        .await
+    }
+
+    pub async fn preview_ingestion_undo(
+        &self,
+        context: RequestContext,
+        id: uuid::Uuid,
+    ) -> Result<UndoPreview> {
+        self.request(
+            context,
+            |reply| Request::Sources(SourcesRequest::UndoPreview(context, id, reply)),
+            false,
+        )
+        .await
+    }
+
+    pub async fn undo_ingestion_job(
+        &self,
+        context: RequestContext,
+        request: UndoIngestionJob,
+    ) -> Result<IngestionJob> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::UndoIngestion(
+                    context,
+                    Box::new(request),
+                    reply,
+                ))
+            },
+            true,
         )
         .await
     }
@@ -503,6 +725,33 @@ impl ApplicationService {
         )
         .await
     }
+    /// Rust-only capture seam; ZIP work happens after the serialized writer releases.
+    pub async fn capture_native(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+    ) -> Result<NativeCapture> {
+        self.request(
+            context,
+            |reply| Request::CaptureNative(context, source_course_id, reply),
+            false,
+        )
+        .await
+    }
+    /// Course-scoped serialized capture; originals require an explicit native caller choice.
+    pub async fn capture_portable(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+        include_originals: bool,
+    ) -> Result<PortableCapture> {
+        self.request(
+            context,
+            |reply| Request::CapturePortable(context, source_course_id, include_originals, reply),
+            false,
+        )
+        .await
+    }
     pub async fn reopen(&self, context: RequestContext) -> Result<WorkspaceStatus> {
         self.request(context, Request::Reopen, false).await
     }
@@ -568,6 +817,9 @@ impl Store {
             Request::Search(context, query, offset, reply) => {
                 let _ = reply.send(self.access(|db| db.search_resources(context, &query, offset)));
             }
+            Request::RebuildSearch(context, reply) => {
+                let _ = reply.send(self.access(|db| db.reset_search_index(context)));
+            }
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),
             Request::Sources(request) => self.handle_sources(request),
@@ -585,6 +837,13 @@ impl Store {
                 let _ = reply.send(
                     self.access(|db| db.register_asset(context, &request, &mut reader, limit)),
                 );
+            }
+            Request::CaptureNative(context, course_id, reply) => {
+                let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
+            }
+            Request::CapturePortable(context, course_id, originals, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.capture_portable(context, course_id, originals)));
             }
             Request::Reopen(reply) => {
                 self.database = Err(AppError::new(ErrorCode::OwnerUnavailable));
@@ -637,6 +896,9 @@ impl Store {
     }
     fn handle_sources(&mut self, request: SourcesRequest) {
         match request {
+            SourcesRequest::Original(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.original_copy(context, id)));
+            }
             SourcesRequest::List(context, id, reply) => {
                 let _ = reply.send(self.access(|db| db.sources(context, id)));
             }
@@ -645,6 +907,40 @@ impl Store {
             }
             SourcesRequest::Preview(context, id, reply) => {
                 let _ = reply.send(self.access(|db| db.source_preview(context, id)));
+            }
+            SourcesRequest::CreateIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.create_ingestion_job(context, &request)));
+            }
+            SourcesRequest::Ingestion(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.ingestion_job(context, id)));
+            }
+            SourcesRequest::IngestionList(context, id, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.list_ingestion_jobs(context, id, offset)));
+            }
+            SourcesRequest::CancelIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.cancel_ingestion_job(context, &request)));
+            }
+            SourcesRequest::ApplyIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.apply_ingestion_job(context, &request)));
+            }
+            SourcesRequest::ReviewIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.review_ingestion_job(context, &request)));
+            }
+            SourcesRequest::ReimportPreview(context, job, previous, mapping, reply) => {
+                let _ =
+                    reply.send(self.access(|db| {
+                        db.preview_ingestion_reimport(context, job, previous, &mapping)
+                    }));
+            }
+            SourcesRequest::Reimport(context, request, reply) => {
+                let _ =
+                    reply.send(self.access(|db| db.apply_ingestion_reimport(context, &request)));
+            }
+            SourcesRequest::UndoPreview(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.preview_ingestion_undo(context, id)));
+            }
+            SourcesRequest::UndoIngestion(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.undo_ingestion_job(context, &request)));
             }
         }
     }

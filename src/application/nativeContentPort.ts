@@ -5,6 +5,7 @@ import type { ContentPort } from './ports';
 export function createNativeContentPort(courseId: string): ContentPort {
   function library(): Promise<Library> { return invoke('library', { courseId }); }
   function searchResources(query: string, offset = 0): Promise<SearchPage> { return invoke('search_resources', { courseId, query, offset }); }
+  function rebuildSearchIndex(): Promise<void> { return invoke('rebuild_search_index', { courseId }); }
   function applyContent(request: ApplyContent): Promise<Library> { return invoke('apply_content', { courseId, request }); }
   function readDocument(resourceId: string, revisionId?: string): Promise<SavedDocument | null> {
     return invoke('read_document', { courseId, resourceId, revisionId: revisionId ?? null });
@@ -15,10 +16,11 @@ export function createNativeContentPort(courseId: string): ContentPort {
   function annotations(resourceId: string): Promise<Annotation[]> { return invoke('annotations', { courseId, resourceId }); }
   function saveAnnotation(request: Envelope & { annotation: Annotation }): Promise<Annotation> { return invoke('save_annotation', { courseId, request }); }
 
-  return { library, searchResources, applyContent, readDocument, saveDocument, readingPosition, saveReadingPosition, annotations, saveAnnotation };
+  return { library, searchResources, rebuildSearchIndex, applyContent, readDocument, saveDocument, readingPosition, saveReadingPosition, annotations, saveAnnotation };
 }
 export const library: ContentPort['library'] = async () => { throw new Error('A course-bound application provider is required.'); };
 export const searchResources: ContentPort['searchResources'] = async () => { throw new Error('A course-bound application provider is required.'); };
+export const rebuildSearchIndex = async (): Promise<void> => { throw new Error('A course-bound application provider is required.'); };
 export const applyContent: ContentPort['applyContent'] = async () => { throw new Error('A course-bound application provider is required.'); };
 export const readDocument: ContentPort['readDocument'] = async () => { throw new Error('A course-bound application provider is required.'); };
 export const saveDocument: ContentPort['saveDocument'] = async () => { throw new Error('A course-bound application provider is required.'); };

@@ -1,5 +1,21 @@
 # M1 native qualification
 
+## M3 isolated X11 qualification
+
+`m3-native-probe.sh` runs the M3-specific journey in the existing private desktop
+image, under `dbus-run-session`, with a fresh task-only XDG profile and a bounded
+X11 run. It refuses other targets and missing `m3-journey.py`; do not count the
+runner alone as a passed import/search/recovery journey. Build/install the final
+M3 candidate in a fresh task image and keep `--network=none`, resource limits and
+the reviewed private desktop/SELinux boundaries described below.
+
+Opening the app requires current user approval. Screenshots are off by default;
+use `MEMOQUILL_M3_SCREENSHOTS=1` only with explicit permission for that run, and
+capture only synthetic task-profile Memoquill content. The user approved GUI and
+temporarily screenshots for the November 9 M3 task; this is not global authority
+for future runs. Human audible speech/reflow remains separate M7 acceptance.
+Record final source/RPM/image digests and actual results in `docs/quality/m3-qualification.md`.
+
 ## M2 X11 functional exit
 
 For the M2-only functional pass, set `MEMOQUILL_M2_AUDIT=1`,

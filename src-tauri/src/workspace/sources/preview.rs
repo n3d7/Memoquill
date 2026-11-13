@@ -12,12 +12,14 @@ pub(super) fn read(root: &Path, source: OriginalSource) -> Result<SourcePreview>
     assets::verify(root, &info).map_err(|_| corrupt())?;
     let bytes = bounded_bytes(root, &info)?;
     let truncated = source.byte_length > bytes.len() as u64;
+    let extraction = Some(extraction::extract(&source.filename, &bytes, truncated));
     match text(&bytes, truncated) {
         Some(value) => Ok(SourcePreview {
             source,
             text: Some(value),
             hex: None,
             truncated,
+            extraction,
         }),
         None => {
             let shown = &bytes[..bytes.len().min(HEX_BYTES)];
@@ -28,12 +30,17 @@ pub(super) fn read(root: &Path, source: OriginalSource) -> Result<SourcePreview>
                 text: None,
                 hex: Some(hex),
                 truncated,
+                extraction,
             })
         }
     }
 }
 
-fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
+pub(super) fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
+    read_bytes(root, info, PREVIEW_BYTES)
+}
+
+pub(super) fn read_bytes(root: &Path, info: &AssetInfo, limit: u64) -> Result<Vec<u8>> {
     let flags = rustix::fs::OFlags::RDONLY
         | rustix::fs::OFlags::NOFOLLOW
         | rustix::fs::OFlags::CLOEXEC
@@ -50,10 +57,10 @@ fn bounded_bytes(root: &Path, info: &AssetInfo) -> Result<Vec<u8>> {
         return Err(corrupt());
     }
     let mut bytes = Vec::new();
-    file.take(PREVIEW_BYTES)
+    file.take(limit)
         .read_to_end(&mut bytes)
         .map_err(|_| corrupt())?;
-    if bytes.len() as u64 != info.byte_length.min(PREVIEW_BYTES) {
+    if bytes.len() as u64 != info.byte_length.min(limit) {
         return Err(corrupt());
     }
     Ok(bytes)
