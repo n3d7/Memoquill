@@ -34,4 +34,8 @@ npm-debug.log*
 *~
 .DS_Store
 
-# Lockfiles, project configuration, AGENTS.md and .agents/skills are versioned.
+# Lockfiles and shared project configuration are versioned.
+
+# Local agent instructions and skills
+AGENTS.md
+.agents/
