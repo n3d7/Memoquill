@@ -34,7 +34,7 @@ export function IngestionPanel({ port, sources, workspaceId, resourceId, library
   const [undoPreview, setUndoPreview] = useState<UndoPreview | null>(null);
   const [pending, setPending] = useState<Pending | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [status, setStatus] = useState('');
   const generation = useRef(0);
-  function invalidateComparison() { comparisonGeneration.current++; setPreview(null); setUndoPreview(null); setPreviousRevision(null); setSelected([]); setOverwrites([]); }
+  function invalidateComparison(clearSelection = true) { comparisonGeneration.current++; setPreview(null); setUndoPreview(null); setPreviousRevision(null); if (clearSelection) setSelected([]); setOverwrites([]); }
   useEffect(() => {
     const current = ++generation.current;
     setJob(null); setJobs([]); setMapping(defaultMapping); setPage(0); setPreviousId(''); invalidateComparison();
@@ -42,7 +42,7 @@ export function IngestionPanel({ port, sources, workspaceId, resourceId, library
     port.list(resourceId, 0).then(value => { if (generation.current === current) { setJobs(value); setHasMoreJobs(value.length === 20); } }, () => { if (generation.current === current) setError('Import jobs could not be loaded.'); }).finally(() => { if (generation.current === current) setListing(false); });
     return () => { generation.current++; };
   }, [port, resourceId, workspaceId]);
-  useEffect(() => { invalidateComparison(); }, [libraryRevision]);
+  useEffect(() => { invalidateComparison(previousId !== ''); }, [libraryRevision]);
   async function loadMoreJobs() {
     const current = generation.current; const offset = loadedPages.current * 20; setListing(true); setError('');
     try { const value = await port.list(resourceId, offset); if (generation.current === current) { setJobs(previous => [...previous, ...value.filter(item => !previous.some(old => old.id === item.id))]); loadedPages.current++; setHasMoreJobs(value.length === 20); } }

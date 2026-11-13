@@ -1380,3 +1380,136 @@ fn comparison_bytes(item: &ReimportItem) -> usize {
             .map(|v| v.title.len() + v.body.len() + v.locator.value.len())
             .sum::<usize>()
 }
+
+/// Admission checks use immutable references, never mutable current material heads.
+/// Historical operation snapshots may precede the persisted job revision.
+pub(super) fn validate_native_job(connection: &Connection, job: &IngestionJob) -> Result<()> {
+    use std::collections::HashSet;
+    if job.id.is_nil()
+        || job.revision > super::super::types::MAX_REVISION as u64
+        || !matches!(job.handler_version, 1 | 2)
+        || job.extraction.contract_version != job.handler_version
+        || (job.handler_version == 2 && job.extraction.format != ExtractionFormat::Json)
+        || storage::find(connection, job.source.id)? != job.source
+        || job.extraction.records.len() > 10_000
+        || (job.extraction.status != ExtractionStatus::Complete
+            && !job.extraction.records.is_empty())
+    {
+        return Err(corrupt());
+    }
+    let current_data: String = connection.query_row(
+        "SELECT data FROM ingestion_jobs WHERE id=?1",
+        [job.id.to_string()],
+        |r| r.get(0),
+    )?;
+    let current: IngestionJob = serde_json::from_str(&current_data).map_err(|_| corrupt())?;
+    if current.id != job.id
+        || current.source != job.source
+        || current.extraction != job.extraction
+        || current.handler_version != job.handler_version
+        || current.revision < job.revision
+        || (job.mapping.is_some() && current.mapping != job.mapping)
+    {
+        return Err(corrupt());
+    }
+    if let Some(mapping) = &job.mapping {
+        if mapping.key_column >= 64
+            || mapping.title_column >= 64
+            || mapping.body_column >= 64
+            || (mapping.json_properties.is_some() && job.handler_version != 2)
+        {
+            return Err(corrupt());
+        }
+    } else if !job.outcomes.is_empty() || !job.decisions.is_empty() || job.previous_job_id.is_some()
+    {
+        return Err(corrupt());
+    }
+    for record in &job.extraction.records {
+        if record.fields.len() > 64
+            || record.properties.len() > 64
+            || record.duplicate_properties.len() > 64
+        {
+            return Err(corrupt());
+        }
+    }
+    let revision_owned = |resource: ResourceId, revision: Uuid| -> Result<bool> {
+        Ok(connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM resource_revisions WHERE resource_id=?1 AND id=?2)",
+            params![resource.to_string(), revision.to_string()],
+            |r| r.get(0),
+        )?)
+    };
+    let mut indices = HashSet::new();
+    let mut keys = HashSet::new();
+    for outcome in &job.outcomes {
+        let record = job
+            .extraction
+            .records
+            .get(outcome.index)
+            .ok_or_else(corrupt)?;
+        let mapping = job.mapping.as_ref().ok_or_else(corrupt)?;
+        let (key, title, _) = mapped_fields(record, mapping).ok_or_else(corrupt)?;
+        if !indices.insert(outcome.index)
+            || !keys.insert(&outcome.key)
+            || key.is_empty()
+            || key.len() > 1024
+            || key != outcome.key
+            || title.is_empty()
+            || !revision_owned(outcome.resource_id, outcome.document_revision_id)?
+            || outcome.before_revision_id.is_some() != outcome.before_title.is_some()
+        {
+            return Err(corrupt());
+        }
+        if let Some(revision) = outcome.before_revision_id
+            && !revision_owned(outcome.resource_id, revision)?
+        {
+            return Err(corrupt());
+        }
+    }
+    let mut removed = HashSet::new();
+    for decision in &job.decisions {
+        match (
+            decision.index,
+            decision.key.as_deref(),
+            decision.disposition,
+        ) {
+            (Some(index), None, disposition)
+                if disposition != IngestionDisposition::RemovedRetained
+                    && disposition != IngestionDisposition::Pending =>
+            {
+                if index >= job.extraction.records.len() || !indices.insert(index) {
+                    return Err(corrupt());
+                }
+            }
+            (None, Some(key), IngestionDisposition::RemovedRetained)
+                if !key.is_empty() && key.len() <= 1024 && job.previous_job_id.is_some() =>
+            {
+                if !removed.insert(key) {
+                    return Err(corrupt());
+                }
+            }
+            _ => return Err(corrupt()),
+        }
+    }
+    let mut visited = HashSet::from([job.id]);
+    let mut previous = job.previous_job_id;
+    while let Some(id) = previous {
+        if !visited.insert(id) || visited.len() > 257 {
+            return Err(corrupt());
+        }
+        let data: String = connection.query_row(
+            "SELECT data FROM ingestion_jobs WHERE id=?1",
+            [id.to_string()],
+            |r| r.get(0),
+        )?;
+        let ancestor: IngestionJob = serde_json::from_str(&data).map_err(|_| corrupt())?;
+        if ancestor.id != id
+            || ancestor.source.resource_id != job.source.resource_id
+            || ancestor.mapping != job.mapping
+        {
+            return Err(corrupt());
+        }
+        previous = ancestor.previous_job_id;
+    }
+    Ok(())
+}

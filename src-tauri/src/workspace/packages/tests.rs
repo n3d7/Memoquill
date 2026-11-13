@@ -920,3 +920,17 @@ fn historical_receipts_and_notes_survive_changed_heads_and_mutable_values() {
 fn prepared_receipts_require_actual_asset_journal_shape() {
     reject_mutation("UPDATE operations SET state='prepared',result=NULL WHERE kind='annotation'");
 }
+
+#[test]
+fn malformed_ingestion_job_domains_are_rejected() {
+    for sql in [
+        "UPDATE ingestion_jobs SET data=json_set(data,'$.outcomes[0].index',999999) WHERE json_array_length(json_extract(data,'$.outcomes'))>0",
+        "UPDATE ingestion_jobs SET data=json_set(data,'$.outcomes[0].documentRevisionId','00000000-0000-4000-8000-000000000001') WHERE json_array_length(json_extract(data,'$.outcomes'))>0",
+        "UPDATE ingestion_jobs SET data=json_insert(data,'$.outcomes[#]',json_extract(data,'$.outcomes[0]')) WHERE json_array_length(json_extract(data,'$.outcomes'))>0",
+        "UPDATE ingestion_jobs SET data=json_set(data,'$.decisions',json_array(json_object('index',json_extract(data,'$.outcomes[0].index'),'key',NULL,'disposition','omitted'))) WHERE json_array_length(json_extract(data,'$.outcomes'))>0",
+        "UPDATE ingestion_jobs SET data=json_set(data,'$.previousJobId',id)",
+        "UPDATE operations SET result=json_set(result,'$.result.value.value.outcomes[0].index',999999) WHERE json_extract(result,'$.result.value.kind')='ingestion_job' AND json_array_length(json_extract(result,'$.result.value.value.outcomes'))>0",
+    ] {
+        reject_mutation(sql);
+    }
+}

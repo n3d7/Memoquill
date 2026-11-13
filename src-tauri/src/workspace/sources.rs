@@ -153,15 +153,13 @@ pub(super) fn validate_native_outcome(
             }
         }
         OperationOutcome::IngestionJob(value) => {
-            if value.id.is_nil()
-                || value.revision > super::types::MAX_REVISION as u64
-                || !matches!(value.handler_version, 1 | 2)
-                || storage::find(connection, value.source.id)? != value.source
-            {
-                return Err(corrupt());
-            }
+            ingestion::validate_native_job(connection, value)?;
         }
         _ => return Err(corrupt()),
     }
     Ok(())
+}
+
+pub(super) fn validate_native_job(connection: &Connection, job: &IngestionJob) -> Result<()> {
+    ingestion::validate_native_job(connection, job)
 }

@@ -34,9 +34,9 @@ def click(name):
     d.wait_for(lambda: d.find('button', name).getState().contains(d.pyatspi.STATE_ENABLED), f'{name} enabled', record=False)
     node = d.focus('button', name)
     d.wait_for(lambda: node.getState().contains(d.pyatspi.STATE_SHOWING), f'{name} in viewport', record=False)
-    bounds = node.queryComponent().getExtents(d.pyatspi.DESKTOP_COORDS)
-    d.command('xdotool', 'mousemove', '--sync', str(bounds.x + bounds.width // 2), str(bounds.y + bounds.height // 2))
-    d.command('xdotool', 'click', '1')
+    # Keyboard activation targets the verified focused button even while the long
+    # page scrolls; screen coordinates can become stale after focus.
+    d.key('space')
 
 
 def field(name, value):
@@ -55,6 +55,7 @@ def attach(path):
     click('Choose source file')
     d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), 'source chooser opened')
     d.key('ctrl+l')
+    d.key('ctrl+a')
     d.command('xdotool', 'type', '--clearmodifiers', path)
     d.key('Return')
     d.wait_for(lambda: shown('Selected:') or d.open_enabled(), 'source path validated')
@@ -73,18 +74,34 @@ def save_original(filename):
     click(f'Save original {filename}')
     d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), f'{filename} native destination chooser opened')
     d.key('ctrl+l')
+    d.key('ctrl+a')
     d.command('xdotool', 'type', '--clearmodifiers', str(destination))
     d.key('Return')
-    d.wait_for(lambda: destination.exists() or visible_button('Save'), 'native save destination accepted', record=False)
-    if not destination.exists() and visible_button('Save'):
-        click('Save')
-    d.wait_for(destination.exists, f'{filename} original copied')
+    d.wait_for(lambda: published_path(destination) or visible_button('Save'), 'native save destination accepted', record=False)
+    if not published_path(destination) and visible_button('Save'):
+        try:
+            click('Save')
+        except LookupError:
+            pass  # Native save can finish between the predicate and focus; bytes below remain mandatory.
+    d.wait_for(lambda: published_path(destination), f'{filename} original copied')
+    destination = published_path(destination)
     expected = hashlib.sha256((Path('/input') / filename).read_bytes()).hexdigest()
     actual = hashlib.sha256(destination.read_bytes()).hexdigest()
     if actual != expected:
         raise AssertionError(f'Original bytes changed: {filename}')
-    results.append({'check': f'preserved original copy {filename}', 'passed': True, 'sha256': actual})
+    if destination.name != filename:
+        raise AssertionError(f'Native save filename mismatch: expected {filename}, got {destination.name}')
+    results.append({'check': f'preserved original copy {filename}', 'passed': True, 'sha256': actual, 'actual_basename': destination.name})
 
+
+
+def published_path(path):
+    path = Path(path)
+    # GTK may append the suggested extension to a typed absolute name.
+    for candidate in (path, path.with_name(path.name + path.suffix)):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def visible_button(name):
@@ -102,17 +119,25 @@ def chooser_visible():
 def choose_native_path(path, saving=False):
     d.wait_for(lambda: any(node.getRoleName() in ('dialog', 'file chooser') for node in d.nodes()), 'package native chooser opened')
     d.key('ctrl+l')
+    d.key('ctrl+a')
     d.command('xdotool', 'type', '--clearmodifiers', str(path))
     d.key('Return')
     if saving:
-        d.wait_for(lambda: Path(path).exists() or visible_button('Save'), 'native package destination accepted', record=False)
-        if not Path(path).exists() and visible_button('Save'):
-            click('Save')
-        d.wait_for(lambda: Path(path).exists(), 'package published to selected destination')
+        d.wait_for(lambda: published_path(path) or visible_button('Save'), 'native package destination accepted', record=False)
+        if not published_path(path) and visible_button('Save'):
+            try:
+                click('Save')
+            except LookupError:
+                pass  # Publication may have completed while the chooser closed.
+        d.wait_for(lambda: published_path(path), 'package published to selected destination')
+        return published_path(path)
     else:
         d.wait_for(lambda: not chooser_visible() or visible_button('Open'), 'native package source accepted', record=False)
         if visible_button('Open'):
-            click('Open')
+            try:
+                click('Open')
+            except LookupError:
+                pass  # Inspection may already have dismissed the chooser.
 
 
 def package_roundtrips():
@@ -120,10 +145,12 @@ def package_roundtrips():
         ('Export full recovery package', 'native', 'M3 native restored course'),
         ('Export shareable content package', 'portable', 'M3 portable imported course'),
     )
+    exported = {}
     for label, kind, _ in packages:
         destination = Path('/evidence') / f'{kind}.zip'
         click(label)
-        choose_native_path(destination, saving=True)
+        destination = choose_native_path(destination, saving=True)
+        exported[kind] = destination
         with zipfile.ZipFile(destination) as archive:
             names = set(archive.namelist())
             manifest = json.loads(archive.read('manifest.json'))
@@ -140,7 +167,7 @@ def package_roundtrips():
         results.append({'check': f'{kind} native-selected export payload and completeness', 'passed': True, 'sha256': hashlib.sha256(destination.read_bytes()).hexdigest()})
     for _, kind, title in packages:
         click('Choose package to inspect')
-        choose_native_path(Path('/evidence') / f'{kind}.zip')
+        choose_native_path(exported[kind])
         d.wait_for(lambda: d.find('entry', 'New course title'), f'{kind} package inspection review available')
         field('New course title', title)
         click('Confirm import into new course')
@@ -243,6 +270,27 @@ def main():
     field('New material', 'M3 original source holder')
     click('Create material')
     d.wait_for(lambda: d.find('entry', 'Learning document'), 'source holder opens')
+    scenario = os.environ.get('MEMOQUILL_M3_SCENARIO', 'full')
+    if scenario in ('originals', 'save-dialog'):
+        attach('/input/import.csv')
+        if scenario == 'save-dialog':
+            before = set(Path('/evidence').rglob('*'))
+            click('Save original import.csv')
+            d.wait_for(chooser_visible, 'cancel scenario chooser visible')
+            click('Cancel')
+            d.wait_for(lambda: not chooser_visible(), 'cancel closes chooser')
+            after = set(Path('/evidence').rglob('*'))
+            if any(p.is_file() for p in after - before):
+                raise AssertionError('Cancelled save unexpectedly published a file')
+            results.append({'check': 'native save cancellation publishes no file', 'passed': True})
+        save_original('import.csv')
+        d.key('alt+F4')
+        return
+    if scenario == 'json':
+        os.environ['MEMOQUILL_M3_JSON_ONLY'] = '1'
+    if scenario == 'packages':
+        os.environ['MEMOQUILL_M3_REIMPORT_AUDIT'] = '0'
+        os.environ['MEMOQUILL_M3_ORIGINAL_COPY_AUDIT'] = '0'
     if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1':
         json_property_import(0)
         if os.environ.get('MEMOQUILL_M3_SCREENSHOTS') == '1':
@@ -302,8 +350,10 @@ def main():
 
 try:
     main()
-    scope = 'JSON mapping subset' if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1' else 'ingestion/search/reimport/originals/packages journey'
-    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': scope, 'checks': results}, ensure_ascii=False, indent=2))
+    scope = 'JSON mapping subset' if os.environ.get('MEMOQUILL_M3_JSON_ONLY') == '1' else 'ingestion/search' + ('/reimport/JSON' if os.environ.get('MEMOQUILL_M3_REIMPORT_AUDIT', '1') == '1' else '') + ('/originals' if os.environ.get('MEMOQUILL_M3_ORIGINAL_COPY_AUDIT', '1') == '1' else '') + ('/packages' if os.environ.get('MEMOQUILL_M3_PACKAGE_AUDIT', '1') == '1' else '')
+    if os.environ.get('MEMOQUILL_M3_SCENARIO', 'full') != 'full':
+        scope = os.environ['MEMOQUILL_M3_SCENARIO'] + ' focused scenario'
+    Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': scope, 'scenario': os.environ.get('MEMOQUILL_M3_SCENARIO', 'full'), 'checks': results}, ensure_ascii=False, indent=2))
 except Exception as error:
     controls = []
     for node in d.nodes():
@@ -313,6 +363,7 @@ except Exception as error:
                 controls.append({'role': node.getRoleName(), 'name': node.name, 'enabled': state.contains(d.pyatspi.STATE_ENABLED), 'showing': state.contains(d.pyatspi.STATE_SHOWING)})
         except d.GLib.Error:
             pass
+    Path('/evidence/m3-visible-text.json').write_text(json.dumps([{'role': node.getRoleName(), 'name': node.name, 'text': d.text(node)[:1000]} for node in d.nodes() if node.getRoleName() in ('paragraph', 'text', 'static', 'label', 'alert', 'status')], ensure_ascii=False, indent=2))
     Path('/evidence/m3-controls.json').write_text(json.dumps(controls, ensure_ascii=False, indent=2))
     Path('/evidence/m3-journey.json').write_text(json.dumps({'scope': 'ingestion subset', 'checks': results, 'failure': repr(error)}, ensure_ascii=False, indent=2))
     raise

@@ -145,6 +145,7 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
         let source: String = row.get(1)?;
         let data: String = row.get(2)?;
         let job: IngestionJob = serde_json::from_str(&data).map_err(|_| invalid())?;
+        super::super::sources::validate_native_job(&connection, &job)?;
         if job.id.to_string() != id
             || job.source.id.to_string() != source
             || !matches!(job.handler_version, 1 | 2)

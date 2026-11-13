@@ -147,3 +147,23 @@ it('treats absent prototype-like property names as missing instead of inherited 
   expect(screen.getByLabelText('Select record 2')).toBeDisabled();
   expect(screen.getByText('Missing selected JSON property — unresolved')).toBeVisible();
 });
+
+
+it('preserves ordinary JSON selection across library refresh and applies at the latest revision', async () => {
+  const source = { id: 's', resourceId: 'r', digest: 'digest', filename: 'rows.json', mediaType: 'application/json', attribution: null, license: null, originUrl: null, revision: 1, byteLength: 8 };
+  const job: IngestionJob = { id: 'j', handlerVersion: 2, revision: 0, status: 'staged', previousJobId: null, source, mapping: null, outcomes: [], extraction: { contractVersion: 2, format: 'json', status: 'complete', diagnostic: null, records: [{ locator: { kind: 'jsonPointer', value: '/0' }, fields: ['{"id":"one"}'] }] } };
+  const apply = vi.fn().mockResolvedValue({ ...job, revision: 1 });
+  const port = { list: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue(job), apply, undoPreview: vi.fn().mockResolvedValue({ jobId: 'j', canUndo: true, resources: [] }) } as unknown as IngestionPort;
+  const props = { port, sources: [source], workspaceId: 'w', resourceId: 'r', onChanged: vi.fn() };
+  const view = render(<IngestionPanel {...props} libraryRevision={1} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Create import preview' }));
+  await user.click(await screen.findByLabelText('Select record 1'));
+  await user.click(screen.getByRole('button', { name: 'Preview undo' }));
+  expect(await screen.findByRole('button', { name: 'Confirm undo' })).toBeVisible();
+  view.rerender(<IngestionPanel {...props} libraryRevision={2} />);
+  expect(screen.getByLabelText('Select record 1')).toBeChecked();
+  expect(screen.queryByRole('button', { name: 'Confirm undo' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Apply selected records' }));
+  expect(apply).toHaveBeenCalledWith(expect.objectContaining({ selected: [0], expectedLibraryRevision: 2 }));
+});
