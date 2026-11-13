@@ -79,10 +79,7 @@ def save_original(filename):
     d.key('Return')
     d.wait_for(lambda: published_path(destination) or visible_button('Save'), 'native save destination accepted', record=False)
     if not published_path(destination) and visible_button('Save'):
-        try:
-            click('Save')
-        except LookupError:
-            pass  # Native save can finish between the predicate and focus; bytes below remain mandatory.
+        press_visible_button('Save')
     d.wait_for(lambda: published_path(destination), f'{filename} original copied')
     destination = published_path(destination)
     expected = hashlib.sha256((Path('/input') / filename).read_bytes()).hexdigest()
@@ -97,11 +94,22 @@ def save_original(filename):
 
 def published_path(path):
     path = Path(path)
-    # GTK may append the suggested extension to a typed absolute name.
-    for candidate in (path, path.with_name(path.name + path.suffix)):
-        if candidate.is_file():
-            return candidate
-    return None
+    return path if path.is_file() else None
+
+
+def press_visible_button(name):
+    # A native dialog can close between discovery and activation after Return.
+    # Never create a failed journal entry for this normal transition. The caller
+    # still requires actual published bytes or an actual inspected package.
+    try:
+        node = d.find('button', name)
+        state = node.getState()
+        if not state.contains(d.pyatspi.STATE_ENABLED) or not state.contains(d.pyatspi.STATE_SHOWING):
+            return False
+        action = node.queryAction()
+        return action.nActions > 0 and action.doAction(0)
+    except (LookupError, d.GLib.Error, NotImplementedError):
+        return False
 
 
 def visible_button(name):
@@ -125,19 +133,13 @@ def choose_native_path(path, saving=False):
     if saving:
         d.wait_for(lambda: published_path(path) or visible_button('Save'), 'native package destination accepted', record=False)
         if not published_path(path) and visible_button('Save'):
-            try:
-                click('Save')
-            except LookupError:
-                pass  # Publication may have completed while the chooser closed.
+            press_visible_button('Save')
         d.wait_for(lambda: published_path(path), 'package published to selected destination')
         return published_path(path)
     else:
         d.wait_for(lambda: not chooser_visible() or visible_button('Open'), 'native package source accepted', record=False)
         if visible_button('Open'):
-            try:
-                click('Open')
-            except LookupError:
-                pass  # Inspection may already have dismissed the chooser.
+            press_visible_button('Open')
 
 
 def package_roundtrips():

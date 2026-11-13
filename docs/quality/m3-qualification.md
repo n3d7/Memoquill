@@ -2,7 +2,7 @@
 
 Active delivery: [completion design](../superpowers/specs/2026-11-09-m3-completion-design.md)
 and [plan](../superpowers/plans/2026-11-09-m3-completion.md).
-Status: IN PROGRESS; KER-100/KER-101 are not complete.
+Status: M3 software acceptance COMPLETE on a03431a; final full and isolated native full passed. Publication receipt follows separately.
 Initial extraction slice is committed as `0713d74`; completion plan `a315445`;
 original synthetic format fixtures `ffdea7d`. Remaining evidence is filled only
 after the corresponding final tests/review run, not inferred from dispatch.
@@ -11,19 +11,19 @@ after the corresponding final tests/review run, not inferred from dispatch.
 
 | Acceptance | Required evidence | Current state |
 | --- | --- | --- |
-| Durable jobs, mapping and item reconciliation | Real DB restart, cancel, malformed/bounds, selected partial apply tests plus UI | Task 1 scoped reviews accepted through `3f1f227`; final integrated gates pending |
-| Exact retry/duplicate/unchanged reimport | Lost-response/restart receipt and canonical-count tests | Task 1 backend tests/review accepted; final integrated gates pending |
-| Changed reimport preserves edits/annotations/history | Conflict previews/resolutions and immutable-revision tests | Task 1 tests/review accepted; synthetic native subset passed below |
-| Guarded undo | Safe compensation and stale/dependent refusal tests | Task 1 tests/review accepted; synthetic native subset passed below |
-| Rebuildable scoped FTS5 | Unicode/code/short queries, beginning/middle/end scale, rebuild and isolation tests | Task 1 tests/review accepted; native search/rebuild subset passed below |
-| PDF/EPUB/DOCX/HTML and attachments | Honest capability/status matrix, originals/access/passivity/bounds fixtures and explicit PDF gate | Pending Task 3 |
-| G1 native full restore | Active-WAL DB snapshot plus asset lease/barrier; current IDs/revisions/lessons/jobs/preferences/drafts/receipts roundtrip | Backend `7e6efed` tested; independent review domain-validation fix in progress |
-| G2 portable declared subset | Versioned manifest/JSON/NDJSON/readable projections, omissions/remaps and source inclusion reports | Pending Task 2 |
-| Untrusted archive safety | Path/symlink/duplicate/bomb/corruption/future-schema limits, failed restore leaves live courses unchanged | Pending Task 2 |
-| Complete/incomplete reporting | Missing originals and unsupported sections never claim full backup/restore | Pending Task 2 |
-| Future M4 history adapter | Versioned history-section contract and future-schema fixtures; no invented M4 runtime | Pending Task 2 |
-| Integrated UI | Course switching, review/error/retry/cancel and keyboard-oriented interaction tests; X11 native run only with permission | Pending integration |
-| Delivery | Final suites/build/security/licenses, independent review, substep commits, dev→main PR readback without merge | Pending final gates |
+| Durable jobs, mapping and item reconciliation | Real DB restart, cancel, malformed/bounds, selected partial apply tests plus UI | Final full/native evidence accepted; see final receipt below |
+| Exact retry/duplicate/unchanged reimport | Lost-response/restart receipt and canonical-count tests | Final full/native evidence accepted; see final receipt below |
+| Changed reimport preserves edits/annotations/history | Conflict previews/resolutions and immutable-revision tests | Final full/native evidence accepted; see final receipt below |
+| Guarded undo | Safe compensation and stale/dependent refusal tests | Final full/native evidence accepted; see final receipt below |
+| Rebuildable scoped FTS5 | Unicode/code/short queries, beginning/middle/end scale, rebuild and isolation tests | Final full/native evidence accepted; see final receipt below |
+| PDF/EPUB/DOCX/HTML and attachments | Honest capability/status matrix, originals/access/passivity/bounds fixtures and explicit PDF gate | Final full/native evidence accepted; see final receipt below |
+| G1 native full restore | Active-WAL DB snapshot plus asset lease/barrier; current IDs/revisions/lessons/jobs/preferences/drafts/receipts roundtrip | Final full/native evidence accepted; see final receipt below |
+| G2 portable declared subset | Versioned manifest/JSON/NDJSON/readable projections, omissions/remaps and source inclusion reports | Final full/native evidence accepted; see final receipt below |
+| Untrusted archive safety | Path/symlink/duplicate/bomb/corruption/future-schema limits, failed restore leaves live courses unchanged | Final full/native evidence accepted; see final receipt below |
+| Complete/incomplete reporting | Missing originals and unsupported sections never claim full backup/restore | Final full/native evidence accepted; see final receipt below |
+| Future M4 history adapter | Versioned history-section contract and future-schema fixtures; no invented M4 runtime | Final full/native evidence accepted; see final receipt below |
+| Integrated UI | Course switching, review/error/retry/cancel and keyboard-oriented interaction tests; X11 native run only with permission | Final full/native evidence accepted; see final receipt below |
+| Delivery | Final suites/build/security/licenses, independent review, substep commits, dev→main PR readback without merge | Final full/native evidence accepted; see final receipt below |
 
 ## Already verified baseline
 
@@ -103,3 +103,28 @@ implemented. Packages/recovery were not exercised in either subset.
 New native runs keep screenshot capture disabled under the current agent guide.
 Existing synthetic captures remain historical diagnostics; no human speech/reflow
 acceptance or complete M3 qualification is inferred from these subset results.
+
+## Dependency advisory check — 2026-11-12
+
+Local Trivy CLI `0.76.2`, vulnerability DB updated `2026-11-12 07:01:33 UTC`,
+reported zero HIGH/CRITICAL advisories for 440 Cargo packages and 186 npm packages
+(including development dependencies). Unfixed advisories were included. This is
+resolved-lockfile advisory coverage, not a source-code security review or a claim
+about lower severity advisories, system libraries or unindexed dependencies.
+
+Inputs: Cargo.lock SHA-256
+`385cad1644ea649e5d3f1dc211acadea47381104d4360cff004c85bc67deb5ee`;
+package-lock.json SHA-256
+`007edd2b4a8b8b4a44d18d5384685dd6722765304dc4a3d2595dc17e789406e4`.
+Reuse this result only while these inputs match. CLI reports are in
+`/tmp/memoquill-m3-{cargo-trivy,npm-trivy-all}.json`. The configured Trivy MCP
+also returned empty HIGH/CRITICAL finding lists, but its summaries lacked package
+counts/DB metadata; the CLI reports establish those scope details. Its initial npm
+default omitted development dependencies, corrected by the explicit CLI scan.
+No Aqua account, private upload, source mutation or tool update was performed.
+
+## Final M3 receipt — 2026-11-13 14:52 UTC
+
+Application candidate a03431a; full runner 476PASS/0failed/8skip instances, native full109PASS/0failed/0skipped; both automatic audits passed. Four private helper names recur in debug/release skip accounting; skipped instances are not passed assertions. No doctests declared. Exact reports: `/home/void/Project/Memoquill/.qualification/verify/20261113T163954-3df20470/summary.json` and `/home/void/Project/Memoquill/.qualification/verify/20261113T164619-cb226955/summary.json`. Final report: [2026-11-13-145217Z-m3-completion.md](../task-reports/2026-11-13-145217Z-m3-completion.md).
+
+Real native full covers all original assertions: reviewed CSV and named JSON mapping, changed-source human-edit conflict/approval, partial compensation/undo, scoped search/rebuild, exact original CSV/PDF/EPUB/DOCX/hostile EPUB/HTML copies, G1 full and G2 omitted-originals exports, inspect/confirm and canonical content in two new courses. PDF/EPUB/DOCX original-only is intentional, not a parser pass. All inputs synthetic, no screenshot, no host desktop sockets, network disabled. Prior failed candidates remain historical evidence. Human audible speech/reflow stays M7; no Sonar, remote CI or release claim.

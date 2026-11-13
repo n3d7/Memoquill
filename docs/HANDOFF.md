@@ -1,29 +1,105 @@
-# Memoquill continuation checkpoint
+# Current objective — M3 qualified, publish dev→main PR
 
-Updated 2026-11-08 16:13 UTC. Branch dev; post-M2 source integration complete locally.
+2026-11-13 14:52 UTC. User explicitly resumed M3. Software acceptance complete;
+publication still to perform/read back. NO merge/auto-merge/force/history rewrite,
+NO M4. Preserve unrelated staged AGENTS/.agents removals, dirty tools/package.json/
+notices and optimization reports. No agents/GUI processes running; screenshots OFF.
 
-- Authorized scope: KER-127/128–130, completed substeps committed in dev only; no push/merge/history rewrite.
-- Course catalogue foundation 87648ff; inert extension foundation c6a363e; integrated routing/UI follows in the local completion commit containing this checkpoint.
-- Existing workspace adopted in place as one course; Subjects stay nested, preserving shared IDs/links/history. New courses use separate DB/original/recovery roots.
-- Explicit courseId native routing and immutable bound ports cover content, sources, lessons, preferences, search and receipts. Unknown/unbound scope fails closed.
-- Course sidebar creates/selects/persists selection; mounted hidden/inert trees retain edits, responses, pending exact retries and source selection identity. Inactive focus/preferences guarded.
-- Missing initialized storage or missing/empty catalogue beside managed roots requires recovery. Never silently bootstrap replacement ownership or adopt unknown roots.
-- Shutdown denies new work and releases catalogue ownership only after successful writer drain. Interrupted first initialization conservatively requires recovery.
-- KER-130 data-only extension contract preserves bounded exact JSON, scope/capability/version diagnostics and passive fallback. No executable runtime, persistence/import route or simulators activated.
-- Independent whole-change review found two Important issues; both reproduced and fixed, narrow re-review accepted. No open Critical/Important findings.
-- Final checks: 140 frontend tests/26 files; 173 Rust library passed/3 existing ignored; 4 linux_startup integration tests; 0 doctests. Build/fmt/Clippy/diff checks pass; unchanged release GLib focused gate reused.
-- Deferred minor: dedicated v1 extension state/migration diagnostic branch tests; Vite large-bundle warning remains. GUI/package journey and human speech/reflow NOT RUN here.
-- Report: docs/task-reports/2026-11-08-161306Z-post-m2-course-integration.md; runtime: docs/architecture/course-workspaces.md; extensions: docs/architecture/course-extensions.md.
-- Design/plan: docs/superpowers/specs/2026-11-08-course-workspaces-design.md; docs/superpowers/plans/2026-11-08-course-workspaces.md.
-- Ignored ledger/review/report: .superpowers/sdd/2026-11-08-course-workspaces/. All owned workers/tests are stopped after completion.
-- Linear status-only completion readback is recorded in the final response/ledger. Private technical description append was rejected by automatic approval and not retried.
-- M2 PR #3 merged by owner; preserve all original commits. No new publication, remote CI or release.
-- Main M1–M8 targets Linux/X11 only with portable contracts. Other-platform work stays separate/inactive after M8. Full visual design deferred.
-- KER-97 manual evidence remains unaccepted; full X11 keyboard/speech/reflow stays M7. Headless/IPC checks are not human accessibility acceptance.
-- M3/KER-100 sources preserve originals, ranges, provenance and honest coverage; M4 separates observed attempts from judgments; M5 learner goals/focus/format choices.
-- M6 stays provider-independent: scoped MCP authoring/research proposals, ask-before-changing manual edits, opt-in course schedules. No actual transport, daemon or schedule started.
-- Abruptly interrupted work waits for fresh permission, even after prior authorization; do not replay jobs from checkpoints.
-- Existing learning-science/activity evidence reused; no new learning-efficiency claim.
-- Preserve unrelated AGENTS.md, .gitignore, workflow-skill and November 1 tooling report changes; never stage/revert them.
+Code a03431a includes59b2177 final-review corrections and distinct-originals duplicate
+guard correction. Full476PASS/0failed/8skip instances; isolated native full109PASS/
+0failed/0skipped, both auditsPASS. No doctests declared; no Sonar/remoteCI/release
+claim. Native full verifies actual original byte/name copies and G1/G2 new-course
+roundtrips. Evidence `/home/void/Project/Memoquill/.qualification/verify/20261113T163954-3df20470/summary.json` and `/home/void/Project/Memoquill/.qualification/verify/20261113T164619-cb226955/summary.json`.
+Report: docs/task-reports/2026-11-13-145217Z-m3-completion.md. Headless code checks remain valid after harness/docs-only edits.
 
-Next: none within post-M2 KER-127–130. Wait for the user's next task; do not start M3, GUI or publication automatically.
+Next: commit only owned harness/M3docs/report, push dev, create and read back one
+English dev→main PR using prepared pr-body.md, then record publication receipt.
+No open PR found on last GitHub search. Never merge or start M4 automatically.
+
+## Historical continuation details
+
+# Current objective — finish M3 (explicitly resumed)
+
+Updated 2026-11-13 14:46 UTC. User resumed all M3/KER-100+101. Implementation/dev commits,
+push dev and English dev→main PR authorized; NO merge/auto-merge/force/history
+rewrite; NO M4. Russian replies, English artifacts. Preserve user staged AGENTS/
+.agents removals, dirty tools/package.json/notices/optimization reports. GUI only
+isolated synthetic X11, screenshots OFF, no personal courses. No agents active.
+Use external runner, final JSON only, failure logs only for concrete errors.
+
+HEADa03431a:59b2177 fixes both independent final-review Important findings
+(ordinary selection survival + persisted/historical ingestion domain refs).
+a03431a also fixes confirmed real backend bug: ordinary duplicate guard formerly
+rejected all different originals on one holder; now scopes to owner+digest.
+New real DB CSV→JSON→renamed-identical-CSV regression RED second.json InvalidRequest,
+GREEN permits distinct inputs and rejects renamed same bytes. Both new tests and
+actual rows/hash-recomputed package mutants verified. Scope reviewed by primary.
+Latest full external runner PASS476/0failed/8reported skips, auditPASS, no policy
+findings: .qualification/m3-final-full-v2.json, report
+verify/20261113T163954-3df20470/summary.json. Code unchanged after gate except gitcommit.
+No repeat of unchanged headless gates needed for harness-only edits.
+
+Native v3 actual updated RPM now PASSED complete CSV/search/rebuild/reimport/undo
+AND named JSON apply/reconciliation (previous blockers fixed). It then failed a
+HARNESS race: Save dialog closed successfully, exact originals/import.csv exists,
+status Saved original bytes, but click('Save') waited for absent button and recorded
+false failed entry. Evidence .qualification/m3-final-native-v3.json and
+verify/20261113T164203-8cd975f7/native-evidence. This is not whole M3PASS.
+Parent just fixed optional Save/Open confirmation via native AT-SPI doAction without
+failed wait journal entries when dialog already closed. Mandatory exact filename,
+byte hashes and real inspected/imported packages remain strict; removed old .csv.csv
+fallback. Python syntax/diff checks next, then native full rerun under new hypothesis.
+Uncommitted harness tests/qualification/m3-journey.py; no product code change.
+
+Next runner invocation/result: .qualification/m3-final-native-chooser.json
+python3 tools/verification/verify.py run --profile native --native-image
+localhost/memoquill-m1-desktop:20261027 --native-input .qualification/m3-006c1d2/input
+--scenario full --hypothesis '<successful auto-closing dialog confirmation race>'.
+May be in flight: inspect existing final JSON/status once before launching anything.
+No agents, observers, mqwatch or manual GUI. All prior runs cleaned owned containers.
+
+Still INCOMPLETE: final original PDF/EPUB/DOCX/HTML copies, G1/G2 full UIroundtrips,
+final qualification matrices/report/HANDOFF, commit owned docs/harness, push dev,
+create/readback PR; NO merge. No M3push/PR; origin/main277b8f6 only prior2merge
+commits beyond f80840d (same tree); latest open dev→main search empty.
+Prepared English PR body in .superpowers/sdd/2026-11-09-m3-completion/pr-body.md.
+Old independent reviews/fix reports in same ignoreddir. Full report/audit successes
+are distinct from skipped/manual M7/remoteCI; no doctests declared, no Sonarclaim.
+User permits improving test software for concrete defects. Quota cutoff is NOT a
+user pause; continue authorized M3 on capacity recovery, checkpoint-first.
+
+## Previous runner handoff
+
+# Current objective — dedicated verification runner
+
+2026-11-13. User authorized runner implementation and a usage-memory note.
+M3/KER-100/KER-101/M4 remain paused. No publication or product-development authority.
+Branch dev; HEAD 006c1d2df3499b0cda3ca9f802706203e4f53a5a; existing dirty M3 work
+and staged AGENTS/.agents removals preserved. No new commits or remote writes.
+
+Terminal attachment: `python3 tools/verification/verify.py watch` (read-only TUI;
+Q/Ctrl+C detaches without stopping tests). No web panel or server.
+
+Default checks: `python3 tools/verification/verify.py run --profile affected`.
+Use --frontend PATH / --rust NAME for a focused regression; quick for types/fmt;
+full (npm run check) for all headless gates; native only for isolated desktop work.
+Read final JSON, then only relevant failing evidence. No agents or LLM log parsing.
+`status`, `failures`, `report --json` inspect results without executing tests.
+
+Pinned Nextest/JUnit and isolated Hypothesis now run through the same CLI.
+Optional licenses profile records policy review; --resource-scope is host-only.
+Target correction: --only rust-doc --only runner-self-tests (not full/native).
+Details: docs/engineering/verification.md.
+Report: docs/task-reports/2026-11-13-runner-acceptance.md.
+Final verification: .qualification/verify/final-validation.json.
+Pre-task backups: .qualification/runner-baseline/.
+Host pass reuse is disabled without verified immutable environment/dependency roots.
+The save-dialog scenario passed live isolated X11 qualification with exact filename,
+cancellation and byte-hash checks; no screenshots. Report schema 2 audits raw evidence.
+User explicitly authorized fixing all validation issues: existing Rust formatting
+and equivalent Clippy condition style corrected; no M3 feature development resumed.
+Pinned license rules are guarded by existing notices/source/hash evidence.
+
+Next: use the runner for subsequent authorized engineering. Product work remains
+paused until the user explicitly resumes it. Earlier product evidence is preserved
+in docs/engineering/legacy/HANDOFF-20261113.md.
