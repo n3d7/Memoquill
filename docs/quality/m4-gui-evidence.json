@@ -110,5 +110,14 @@
   "screenshots": "synthetic profile only",
   "restart_mode": "Controlled restart after terminating only owned synthetic-profile processes",
   "normal_close_reopen": "not qualified: initial restart returned AlreadyOpen; remaining owner lifetime unresolved",
-  "passed_checks": 26
+  "passed_checks": 26,
+  "isolated_close_reopen_diagnosis": {
+    "status": "completed_with_original_desktop_cause_unresolved",
+    "normal_close_reopen_cases_passed": 3,
+    "busy_owner_controls_passed": 3,
+    "synthetic_m4_assertions": 22,
+    "report": "../task-reports/2026-11-14-m4-already-open-podman.md",
+    "original_desktop_normal_close_reopen": "unqualified",
+    "product_source_changed": false
+  }
 }
