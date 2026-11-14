@@ -1125,12 +1125,41 @@ fn offline_catalog_supplies_typed_event_action_state_and_fallback_contracts() {
     );
     assert!(!activity.state.persistent);
     assert!(activity.state.scope.contains("Occurrence"));
+    let variants = activity.schemas["activityDefinition"]["oneOf"]
+        .as_array()
+        .unwrap();
+    assert_eq!(variants.len(), 6);
+    let identities: Vec<_> = variants
+        .iter()
+        .map(|v| {
+            (
+                v["properties"]["family"]["const"].as_str().unwrap(),
+                v["properties"]["version"]["const"].as_u64().unwrap(),
+            )
+        })
+        .collect();
     assert_eq!(
-        activity.schemas["activityDefinition"]["oneOf"]
-            .as_array()
-            .unwrap()
-            .len(),
-        4
+        identities,
+        vec![
+            ("recall", 1),
+            ("singleChoice", 1),
+            ("constructed", 1),
+            ("procedure", 1),
+            ("recall", 2),
+            ("constructed", 2)
+        ]
+    );
+    assert_eq!(
+        variants[4]["properties"]["responseFormat"]["const"],
+        "boundedCloze"
+    );
+    assert_eq!(
+        variants[5]["properties"]["instruction"]["additionalProperties"],
+        false
+    );
+    assert_eq!(
+        variants[5]["properties"]["instruction"]["required"],
+        json!(["phase", "material"])
     );
     for descriptor in catalog {
         assert!(descriptor.fallback.preserves_opaque_payload);
@@ -1591,4 +1620,38 @@ fn scoped_resource_read_resolves_published_pins_in_validated_drafts() {
             .unwrap(),
         None
     );
+}
+
+#[test]
+fn bounded_cloze_v2_requires_one_literal_blank_and_a_bounded_answer() {
+    let valid = json!({"family":"recall","version":2,"responseFormat":"boundedCloze","prompt":"English: The word is {{answer}}.","answer":"Answer","hints":[],"evaluation":"exact"});
+    assert!(validation::activity(&valid).is_ok());
+    for (field, value) in [
+        ("version", json!(1)),
+        ("responseFormat", json!("executableTemplate")),
+        ("prompt", json!("No blank")),
+        ("prompt", json!("{{answer}} and {{answer}}")),
+        ("prompt", json!("{{answer}} {{other}}")),
+        ("answer", json!("a".repeat(1025))),
+    ] {
+        let mut bad = valid.clone();
+        bad[field] = value;
+        assert!(
+            validation::activity(&bad).is_err(),
+            "accepted invalid {field}"
+        );
+    }
+}
+
+#[test]
+fn study_instructional_definitions_require_bounded_explicit_material_and_known_phase() {
+    for instruction in [
+        json!({"phase":"completion","material":""}),
+        json!({"phase":"future","material":"x"}),
+        json!({"phase":"completion","material":"x","execute":"code"}),
+        json!({"phase":"completion","material":"x".repeat(16385)}),
+    ] {
+        let definition = json!({"family":"constructed","version":2,"prompt":"Complete","rubric":"Explain","hints":[],"evaluation":"self","instruction":instruction});
+        assert!(super::validation::activity(&definition).is_err());
+    }
 }

@@ -1,9 +1,11 @@
 export function isConfirmedRejection(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error &&
-    ['revision_conflict', 'invalid_request', 'permission_denied', 'budget_exceeded'].includes(String(error.code));
+    ['revision_conflict', 'invalid_request', 'permission_denied', 'budget_exceeded', 'clock_rollback', 'review_budget_exceeded'].includes(String(error.code));
 }
 export function failureMessage(error: unknown): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
+  if (code === 'clock_rollback') return 'The clock is earlier than the last review. Correct the clock, or save this response without updating its recall schedule.';
+  if (code === 'review_budget_exceeded') return 'The daily recall limit is reached. Save this response without scheduling, or adjust the review limits.';
   if (code === 'revision_conflict') return 'This item changed. Your draft is retained. Reload the saved version before trying again.';
   if (code === 'outcome_unconfirmed') return 'Save outcome is unconfirmed. Retry the same operation to check its durable receipt.';
   if (code === 'budget_exceeded') return 'The operation exceeds the supported limits. Select existing content or adjust the request.';

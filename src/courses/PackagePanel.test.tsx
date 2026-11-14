@@ -1,4 +1,4 @@
-import { render,screen,waitFor } from '@testing-library/react';
+import { fireEvent,render,screen,waitFor } from '@testing-library/react';
 import { expect,it,vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { PackagePanel } from './PackagePanel';
@@ -20,7 +20,7 @@ it('keeps originals opt-in, reports cancellation and never promotes content pack
  const port={exportPackage:vi.fn().mockResolvedValue(null),inspect:vi.fn().mockResolvedValue({...review,kind:'portableContent',manifest:{...review.manifest,kind:'portableContent',fullRecovery:false}}),confirm:vi.fn(),discard:vi.fn().mockResolvedValue(undefined)};
  render(<PackagePanel port={port}/>);const user=userEvent.setup();
  await user.click(screen.getByRole('button',{name:'Export shareable content package'}));
- expect(port.exportPackage).toHaveBeenCalledWith('portableContent',false);
+ expect(port.exportPackage).toHaveBeenCalledWith('portableContent',false,false);
  expect(await screen.findByText('Package export cancelled.')).toBeVisible();
  await user.click(screen.getByRole('button',{name:'Choose package to inspect'}));
  expect(await screen.findByRole('region',{name:'Package review'})).toHaveTextContent('Content only: does not provide full recovery');
@@ -35,4 +35,15 @@ it('shows picker errors and supports a fresh inspection without losing the cours
  await user.click(screen.getByRole('button',{name:'Choose package to inspect'}));
  expect(await screen.findByText('Package inspection cancelled.')).toBeVisible();
  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('requires explicit opt-in to export private study history', async () => {
+ const port={exportPackage:vi.fn().mockResolvedValue(null),inspect:vi.fn(),confirm:vi.fn(),discard:vi.fn()};
+ render(<PackagePanel port={port}/>);
+ const history=screen.getByRole('checkbox',{name:'Include my study responses and assessment history in shareable package'});
+ expect(history).not.toBeChecked();
+ fireEvent.click(history);
+ expect(screen.getByText(/saved study drafts, earlier draft snapshots/)).toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Export shareable content package'}));
+ await waitFor(()=>expect(port.exportPackage).toHaveBeenCalledWith('portableContent',false,true));
 });

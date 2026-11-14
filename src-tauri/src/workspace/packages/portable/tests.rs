@@ -366,3 +366,56 @@ fn orphan_authored_activity_is_validated_even_without_any_pin() {
         "malformed orphan authored activity admitted"
     );
 }
+
+#[test]
+fn opted_in_study_history_rejects_undeclared_sections_and_invalid_receipts() {
+    let (_temp, mut db) = fixture();
+    let (unit, revision): (String, String) = db
+        .connection
+        .query_row(
+            "SELECT unit_id,revision_id FROM lesson_heads LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let request = serde_json::from_value(json!({"operationId":Uuid::new_v4(),"sessionId":Uuid::new_v4(),"expectedRevision":0,"action":{"kind":"start","unitId":unit,"compositionRevisionId":revision,"mode":"practice"}})).unwrap();
+    db.study_apply(RequestContext::local_ui(), &request)
+        .unwrap();
+    let p = db
+        .capture_portable_with_history(RequestContext::local_ui(), Uuid::new_v4(), false, true)
+        .unwrap();
+    reopen(&p);
+    let undeclared = mutant(&p, |manifest, _| {
+        manifest["sections"]
+            .as_object_mut()
+            .unwrap()
+            .remove("studyHistory");
+        manifest["omissions"] = json!(omissions(false));
+    });
+    assert!(PortableCapture::read_from(Cursor::new(undeclared)).is_err());
+    let legacy = mutant(&p, |manifest, _| {
+        manifest["sections"]["studyHistory"] = json!(1);
+    });
+    assert!(PortableCapture::read_from(Cursor::new(legacy)).is_ok());
+    let unsupported = mutant(&p, |manifest, _| {
+        manifest["sections"]["studyHistory"] = json!(3);
+    });
+    assert!(PortableCapture::read_from(Cursor::new(unsupported)).is_err());
+    let invalid_receipt = mutant(&p, |_, content| {
+        content["studyOperations"][0]["requestHash"] = json!("not-a-hash");
+    });
+    assert!(PortableCapture::read_from(Cursor::new(invalid_receipt)).is_err());
+}
+
+#[test]
+fn old_content_only_omission_declaration_remains_readable() {
+    let (_temp, mut db) = fixture();
+    let p = db
+        .capture_portable(RequestContext::local_ui(), Uuid::new_v4(), false)
+        .unwrap();
+    let legacy = mutant(&p, |manifest, _| {
+        let items = manifest["omissions"].as_array_mut().unwrap();
+        *items.last_mut().unwrap() = json!("M4 attempts, history and schedules (not implemented)");
+    });
+    PortableCapture::read_from(Cursor::new(legacy)).unwrap();
+}

@@ -401,16 +401,21 @@ pub(super) fn activity(v: &Value) -> Result<()> {
     };
     let mut req = vec!["family", "version", "prompt", "hints", "evaluation"];
     req.extend(extra);
+    if family == "constructed" && v["version"] == 2 {
+        req.push("instruction");
+    }
     fields(
         v,
         &req,
-        if family == "constructed" {
+        if family == "recall" && v["version"] == 2 {
+            &["responseFormat"]
+        } else if family == "constructed" {
             &["workedExampleBindingId"]
         } else {
             &[]
         },
     )?;
-    if v["version"] != 1
+    if !(v["version"] == 1 || (["recall", "constructed"].contains(&family) && v["version"] == 2))
         || !text(&v["prompt"], 16384)
         || !v["hints"]
             .as_array()
@@ -419,6 +424,18 @@ pub(super) fn activity(v: &Value) -> Result<()> {
         return Err(invalid());
     }
     if family == "recall" {
+        if v["version"] == 2 {
+            let prompt = v["prompt"].as_str().ok_or_else(invalid)?;
+            let remainder = prompt.replace("{{answer}}", "");
+            if v["responseFormat"] != "boundedCloze"
+                || prompt.matches("{{answer}}").count() != 1
+                || remainder.contains("{{")
+                || remainder.contains("}}")
+                || !text(&v["answer"], 1024)
+            {
+                return Err(invalid());
+            }
+        }
         if !text(&v["answer"], 16384) || !one(&v["evaluation"], &["self", "exact"]) {
             return Err(invalid());
         }
@@ -440,6 +457,15 @@ pub(super) fn activity(v: &Value) -> Result<()> {
             return Err(invalid());
         }
         if family == "constructed" {
+            if v["version"] == 2 {
+                let instruction = &v["instruction"];
+                fields(instruction, &["phase", "material"], &[])?;
+                if !one(&instruction["phase"], &["workedExample", "completion"])
+                    || !text(&instruction["material"], 16384)
+                {
+                    return Err(invalid());
+                }
+            }
             if !text(&v["rubric"], 16384)
                 || v.get("workedExampleBindingId")
                     .is_some_and(|x| !text(x, 128))

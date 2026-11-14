@@ -27,9 +27,9 @@ export interface Binding { bindingId: string; targetKind: 'resource' | 'activity
 export interface Appearance { spacing: 'compact' | 'normal' | 'wide'; theme: 'system' | 'light' | 'dark'; typography: 'default' | 'serif'; width: 'normal' | 'wide'; emphasis: 'normal' | 'strong' }
 export interface Composition { contractVersion: 1; unitId: string; rootNodeId: string; nodes: LessonNode[]; bindings: Binding[]; sourceBindingRefs: string[]; appearance: Appearance; authoringProvenance: { kind: 'manual' | 'assisted'; note?: string } }
 export type ActivityDefinition =
-  | { family: 'recall'; version: 1; prompt: string; answer: string; hints: string[]; evaluation: 'self' | 'exact' }
+  | { family: 'recall'; prompt: string; answer: string; hints: string[]; evaluation: 'self' | 'exact' } & ({ version: 1 } | { version: 2; responseFormat: 'boundedCloze' })
   | { family: 'singleChoice'; version: 1; prompt: string; options: { id: string; text: string }[]; correctOptionId: string; hints: string[]; evaluation: 'exact' }
-  | { family: 'constructed'; version: 1; prompt: string; rubric: string; workedExampleBindingId?: string; hints: string[]; evaluation: 'self' }
+  | { family: 'constructed'; prompt: string; rubric: string; workedExampleBindingId?: string; hints: string[]; evaluation: 'self' } & ({ version: 1 } | { version: 2; instruction: { phase: 'workedExample' | 'completion'; material: string } })
   | { family: 'procedure'; version: 1; prompt: string; steps: { id: string; text: string }[]; reflection: string; hints: string[]; evaluation: 'self' };
 export interface ActivityRevision { id: string; activityId: string; unitId: string; definition: ActivityDefinition }
 export type ResourceDocument = Document;

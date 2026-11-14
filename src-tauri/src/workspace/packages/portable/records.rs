@@ -78,6 +78,19 @@ record!(ResourceOwner, "lesson_resource_owners", "SELECT resource_id,unit_id FRO
 record!(Dependency, "lesson_dependencies", "SELECT composition_id,kind,target_id,revision_id FROM lesson_dependencies ORDER BY composition_id,kind,target_id,revision_id LIMIT 20001", "INSERT INTO lesson_dependencies(composition_id,kind,target_id,revision_id) VALUES(?,?,?,?)", {composition_id: String = 0, kind: String = 1, target_id: String = 2, revision_id: String = 3});
 record!(SourceBinding, "lesson_source_bindings", "SELECT id,unit_id,source_id,data,digest FROM lesson_source_bindings ORDER BY id,unit_id,source_id,data,digest LIMIT 20001", "INSERT INTO lesson_source_bindings(id,unit_id,source_id,data,digest) VALUES(?,?,?,?,?)", {id: String = 0, unit_id: String = 1, source_id: String = 2, data: Json<SourceBindingRevision> = 3, digest: String = 4});
 
+// Preserve JSON bytes and digests exactly, including legacy unknown metadata.
+record!(AssessmentRunRow,"assessment_runs","SELECT id,operation_id,request,request_hash,data,digest FROM assessment_runs ORDER BY rowid LIMIT 20001","INSERT INTO assessment_runs(id,operation_id,request,request_hash,data,digest) VALUES(?,?,?,?,?,?)",{id:String=0,operation_id:String=1,request:String=2,request_hash:String=3,data:String=4,digest:String=5});
+record!(AssessmentPartRow,"assessment_parts","SELECT session_id,assessment_id,part_index,unit_id,composition_id FROM assessment_parts ORDER BY rowid LIMIT 20001","INSERT INTO assessment_parts(session_id,assessment_id,part_index,unit_id,composition_id) VALUES(?,?,?,?,?)",{session_id:String=0,assessment_id:String=1,part_index:i64=2,unit_id:String=3,composition_id:String=4});
+record!(ReviewJournalRow,"review_journal","SELECT position,kind,record_id FROM review_journal ORDER BY position LIMIT 20001","INSERT INTO review_journal(position,kind,record_id) VALUES(?,?,?)",{position:i64=0,kind:String=1,record_id:String=2});
+record!(ReviewPlanRow,"review_plan","SELECT id,data,digest FROM review_plan ORDER BY rowid LIMIT 20001","INSERT INTO review_plan(id,data,digest) VALUES(?,?,?)",{id:i64=0,data:String=1,digest:String=2});
+record!(ReviewOperationRow,"review_operations","SELECT id,request,request_hash,recorded_at_ms,result,digest FROM review_operations ORDER BY rowid LIMIT 20001","INSERT INTO review_operations(id,request,request_hash,recorded_at_ms,result,digest) VALUES(?,?,?,?,?,?)",{id:String=0,request:String=1,request_hash:String=2,recorded_at_ms:i64=3,result:String=4,digest:String=5});
+record!(RecallEventRow,"recall_review_events","SELECT id,attempt_id,activity_revision_id,prior_event_id,reviewed_at_ms,study_day,data,digest FROM recall_review_events ORDER BY rowid LIMIT 20001","INSERT INTO recall_review_events(id,attempt_id,activity_revision_id,prior_event_id,reviewed_at_ms,study_day,data,digest) VALUES(?,?,?,?,?,?,?,?)",{id:String=0,attempt_id:String=1,activity_revision_id:String=2,prior_event_id:Option<String>=3,reviewed_at_ms:i64=4,study_day:i32=5,data:String=6,digest:String=7});
+record!(RecallStateRow,"recall_states","SELECT activity_revision_id,event_id FROM recall_states ORDER BY rowid LIMIT 20001","INSERT INTO recall_states(activity_revision_id,event_id) VALUES(?,?)",{activity_revision_id:String=0,event_id:String=1});
+record!(StudySessionRow, "study_sessions", "SELECT id,unit_id,composition_id,revision,data,digest FROM study_sessions ORDER BY rowid LIMIT 20001", "INSERT INTO study_sessions(id,unit_id,composition_id,revision,data,digest) VALUES(?,?,?,?,?,?)", {id: String = 0, unit_id: String = 1, composition_id: String = 2, revision: i64 = 3, data: String = 4, digest: String = 5});
+record!(StudyAttemptRow, "study_attempts", "SELECT id,session_id,item_index,data,digest FROM study_attempts ORDER BY rowid LIMIT 20001", "INSERT INTO study_attempts(id,session_id,item_index,data,digest) VALUES(?,?,?,?,?)", {id: String = 0, session_id: String = 1, item_index: i64 = 2, data: String = 3, digest: String = 4});
+record!(StudyJudgmentRow, "study_judgments", "SELECT id,attempt_id,data,digest FROM study_judgments ORDER BY rowid LIMIT 20001", "INSERT INTO study_judgments(id,attempt_id,data,digest) VALUES(?,?,?,?)", {id: String = 0, attempt_id: String = 1, data: String = 2, digest: String = 3});
+record!(StudyOperationRow, "study_operations", "SELECT id,session_id,request_hash,result,digest FROM study_operations ORDER BY rowid LIMIT 20001", "INSERT INTO study_operations(id,session_id,request_hash,result,digest) VALUES(?,?,?,?,?)", {id: String = 0, session_id: String = 1, request_hash: String = 2, result: String = 3, digest: String = 4});
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct Content {
@@ -106,6 +119,17 @@ pub(super) struct Content {
     pub lesson_dependencies: Vec<Dependency>,
     pub lesson_source_bindings: Vec<SourceBinding>,
     pub assets: Vec<Asset>,
+    pub review_journal: Vec<ReviewJournalRow>,
+    pub assessment_runs: Vec<AssessmentRunRow>,
+    pub assessment_parts: Vec<AssessmentPartRow>,
+    pub review_plan: Vec<ReviewPlanRow>,
+    pub review_operations: Vec<ReviewOperationRow>,
+    pub recall_review_events: Vec<RecallEventRow>,
+    pub recall_states: Vec<RecallStateRow>,
+    pub study_sessions: Vec<StudySessionRow>,
+    pub study_attempts: Vec<StudyAttemptRow>,
+    pub study_judgments: Vec<StudyJudgmentRow>,
+    pub study_operations: Vec<StudyOperationRow>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -141,7 +165,48 @@ impl Content {
             lesson_dependencies: Dependency::capture(c)?,
             lesson_source_bindings: SourceBinding::capture(c)?,
             assets: Vec::new(),
+            review_journal: Vec::new(),
+            assessment_runs: Vec::new(),
+            assessment_parts: Vec::new(),
+            review_plan: Vec::new(),
+            review_operations: Vec::new(),
+            recall_review_events: Vec::new(),
+            recall_states: Vec::new(),
+            study_sessions: Vec::new(),
+            study_attempts: Vec::new(),
+            study_judgments: Vec::new(),
+            study_operations: Vec::new(),
         })
+    }
+    pub fn capture_history(&mut self, c: &Connection) -> Result<()> {
+        self.review_journal = ReviewJournalRow::capture(c)?;
+        self.assessment_runs = AssessmentRunRow::capture(c)?;
+        self.assessment_parts = AssessmentPartRow::capture(c)?;
+        self.review_plan = ReviewPlanRow::capture(c)?;
+        self.review_operations = ReviewOperationRow::capture(c)?;
+        self.recall_review_events = RecallEventRow::capture(c)?;
+        self.recall_states = RecallStateRow::capture(c)?;
+        self.study_sessions = StudySessionRow::capture(c)?;
+        self.study_attempts = StudyAttemptRow::capture(c)?;
+        self.study_judgments = StudyJudgmentRow::capture(c)?;
+        self.study_operations = StudyOperationRow::capture(c)?;
+        Ok(())
+    }
+    pub fn has_review(&self) -> bool {
+        !self.assessment_runs.is_empty()
+            || !self.assessment_parts.is_empty()
+            || !self.review_journal.is_empty()
+            || !self.review_plan.is_empty()
+            || !self.review_operations.is_empty()
+            || !self.recall_review_events.is_empty()
+            || !self.recall_states.is_empty()
+    }
+    pub fn has_history(&self) -> bool {
+        self.has_review()
+            || !self.study_sessions.is_empty()
+            || !self.study_attempts.is_empty()
+            || !self.study_judgments.is_empty()
+            || !self.study_operations.is_empty()
     }
     pub fn insert(&self, c: &Connection) -> Result<()> {
         for row in &self.subjects {
@@ -216,10 +281,43 @@ impl Content {
         for row in &self.lesson_source_bindings {
             row.insert(c)?;
         }
+        for row in &self.study_sessions {
+            row.insert(c)?;
+        }
+        for row in &self.study_attempts {
+            row.insert(c)?;
+        }
+        for row in &self.study_judgments {
+            row.insert(c)?;
+        }
+        for row in &self.study_operations {
+            row.insert(c)?;
+        }
+        for row in &self.review_plan {
+            row.insert(c)?;
+        }
+        for row in &self.review_operations {
+            row.insert(c)?;
+        }
+        for row in &self.recall_review_events {
+            row.insert(c)?;
+        }
+        for row in &self.recall_states {
+            row.insert(c)?;
+        }
+        for row in &self.review_journal {
+            row.insert(c)?;
+        }
+        for row in &self.assessment_runs {
+            row.insert(c)?;
+        }
+        for row in &self.assessment_parts {
+            row.insert(c)?;
+        }
         Ok(())
     }
     pub fn counts(&self) -> Result<BTreeMap<String, u64>> {
-        let counts = BTreeMap::from([
+        let mut counts = BTreeMap::from([
             ("subjects".into(), self.subjects.len() as u64),
             ("goals".into(), self.goals.len() as u64),
             ("collections".into(), self.collections.len() as u64),
@@ -273,6 +371,33 @@ impl Content {
             ),
             ("assets".into(), self.assets.len() as u64),
         ]);
+        if self.has_history() {
+            counts.insert("study_sessions".into(), self.study_sessions.len() as u64);
+            counts.insert("study_attempts".into(), self.study_attempts.len() as u64);
+            counts.insert("study_judgments".into(), self.study_judgments.len() as u64);
+            counts.insert(
+                "study_operations".into(),
+                self.study_operations.len() as u64,
+            );
+        }
+        if self.has_review() {
+            counts.insert("assessment_runs".into(), self.assessment_runs.len() as u64);
+            counts.insert(
+                "assessment_parts".into(),
+                self.assessment_parts.len() as u64,
+            );
+            counts.insert("review_journal".into(), self.review_journal.len() as u64);
+            counts.insert("review_plan".into(), self.review_plan.len() as u64);
+            counts.insert(
+                "review_operations".into(),
+                self.review_operations.len() as u64,
+            );
+            counts.insert(
+                "recall_review_events".into(),
+                self.recall_review_events.len() as u64,
+            );
+            counts.insert("recall_states".into(), self.recall_states.len() as u64);
+        }
         if counts.values().any(|&n| n > MAX_ROWS as u64) || counts.values().sum::<u64>() > 100_000 {
             return Err(budget());
         }
@@ -283,6 +408,29 @@ impl Content {
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "family", content = "record", deny_unknown_fields)]
 enum Record {
+    #[serde(rename = "assessment_runs")]
+    AssessmentRunRow(AssessmentRunRow),
+    #[serde(rename = "assessment_parts")]
+    AssessmentPartRow(AssessmentPartRow),
+    #[serde(rename = "review_journal")]
+    ReviewJournalRow(ReviewJournalRow),
+    #[serde(rename = "review_plan")]
+    ReviewPlanRow(ReviewPlanRow),
+    #[serde(rename = "review_operations")]
+    ReviewOperationRow(ReviewOperationRow),
+    #[serde(rename = "recall_review_events")]
+    RecallEventRow(RecallEventRow),
+    #[serde(rename = "recall_states")]
+    RecallStateRow(RecallStateRow),
+    #[serde(rename = "study_sessions")]
+    StudySessionRow(StudySessionRow),
+    #[serde(rename = "study_attempts")]
+    StudyAttemptRow(StudyAttemptRow),
+    #[serde(rename = "study_judgments")]
+    StudyJudgmentRow(StudyJudgmentRow),
+    #[serde(rename = "study_operations")]
+    StudyOperationRow(StudyOperationRow),
+
     #[serde(rename = "subjects")]
     Subject(Subject),
     #[serde(rename = "goals")]
@@ -424,6 +572,39 @@ impl Content {
         for row in &self.assets {
             push(&mut out, Record::Asset(row.clone()))?;
         }
+        for row in &self.study_sessions {
+            push(&mut out, Record::StudySessionRow(row.clone()))?;
+        }
+        for row in &self.study_attempts {
+            push(&mut out, Record::StudyAttemptRow(row.clone()))?;
+        }
+        for row in &self.study_judgments {
+            push(&mut out, Record::StudyJudgmentRow(row.clone()))?;
+        }
+        for row in &self.study_operations {
+            push(&mut out, Record::StudyOperationRow(row.clone()))?;
+        }
+        for row in &self.review_plan {
+            push(&mut out, Record::ReviewPlanRow(row.clone()))?;
+        }
+        for row in &self.review_operations {
+            push(&mut out, Record::ReviewOperationRow(row.clone()))?;
+        }
+        for row in &self.recall_review_events {
+            push(&mut out, Record::RecallEventRow(row.clone()))?;
+        }
+        for row in &self.recall_states {
+            push(&mut out, Record::RecallStateRow(row.clone()))?;
+        }
+        for row in &self.review_journal {
+            push(&mut out, Record::ReviewJournalRow(row.clone()))?;
+        }
+        for row in &self.assessment_runs {
+            push(&mut out, Record::AssessmentRunRow(row.clone()))?;
+        }
+        for row in &self.assessment_parts {
+            push(&mut out, Record::AssessmentPartRow(row.clone()))?;
+        }
         Ok(out)
     }
     pub fn decode(bytes: &[u8]) -> Result<Self> {
@@ -447,6 +628,18 @@ impl Content {
             }
             let record: Record = serde_json::from_slice(line).map_err(|_| invalid())?;
             match record {
+                Record::AssessmentRunRow(row) => out.assessment_runs.push(row),
+                Record::AssessmentPartRow(row) => out.assessment_parts.push(row),
+                Record::ReviewJournalRow(row) => out.review_journal.push(row),
+                Record::ReviewPlanRow(row) => out.review_plan.push(row),
+                Record::ReviewOperationRow(row) => out.review_operations.push(row),
+                Record::RecallEventRow(row) => out.recall_review_events.push(row),
+                Record::RecallStateRow(row) => out.recall_states.push(row),
+                Record::StudySessionRow(row) => out.study_sessions.push(row),
+                Record::StudyAttemptRow(row) => out.study_attempts.push(row),
+                Record::StudyJudgmentRow(row) => out.study_judgments.push(row),
+                Record::StudyOperationRow(row) => out.study_operations.push(row),
+
                 Record::Subject(row) => out.subjects.push(row),
                 Record::Goal(row) => out.goals.push(row),
                 Record::Collection(row) => out.collections.push(row),

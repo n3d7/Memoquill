@@ -2,13 +2,15 @@ use super::*;
 use rusqlite::{limits::Limit, types::ValueRef};
 use std::collections::{BTreeMap, BTreeSet};
 
+// Schema9 has 132 trusted objects; keep enumeration bounded and require exact DDL.
+const MAX_SCHEMA_OBJECTS: usize = 160;
 type Schema = Vec<(String, String, String, Option<String>)>;
 fn schema(connection: &Connection) -> Result<Schema> {
     let mut query = connection
-        .prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name LIMIT 129")?;
+        .prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name LIMIT 161")?;
     let rows = query.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
     let result: Schema = rows.collect::<std::result::Result<_, _>>()?;
-    if result.len() > 128 {
+    if result.len() > MAX_SCHEMA_OBJECTS {
         return Err(budget());
     }
     Ok(result)
@@ -65,7 +67,7 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     let app: i32 = connection.pragma_query_value(None, "application_id", |r| r.get(0))?;
     let version: i64 = connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if app != database::APPLICATION_ID
-        || version != SCHEMA_VERSION
+        || (version != 7 && version != 8 && version != SCHEMA_VERSION)
         || version != manifest.schema_version
     {
         return Err(AppError::new(ErrorCode::UnsupportedSchema));
@@ -76,13 +78,13 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
         .permissions(std::fs::Permissions::from_mode(0o700))
         .tempdir()?;
     let expected_path = trusted.path().join("expected.sqlite3");
-    database::bootstrap(&expected_path, SCHEMA_VERSION)?;
+    database::bootstrap(&expected_path, version)?;
     let expected = database::open_connection(&expected_path, database::Access::ReadOnly)?;
     let objects = schema(&connection)?;
     if objects != schema(&expected)? {
         return Err(invalid());
     }
-    super::super::migrations::validate(&connection, SCHEMA_VERSION)?;
+    super::super::migrations::validate(&connection, version)?;
     database::integrity(&connection)?;
     let mut total_rows = 0usize;
     let mut actual_counts = BTreeMap::new();
@@ -136,6 +138,20 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     }
     super::super::content::validate_native_data(&connection, &manifest.workspace_id)?;
     super::super::lessons::validate_native_data(&connection)?;
+    if version >= 9 {
+        super::super::review::validate_native_data(&connection)?;
+        super::super::assessments::validate_native_data(&connection)?;
+    }
+    if version == 8 {
+        let scheduled: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM study_attempts WHERE json_type(data,'$.recallRating') IS NOT NULL AND json_type(data,'$.recallRating')!='null')",[],|r|r.get(0))?;
+        let linked:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM study_sessions WHERE json_type(data,'$.assessmentId') IS NOT NULL AND json_type(data,'$.assessmentId')!='null')",[],|r|r.get(0))?;
+        if scheduled || linked {
+            return Err(invalid());
+        }
+    }
+    if version >= 8 {
+        super::super::study::validate_native_data(&connection)?;
+    }
     super::super::sources::validate_native_data(&connection)?;
     super::super::operations::validate_native_data(&connection, &manifest.workspace_id)?;
     let mut jobs = connection.prepare("SELECT id,source_id,data FROM ingestion_jobs")?;

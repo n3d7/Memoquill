@@ -1,3 +1,25 @@
+# Current objective — M4 pull request to main and isolated GUI qualification
+
+2026-11-14. User authorized committing/pushing the M4 scope, opening a PR into
+main, and isolated GUI interaction/screenshots. Merge and tracker writes remain
+unauthorized. Existing local environment/verification-runner work is excluded
+from this PR and preserved in the original workspace.
+
+M4.1/KER-131 and M4.2 implementation is integrated: offline study, immutable
+history, pinned FSRS7 recall, practical reminders and frozen scoped assessments.
+Local full qualification passed 540 tests/0 failures/10 private helper skips with
+audit passed. This total includes 56 local runner self-tests; the runner utility
+itself is not part of this PR. Product code matches the qualified source snapshot.
+Native GUI evidence is recorded in docs/task-reports/2026-11-14-m4-pr-gui.md.
+No native GUI or release-level accessibility pass should be inferred from local
+unit tests. KER-97 human Fedora/X11/Orca acceptance remains M7.
+
+Next: review this PR and its actual remote checks; no automatic merge. Keep local
+native RPM/image/screenshots and summary receipts until review. Main must remain
+unchanged until separately authorized integration.
+
+## Previous main handoff — preserved
+
 # Current objective — M3 qualified, publish dev→main PR
 
 2026-11-13 14:52 UTC. User explicitly resumed M3. Software acceptance complete;

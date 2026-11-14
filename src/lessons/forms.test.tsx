@@ -51,3 +51,28 @@ it('keeps a newline while typing a second hint in a controlled activity form', (
   function Form() { const [value, set] = useState<ActivityDefinition>({ family: 'recall', version: 1, prompt: 'Prompt', answer: 'Answer', hints: [], evaluation: 'self' }); return <ActivityFields definition={value} set={set} />; }
   render(<Form />); const hints = screen.getByLabelText('Hints (one per line)'); fireEvent.change(hints, { target: { value: 'First hint\n' } }); expect(hints).toHaveValue('First hint\n'); fireEvent.change(hints, { target: { value: 'First hint\nSecond hint' } }); expect(hints).toHaveValue('First hint\nSecond hint');
 });
+
+it('authors bounded cloze as a versioned recall variant with one literal blank', async () => {
+  function Form() { const [value, set] = useState<ActivityDefinition>({ family: 'recall', version: 1, prompt: 'Complete the word', answer: 'Answer', hints: [], evaluation: 'exact' }); return <><ActivityFields definition={value} set={set} /><output>{JSON.stringify(value)}</output></>; }
+  render(<Form />);
+  fireEvent.change(screen.getByLabelText('Recall format'), { target: { value: 'boundedCloze' } });
+  expect(screen.getByRole('status')).toHaveTextContent('"version":2');
+  expect(screen.getByDisplayValue('Complete the word {{answer}}')).toBeInTheDocument();
+});
+
+it('authors versioned worked-example and completion material without changing independent definitions', () => {
+  function Form() {
+    const [definition, set] = useState<ActivityDefinition>({ family: 'constructed', version: 1, prompt: 'Explain the step', rubric: 'Justify', hints: [], evaluation: 'self' });
+    return <><ActivityFields definition={definition} set={set} /><output data-testid="definition">{JSON.stringify(definition)}</output></>;
+  }
+  render(<Form />);
+  fireEvent.change(screen.getByLabelText('Instructional phase'), { target: { value: 'workedExample' } });
+  fireEvent.change(screen.getByLabelText('Instruction or partial solution'), { target: { value: 'Pinned reasoning' } });
+  expect(JSON.parse(screen.getByTestId('definition').textContent!)).toMatchObject({ version: 2, instruction: { phase: 'workedExample', material: 'Pinned reasoning' } });
+  fireEvent.change(screen.getByLabelText('Instructional phase'), { target: { value: 'completion' } });
+  expect(JSON.parse(screen.getByTestId('definition').textContent!)).toMatchObject({ version: 2, instruction: { phase: 'completion', material: 'Pinned reasoning' } });
+  fireEvent.change(screen.getByLabelText('Instructional phase'), { target: { value: 'independent' } });
+  const independent = JSON.parse(screen.getByTestId('definition').textContent!);
+  expect(independent.version).toBe(1);
+  expect(independent).not.toHaveProperty('instruction');
+});

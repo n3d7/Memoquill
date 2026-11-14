@@ -1,0 +1,99 @@
+{
+  "status": "partial",
+  "checks": [
+    {
+      "check": "isolated packaged M4 ready",
+      "passed": true
+    },
+    {
+      "check": "recall authoring available",
+      "passed": true
+    },
+    {
+      "check": "procedure authoring available",
+      "passed": true
+    },
+    {
+      "check": "lesson publication acknowledged",
+      "passed": true
+    },
+    {
+      "check": "topic placement controls available",
+      "passed": true
+    },
+    {
+      "check": "practice prompt available",
+      "passed": true
+    },
+    {
+      "check": "response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "practice advances to procedure",
+      "passed": true
+    },
+    {
+      "check": "procedure response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "practice completed with evidence",
+      "passed": true
+    },
+    {
+      "check": "explicit recall rating updated schedule once",
+      "passed": true
+    },
+    {
+      "check": "reminder procedure choices available",
+      "passed": true
+    },
+    {
+      "check": "separate practical reminder created",
+      "passed": true
+    },
+    {
+      "check": "fixed practical reminder rescheduled",
+      "passed": true
+    },
+    {
+      "check": "subject scope frozen from placed lesson",
+      "passed": true
+    },
+    {
+      "check": "frozen assessment starts",
+      "passed": true
+    },
+    {
+      "check": "response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "assessment withholds feedback between activities",
+      "passed": true
+    },
+    {
+      "check": "procedure response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "assessment responses acknowledged",
+      "passed": true
+    },
+    {
+      "check": "global assessment feedback released",
+      "passed": true
+    },
+    {
+      "check": "coverage distinguishes practical outcome",
+      "passed": true
+    }
+  ],
+  "passed_checks": 22,
+  "not_run": [
+    "verified restart recovery: accessibility observer could not reconnect"
+  ],
+  "scope": "Visible host X11 GUI with separate synthetic XDG profile; real keyboard/mouse/AT-SPI; no direct IPC/SQL/DOM mutations",
+  "screenshots": "local synthetic app-window captures only"
+}
