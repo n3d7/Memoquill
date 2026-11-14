@@ -76,3 +76,19 @@ it('authors versioned worked-example and completion material without changing in
   expect(independent.version).toBe(1);
   expect(independent).not.toHaveProperty('instruction');
 });
+
+it('authors an opt-in flawed example with pinned correction and author-supplied review provenance', () => {
+  function Form() {
+    const [definition, set] = useState<ActivityDefinition>({ family: 'constructed', version: 1, prompt: 'Find the error', rubric: 'Explain the repair', hints: [], evaluation: 'self' });
+    return <><ActivityFields definition={definition} set={set} /><output data-testid="definition">{JSON.stringify(definition)}</output></>;
+  }
+  render(<Form />);
+  fireEvent.change(screen.getByLabelText('Instructional phase'), { target: { value: 'errorRepair' } });
+  for (const [label, value] of [['Deliberately flawed example text', '2 + 2 = 5'], ['Deliberate error label', 'Intentional arithmetic error'], ['Expected correction or reference answer', '2 + 2 = 4'], ['Reviewed by', 'Fixture author'], ['Review source or reference', 'Addition reference']]) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+  expect(JSON.parse(screen.getByTestId('definition').textContent!)).toMatchObject({ version: 3, instruction: { phase: 'errorRepair', material: '2 + 2 = 5', label: 'Intentional arithmetic error', expectedCorrection: '2 + 2 = 4', review: { reviewer: 'Fixture author', reference: 'Addition reference' } } });
+  expect(screen.getByText(/do not establish independent factual verification/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Instructional phase'), { target: { value: 'independent' } });
+  expect(JSON.parse(screen.getByTestId('definition').textContent!)).not.toHaveProperty('instruction');
+});

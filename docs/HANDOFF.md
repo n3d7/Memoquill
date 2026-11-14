@@ -1,3 +1,23 @@
+# Current objective — M4 merge candidate and tracker/protection follow-up
+
+2026-11-14. User now authorizes PR #7 review/merge into main if ready, Linear
+state updates and main protection after merge. Bounded Spec review found one
+KER-102 gap (deliberately flawed example label/correction/review provenance).
+Corrected with opt-in constructed v3 errorRepair; follow-up review found no
+remaining blocker at the reviewed seams. Focused21/0/5 helpers, StudyPanel12/0,
+types passed. Catalog-count/schema guard corrected after first full543/1; focused
+catalog1/0/5 helpers passed. Only test code changed; shipped runtime unchanged.
+Current RPM private native GUI12 assertions and actual normal
+close/lock release/reopen passed, no screenshots or workstation interaction.
+Review receipt: [merge gate](task-reports/2026-11-14-m4-pr-review-and-merge.md).
+Final full must pass before publishing/merging the corrected candidate; source
+snapshot and final receipt: .qualification/m4-merge-candidate-20261114/.
+PR worktree .qualification/m4-pr-finalize; original dev dirty work preserved.
+Next after successful full: commit/push only M4 correction+receipts, exact-head
+merge, read back main, apply/read back main protection, then mark KER-102/131/103
+Done with evidence. Until then issues are In Review. Original workstation failure
+cause remains unattributed; current guarded native normal-close/reopen passed.
+
 # Current objective — M4 pull request to main and isolated GUI qualification
 
 2026-11-14. User authorized committing/pushing the M4 scope, opening a PR into

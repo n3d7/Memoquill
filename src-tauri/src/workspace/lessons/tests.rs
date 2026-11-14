@@ -1128,7 +1128,22 @@ fn offline_catalog_supplies_typed_event_action_state_and_fallback_contracts() {
     let variants = activity.schemas["activityDefinition"]["oneOf"]
         .as_array()
         .unwrap();
-    assert_eq!(variants.len(), 6);
+    assert_eq!(variants.len(), 7);
+    let repair = &variants[6]["properties"]["instruction"];
+    assert_eq!(repair["properties"]["phase"]["const"], "errorRepair");
+    assert_eq!(
+        repair["required"],
+        json!(["phase", "material", "label", "expectedCorrection", "review"])
+    );
+    assert_eq!(
+        repair["properties"]["review"]["required"],
+        json!(["reviewer", "reference"])
+    );
+    assert_eq!(repair["additionalProperties"], false);
+    assert_eq!(
+        repair["properties"]["review"]["additionalProperties"],
+        false
+    );
     let identities: Vec<_> = variants
         .iter()
         .map(|v| {
@@ -1146,7 +1161,8 @@ fn offline_catalog_supplies_typed_event_action_state_and_fallback_contracts() {
             ("constructed", 1),
             ("procedure", 1),
             ("recall", 2),
-            ("constructed", 2)
+            ("constructed", 2),
+            ("constructed", 3)
         ]
     );
     assert_eq!(
@@ -1654,4 +1670,51 @@ fn study_instructional_definitions_require_bounded_explicit_material_and_known_p
         let definition = json!({"family":"constructed","version":2,"prompt":"Complete","rubric":"Explain","hints":[],"evaluation":"self","instruction":instruction});
         assert!(super::validation::activity(&definition).is_err());
     }
+}
+
+#[test]
+fn error_repair_requires_versioned_label_correction_and_review_provenance() {
+    let definition = json!({"family":"constructed","version":3,"prompt":"Find and repair the error","rubric":"Explain the correction","hints":[],"evaluation":"self","instruction":{"phase":"errorRepair","material":"2 + 2 = 5","label":"Intentionally incorrect arithmetic","expectedCorrection":"2 + 2 = 4","review":{"reviewer":"Fixture author","reference":"Elementary addition reference"}}});
+    assert!(super::validation::activity(&definition).is_ok());
+    for (subject, material, correction) in [
+        ("English", "She go to school", "She goes to school"),
+        (
+            "Python",
+            "print(2 + 2) produces 5",
+            "The printed value is 4",
+        ),
+        ("Math", "2 + 2 = 5", "2 + 2 = 4"),
+        (
+            "Cooking",
+            "Stir an empty bowl after serving",
+            "Mix the ingredients before serving",
+        ),
+    ] {
+        let mut fixture = definition.clone();
+        fixture["instruction"]["label"] = json!(format!("Intentional {subject} error"));
+        fixture["instruction"]["material"] = json!(material);
+        fixture["instruction"]["expectedCorrection"] = json!(correction);
+        assert!(super::validation::activity(&fixture).is_ok(), "{subject}");
+    }
+    for key in ["label", "expectedCorrection", "material"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"][key] = json!("   ");
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    for key in ["label", "expectedCorrection", "review"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"].as_object_mut().unwrap().remove(key);
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    for key in ["reviewer", "reference"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"]["review"][key] = json!("");
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    let mut old = definition.clone();
+    old["version"] = json!(2);
+    assert!(super::validation::activity(&old).is_err());
+    let mut untrusted = definition;
+    untrusted["instruction"]["review"]["verified"] = json!(true);
+    assert!(super::validation::activity(&untrusted).is_err());
 }

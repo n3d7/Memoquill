@@ -91,6 +91,24 @@ it.each(['workedExample', 'completion'] as const)('shows pinned %s material as a
   expect(screen.getByRole('button', { name: 'Reveal reference' })).toBeDisabled();
 });
 
+it('labels a flawed example and shows the pinned correction only after explicit reveal', async () => {
+  const s = session();
+  s.items[0].activity.definition = { family: 'constructed', version: 3, prompt: 'Repair the error', rubric: 'Explain the repair', hints: [], evaluation: 'self', instruction: { phase: 'errorRepair', material: '<script>untrusted()</script> 2 + 2 = 5', label: 'Intentional arithmetic error', expectedCorrection: 'Unique expected repair', review: { reviewer: 'Fixture author', reference: 'Addition reference' } } };
+  const { port, lessons, view } = fixture(s);
+  vi.mocked(port.apply).mockImplementation(async request => { if (request.action.kind === 'revealSolution') view.session.draft.help.solutionRevealed = true; return view.session; });
+  render(<StudyPanel unitId="unit" lessons={lessons} port={port} />);
+  await screen.findByRole('option', { name: /practice: 0\/1/ });
+  fireEvent.change(screen.getByLabelText('Saved study sessions'), { target: { value: 'session' } });
+  expect(await screen.findByText('Intentional arithmetic error')).toBeInTheDocument();
+  expect(screen.getByText(/Review recorded by Fixture author/)).toBeInTheDocument();
+  expect(screen.getByText(/do not establish independent factual verification/)).toBeInTheDocument();
+  expect(screen.queryByText(/Unique expected repair/)).not.toBeInTheDocument();
+  expect(document.querySelector('script')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Reveal reference' }));
+  expect(await screen.findByText(/Unique expected repair/)).toBeInTheDocument();
+  expect(port.apply).toHaveBeenCalledWith(expect.objectContaining({ action: { kind: 'revealSolution' } }));
+});
+
 it('keeps explicit FSRS recall ratings separate from general self-rating and reports unsaved navigation state', async () => {
   const s = session(); s.phase = 'independent'; s.draft.help.external = 'none';
   const { port, lessons } = fixture(s); const safe = vi.fn();

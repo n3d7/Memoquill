@@ -91,6 +91,17 @@ fn activity_definition() -> Value {
         .unwrap()
         .push(json!("instruction"));
     variants.push(instruction);
+    let mut repair = variants[2].clone();
+    repair["properties"]["version"] = json!({"const":3});
+    repair["properties"]["instruction"] = object(
+        json!({"phase":{"const":"errorRepair"},"material":string(16384),"label":string(1024),"expectedCorrection":string(16384),"review":object(json!({"reviewer":string(1024),"reference":string(4096)}), &["reviewer", "reference"])}),
+        &["phase", "material", "label", "expectedCorrection", "review"],
+    );
+    repair["required"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("instruction"));
+    variants.push(repair);
     json!({"oneOf":variants,"x-maxBytes":65536,"x-evidence":"previewNeverWritesStudyEvidence"})
 }
 pub(super) fn props_schema(t: &str) -> Value {

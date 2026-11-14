@@ -1,4 +1,5 @@
-import { activityPrompt } from '../lessons/activityPrompt';
+import { InstructionalSupport } from '../lessons/InstructionalSupport';
+import { activityPrompt, constructedReference } from '../lessons/activityPrompt';
 import { useEffect, useRef, useState } from 'react';
 import { failureMessage, isConfirmedRejection } from '../application/errors';
 import type { LessonPort } from '../lessons/types';
@@ -106,7 +107,7 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
     {view?.changedContent && <p role="status">This lesson has changed. This session keeps its original questions and assessment references.</p>}
     {session && <p>Completed {session.cursor} of {session.items.length}. {dirty ? 'Response has unsaved changes.' : 'Acknowledged responses are saved.'}</p>}
     {definition && session && <fieldset disabled={blocked}><legend>Current activity</legend><p>{activityPrompt(definition)}</p>
-      {definition.family === 'constructed' && definition.version === 2 && session.mode === 'practice' && <aside aria-label="Instructional support"><h4>{definition.instruction.phase === 'workedExample' ? 'Worked example — explain the reasoning' : 'Completion — supply the missing steps'}</h4><pre>{definition.instruction.material}</pre><p>This response uses a shown solution or scaffold. It is recorded as assisted practice.</p></aside>}
+      {session.mode === 'practice' && <InstructionalSupport definition={definition} />}
       {(definition.family === 'recall' || definition.family === 'constructed') && <label>Your response<textarea maxLength={16384} value={response?.kind === 'text' ? response.value : ''} onChange={e => edit({ kind: 'text', value: e.target.value })} /></label>}
       {definition.family === 'singleChoice' && <fieldset><legend>Choose one answer</legend>{definition.options.map(option => <label key={option.id}><input type="radio" name={`study-${session.id}-${session.cursor}`} value={option.id} checked={response?.kind === 'choice' && response.optionId === option.id} onChange={() => edit({ kind: 'choice', optionId: option.id })} />{option.text}</label>)}</fieldset>}
       {definition.family === 'procedure' && <><p>Record what you did and observed. Completion is self-report.</p>{definition.steps.map(step => <label key={step.id}><input type="checkbox" checked={response?.kind === 'procedure' && response.completedStepIds.includes(step.id)} onChange={e => {
@@ -132,8 +133,9 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
       const judgments = view.judgments.filter(j => j.attemptId === attempt.id);
       const latestSelf = judgments.find(j => j.source === 'selfReport' && !judgments.some(next => next.supersedes === j.id));
       return <article key={attempt.id}><h5>Response {attempt.itemIndex + 1}</h5><pre>{attempt.response.kind === 'text' ? attempt.response.value : attempt.response.kind === 'choice' ? attempt.response.optionId : attempt.response.observations}</pre>
+        {revision?.family === 'constructed' && revision.version === 3 && <pre>{constructedReference(revision)}</pre>}
         <p>Hints: {attempt.help.hintsRevealed}. Reference revealed: {attempt.help.solutionRevealed ? 'yes' : 'no'}. External help: {attempt.help.external}. Self-rating: {attempt.selfRating ?? 'not rated'}.</p>
-        <p>Instructional phase: {revision?.family === 'constructed' && revision.version === 2 ? revision.instruction.phase : 'independent response'}. Context: {session?.phase ?? 'unspecified'}. Submitted: {observedTime(attempt.submittedAtUnixMs)}. Timestamps do not measure active study or prove retention.</p>
+        <p>Instructional phase: {revision?.family === 'constructed' && revision.version !== 1 ? revision.instruction.phase : 'independent response'}. Context: {session?.phase ?? 'unspecified'}. Submitted: {observedTime(attempt.submittedAtUnixMs)}. Timestamps do not measure active study or prove retention.</p>
         {revision && <p>Reference: {reference(revision)}</p>}{judgments.map(j => <p key={j.id}>{j.source === 'selfReport' ? 'Self-assessment' : j.source === 'model' ? 'Model opinion' : 'Deterministic check'}: {j.outcome}{j.supersedes ? ' (correction; original retained)' : ''}. Assessor: {j.assessorVersion}. Uncertainty: {j.uncertainty?.kind ?? 'notEstimated'}.</p>)}
         {latestSelf && <SelfCorrection key={latestSelf.id} index={attempt.itemIndex} disabled={blocked || dirty} onCorrect={value => action({ kind: 'correctSelfJudgment', attemptId: attempt.id, supersedes: latestSelf.id, outcome: value })} />}
       </article>;
@@ -145,7 +147,7 @@ function reference(definition: import('../lessons/types').ActivityDefinition): s
   switch (definition.family) {
     case 'recall': return definition.answer;
     case 'singleChoice': return definition.options.find(o => o.id === definition.correctOptionId)?.text ?? 'Unknown reference';
-    case 'constructed': return definition.rubric;
+    case 'constructed': return constructedReference(definition);
     case 'procedure': return definition.reflection;
   }
 }

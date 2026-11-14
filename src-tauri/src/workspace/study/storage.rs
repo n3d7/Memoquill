@@ -66,11 +66,14 @@ fn load(connection: &Connection, id: Uuid) -> Result<StudySession> {
     Ok(session)
 }
 fn instructional(item: &StudyItem) -> bool {
-    item.activity.definition["family"] == "constructed" && item.activity.definition["version"] == 2
+    item.activity.definition["family"] == "constructed"
+        && (item.activity.definition["version"] == 2 || item.activity.definition["version"] == 3)
 }
 fn initial_draft(item: Option<&StudyItem>) -> StudyDraft {
     let mut draft = StudyDraft::default();
-    draft.help.solution_revealed = item.is_some_and(instructional);
+    // A deliberately flawed example is not a revealed correction.
+    draft.help.solution_revealed =
+        item.is_some_and(|item| instructional(item) && item.activity.definition["version"] == 2);
     draft
 }
 fn validate_help(session: &StudySession, index: usize, help: &StudyHelp) -> Result<()> {
@@ -79,7 +82,10 @@ fn validate_help(session: &StudySession, index: usize, help: &StudyHelp) -> Resu
         .as_array()
         .ok_or_else(corrupt)?;
     if help.hints_revealed as usize > hints.len()
-        || instructional(item) && (!help.solution_revealed || session.mode == StudyMode::Assessment)
+        || instructional(item) && session.mode == StudyMode::Assessment
+        || instructional(item)
+            && item.activity.definition["version"] == 2
+            && !help.solution_revealed
         || session.mode == StudyMode::Assessment
             && (help.hints_revealed > 0 || help.solution_revealed)
     {

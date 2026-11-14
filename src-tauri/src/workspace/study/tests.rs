@@ -973,6 +973,45 @@ fn study_instructional_phases_pin_material_and_never_become_unassisted_assessmen
 }
 
 #[test]
+fn error_repair_pins_review_and_keeps_correction_hidden_until_requested() {
+    let definition = json!({"family":"constructed","version":3,"prompt":"Find the error","rubric":"Explain the repair","hints":[],"evaluation":"self","instruction":{"phase":"errorRepair","material":"2 + 2 = 5","label":"Deliberate error","expectedCorrection":"2 + 2 = 4","review":{"reviewer":"Fixture author","reference":"Addition reference"}}});
+    let (_temp, mut db, unit, revision) = setup(definition.clone());
+    let s = start(&mut db, &unit, &revision, StudyMode::Practice);
+    assert_eq!(s.items[0].activity.definition, definition);
+    assert!(!s.draft.help.solution_revealed);
+    let s = save(
+        &mut db,
+        &s,
+        StudyResponse::Text {
+            value: "Replace 5 with 4".into(),
+        },
+    );
+    let s = db
+        .study_apply(context(), &request(&s, StudyAction::RevealSolution))
+        .unwrap();
+    assert!(s.draft.help.solution_revealed);
+    validate_native_data(&db.connection).unwrap();
+    let reopened = db.study_read(context(), s.id).unwrap();
+    assert_eq!(reopened.session.items[0].activity.definition, definition);
+    let assessment = StudyMutation {
+        operation_id: Uuid::new_v4(),
+        session_id: Uuid::new_v4(),
+        expected_revision: 0,
+        action: StudyAction::Start {
+            unit_id: unit,
+            composition_revision_id: revision,
+            mode: StudyMode::Assessment,
+            phase: StudyPhase::Independent,
+            binding_ids: None,
+        },
+    };
+    assert_eq!(
+        db.study_apply(context(), &assessment).unwrap_err().code,
+        ErrorCode::InvalidRequest
+    );
+}
+
+#[test]
 #[ignore = "private child process killed by study_process_crash_preserves_acknowledged_draft_and_exactly_once_submit"]
 fn study_crash_child() {
     let root = std::path::PathBuf::from(std::env::var_os("MEMOQUILL_STUDY_CRASH_ROOT").unwrap());

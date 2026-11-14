@@ -29,7 +29,7 @@ export interface Composition { contractVersion: 1; unitId: string; rootNodeId: s
 export type ActivityDefinition =
   | { family: 'recall'; prompt: string; answer: string; hints: string[]; evaluation: 'self' | 'exact' } & ({ version: 1 } | { version: 2; responseFormat: 'boundedCloze' })
   | { family: 'singleChoice'; version: 1; prompt: string; options: { id: string; text: string }[]; correctOptionId: string; hints: string[]; evaluation: 'exact' }
-  | { family: 'constructed'; prompt: string; rubric: string; workedExampleBindingId?: string; hints: string[]; evaluation: 'self' } & ({ version: 1 } | { version: 2; instruction: { phase: 'workedExample' | 'completion'; material: string } })
+  | { family: 'constructed'; prompt: string; rubric: string; workedExampleBindingId?: string; hints: string[]; evaluation: 'self' } & ({ version: 1 } | { version: 2; instruction: { phase: 'workedExample' | 'completion'; material: string } } | { version: 3; instruction: { phase: 'errorRepair'; material: string; label: string; expectedCorrection: string; review: { reviewer: string; reference: string } } })
   | { family: 'procedure'; version: 1; prompt: string; steps: { id: string; text: string }[]; reflection: string; hints: string[]; evaluation: 'self' };
 export interface ActivityRevision { id: string; activityId: string; unitId: string; definition: ActivityDefinition }
 export type ResourceDocument = Document;

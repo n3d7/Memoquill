@@ -401,7 +401,7 @@ pub(super) fn activity(v: &Value) -> Result<()> {
     };
     let mut req = vec!["family", "version", "prompt", "hints", "evaluation"];
     req.extend(extra);
-    if family == "constructed" && v["version"] == 2 {
+    if family == "constructed" && (v["version"] == 2 || v["version"] == 3) {
         req.push("instruction");
     }
     fields(
@@ -415,7 +415,9 @@ pub(super) fn activity(v: &Value) -> Result<()> {
             &[]
         },
     )?;
-    if !(v["version"] == 1 || (["recall", "constructed"].contains(&family) && v["version"] == 2))
+    if !(v["version"] == 1
+        || (["recall", "constructed"].contains(&family) && v["version"] == 2)
+        || (family == "constructed" && v["version"] == 3))
         || !text(&v["prompt"], 16384)
         || !v["hints"]
             .as_array()
@@ -462,6 +464,24 @@ pub(super) fn activity(v: &Value) -> Result<()> {
                 fields(instruction, &["phase", "material"], &[])?;
                 if !one(&instruction["phase"], &["workedExample", "completion"])
                     || !text(&instruction["material"], 16384)
+                {
+                    return Err(invalid());
+                }
+            }
+            if v["version"] == 3 {
+                let instruction = &v["instruction"];
+                fields(
+                    instruction,
+                    &["phase", "material", "label", "expectedCorrection", "review"],
+                    &[],
+                )?;
+                fields(&instruction["review"], &["reviewer", "reference"], &[])?;
+                if instruction["phase"] != "errorRepair"
+                    || !text(&instruction["material"], 16384)
+                    || !text(&instruction["label"], 1024)
+                    || !text(&instruction["expectedCorrection"], 16384)
+                    || !text(&instruction["review"]["reviewer"], 1024)
+                    || !text(&instruction["review"]["reference"], 4096)
                 {
                     return Err(invalid());
                 }

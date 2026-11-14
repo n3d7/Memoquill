@@ -119,5 +119,82 @@
     "report": "../task-reports/2026-11-14-m4-already-open-podman.md",
     "original_desktop_normal_close_reopen": "unqualified",
     "product_source_changed": false
-  }
+  },
+  "error_repair_candidate": {
+    "status": "passed",
+    "gui_checks": [
+      {
+        "check": "installed candidate ready",
+        "passed": true
+      },
+      {
+        "check": "versioned repair authored and saved",
+        "passed": true
+      },
+      {
+        "check": "practice response editor ready",
+        "passed": true
+      },
+      {
+        "check": "study lesson region available",
+        "passed": true
+      },
+      {
+        "check": "intentional error label visible",
+        "passed": true
+      },
+      {
+        "check": "author-supplied review displayed",
+        "passed": true
+      },
+      {
+        "check": "review does not claim factual verification",
+        "passed": true
+      },
+      {
+        "check": "expected correction initially hidden in study region",
+        "passed": true
+      },
+      {
+        "check": "response acknowledged",
+        "passed": true
+      },
+      {
+        "check": "explicit reveal displays pinned correction",
+        "passed": true
+      },
+      {
+        "check": "repair response durably submitted",
+        "passed": true
+      },
+      {
+        "check": "installed candidate ready",
+        "passed": true
+      }
+    ],
+    "passed_checks": 12,
+    "normal_close_reopen": {
+      "first_exit": 0,
+      "locks_after_close": [
+        {
+          "path": "io.github.n3d7.memoquill/courses/workspace.lock",
+          "held": false
+        },
+        {
+          "path": "io.github.n3d7.memoquill/workspace/workspace.lock",
+          "held": false
+        }
+      ],
+      "reopened_ready": true
+    },
+    "reference_visibility": {
+      "visible_in_whole_authoring_window": true,
+      "visible_in_study_region": false
+    },
+    "rpm_sha256": "869e0469207cd0f704f1aca578a7b1642b9608c12859f5b01f589ccc148daceb",
+    "image_id": "32d19356d39dc9cbf5314439748abb8b92d3b02a0e09fb14a17baf095c62c7b8",
+    "screenshots": false,
+    "scope": "private Podman X11; current errorRepair candidate; no workstation interaction"
+  },
+  "current_candidate_normal_close_reopen": "passed: guarded native X11 close, actual exit 0, both locks released, reopened app ready; original workstation cause is not attributed"
 }
