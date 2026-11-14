@@ -92,7 +92,7 @@
   ],
   "passed_checks": 22,
   "not_run": [
-    "verified restart recovery: accessibility observer could not reconnect"
+    "Verified visible restart recovery: attempted restart returned AlreadyOpen; remaining owner lifetime is unresolved"
   ],
   "scope": "Visible host X11 GUI with separate synthetic XDG profile; real keyboard/mouse/AT-SPI; no direct IPC/SQL/DOM mutations",
   "screenshots": "local synthetic app-window captures only"
