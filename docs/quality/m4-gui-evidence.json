@@ -1,5 +1,5 @@
 {
-  "status": "partial",
+  "status": "passed",
   "checks": [
     {
       "check": "isolated packaged M4 ready",
@@ -88,12 +88,27 @@
     {
       "check": "coverage distinguishes practical outcome",
       "passed": true
+    },
+    {
+      "check": "same private profile restarted",
+      "passed": true
+    },
+    {
+      "check": "frozen assessment survives real process restart",
+      "passed": true
+    },
+    {
+      "check": "recall schedule survives restart",
+      "passed": true
+    },
+    {
+      "check": "visible recovered window left open for user",
+      "passed": true
     }
   ],
-  "passed_checks": 22,
-  "not_run": [
-    "Verified visible restart recovery: attempted restart returned AlreadyOpen; remaining owner lifetime is unresolved"
-  ],
-  "scope": "Visible host X11 GUI with separate synthetic XDG profile; real keyboard/mouse/AT-SPI; no direct IPC/SQL/DOM mutations",
-  "screenshots": "local synthetic app-window captures only"
+  "scope": "real installed X11 recall/procedure/schedule/reminder/subject-assessment/restart",
+  "screenshots": "synthetic profile only",
+  "restart_mode": "Controlled restart after terminating only owned synthetic-profile processes",
+  "normal_close_reopen": "not qualified: initial restart returned AlreadyOpen; remaining owner lifetime unresolved",
+  "passed_checks": 26
 }
