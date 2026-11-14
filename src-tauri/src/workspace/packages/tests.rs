@@ -934,3 +934,159 @@ fn malformed_ingestion_job_domains_are_rejected() {
         reject_mutation(sql);
     }
 }
+
+fn historical_native_package(version: i64) -> (tempfile::TempDir, NativeCapture) {
+    let (temp, _db, mut package) = capture();
+    let path = package.staging.path().join("database.sqlite3");
+    let connection = Connection::open(&path).unwrap();
+    connection.execute_batch("DROP TABLE assessment_parts; DROP TABLE assessment_runs; DROP TABLE recall_states; DROP TABLE recall_review_events; DROP TABLE review_journal; DROP TABLE review_operations; DROP TABLE review_plan; DELETE FROM schema_migrations WHERE version=9;").unwrap();
+    if version == 7 {
+        connection.execute_batch("DROP TABLE study_operations; DROP TABLE study_judgments; DROP TABLE study_attempts; DROP TABLE study_sessions; DELETE FROM schema_migrations WHERE version=8;").unwrap();
+    }
+    connection
+        .pragma_update(None, "user_version", version)
+        .unwrap();
+    connection
+        .execute("UPDATE preferences SET revision=17", [])
+        .unwrap();
+
+    package.manifest.schema_version = version;
+    package.manifest.table_counts = validation::table_counts(&connection).unwrap();
+    drop(connection);
+    let (hash, size) = hash_file(&path, MAX_DATABASE).unwrap();
+    package.manifest.payloads[0].sha256 = hash;
+    package.manifest.payloads[0].byte_length = size;
+    (temp, package)
+}
+
+fn m3_native_package() -> (tempfile::TempDir, NativeCapture) {
+    historical_native_package(7)
+}
+
+#[test]
+fn m3_native_package_is_validated_without_mutation_then_migrated_after_restore() {
+    let (temp, package) = m3_native_package();
+    let verified = roundtrip(&package);
+    assert_eq!(verified.manifest, package.manifest);
+    let original = hash_file(
+        &verified.staging.path().join("database.sqlite3"),
+        MAX_DATABASE,
+    )
+    .unwrap();
+    let manager = CourseManager::open(temp.path().join("restored")).unwrap();
+    let operation = Uuid::new_v4();
+    manager
+        .restore_native(operation, "M3 recovery".into(), &verified, false)
+        .unwrap();
+    let root = temp
+        .path()
+        .join("restored/courses/data")
+        .join(operation.to_string());
+    let db = Database::open(&root).unwrap();
+    assert_eq!(db.id, verified.manifest.workspace_id);
+    assert_eq!(
+        db.connection
+            .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
+        SCHEMA_VERSION
+    );
+    assert_eq!(
+        db.connection
+            .query_row("SELECT revision FROM preferences", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        17
+    );
+    assert_eq!(
+        db.connection
+            .query_row("SELECT count(*) FROM study_attempts", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    assert!(
+        root.join("migration-backups")
+            .read_dir()
+            .unwrap()
+            .next()
+            .is_some()
+    );
+    assert_eq!(
+        hash_file(
+            &verified.staging.path().join("database.sqlite3"),
+            MAX_DATABASE
+        )
+        .unwrap(),
+        original
+    );
+    // Published restore retries use the original receipt even after opening/migration.
+    manager
+        .restore_native(operation, "M3 recovery".into(), &verified, false)
+        .unwrap();
+}
+
+#[test]
+fn m3_native_package_rejects_added_ddl_even_with_matching_payload_hashes() {
+    let (_temp, mut package) = m3_native_package();
+    let path = package.staging.path().join("database.sqlite3");
+    let connection = Connection::open(&path).unwrap();
+    connection
+        .execute_batch("CREATE TRIGGER hostile AFTER INSERT ON preferences BEGIN SELECT 1; END;")
+        .unwrap();
+    drop(connection);
+    let (hash, size) = hash_file(&path, MAX_DATABASE).unwrap();
+    package.manifest.payloads[0].sha256 = hash;
+    package.manifest.payloads[0].byte_length = size;
+    let mut bytes = Cursor::new(Vec::new());
+    package.write_to(&mut bytes).unwrap();
+    assert!(NativeCapture::read_from(Cursor::new(bytes.into_inner())).is_err());
+}
+
+#[test]
+fn schema_eight_native_package_is_immutable_during_admission_then_migrates_to_review_schema() {
+    let (temp, package) = historical_native_package(8);
+    let verified = roundtrip(&package);
+    let original = hash_file(
+        &verified.staging.path().join("database.sqlite3"),
+        MAX_DATABASE,
+    )
+    .unwrap();
+    let manager = CourseManager::open(temp.path().join("schema8-restored")).unwrap();
+    let operation = Uuid::new_v4();
+    manager
+        .restore_native(operation, "Schema8 recovery".into(), &verified, false)
+        .unwrap();
+    let root = temp
+        .path()
+        .join("schema8-restored/courses/data")
+        .join(operation.to_string());
+    let db = Database::open(&root).unwrap();
+    assert_eq!(
+        db.connection
+            .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
+        SCHEMA_VERSION
+    );
+    assert_eq!(
+        db.connection
+            .query_row("SELECT count(*) FROM review_journal", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    assert!(
+        root.join("migration-backups")
+            .read_dir()
+            .unwrap()
+            .next()
+            .is_some()
+    );
+    assert_eq!(
+        hash_file(
+            &verified.staging.path().join("database.sqlite3"),
+            MAX_DATABASE
+        )
+        .unwrap(),
+        original
+    );
+}

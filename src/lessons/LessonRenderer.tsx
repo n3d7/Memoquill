@@ -1,3 +1,5 @@
+import { InstructionalSupport } from './InstructionalSupport';
+import { activityPrompt, constructedReference } from './activityPrompt';
 import { createElement, useId, useRef, useState, type ReactNode } from 'react';
 import { DocumentEditor } from '../DocumentEditor';
 import type { SavedDocument } from '../application/contentTypes';
@@ -65,13 +67,14 @@ export function LessonRenderer({ composition, resources, activities, sources, on
 function Activity({ node, activity, state, update, event, name, workedExample }: { node: LessonNode; activity: ActivityRevision; state: LocalState; update: (patch: Partial<LocalState>) => void; event: (name: string, value?: string) => void; name: string; workedExample?: SavedDocument['document'] }) {
   const d = activity.definition;
   const change = (response: string) => { update({ response, submitted: false }); event('response', response); };
-  const reveal = d.family === 'recall' ? d.answer : d.family === 'singleChoice' ? d.options.find(o => o.id === d.correctOptionId)?.text : d.family === 'constructed' ? d.rubric : d.reflection;
-  return <fieldset className={`lesson-exercise ${String((node.props as Record<string, unknown>).presentation ?? 'default')}`}><legend>{d.prompt}</legend>
+  const reveal = d.family === 'recall' ? d.answer : d.family === 'singleChoice' ? d.options.find(o => o.id === d.correctOptionId)?.text : d.family === 'constructed' ? constructedReference(d) : d.reflection;
+  return <fieldset className={`lesson-exercise ${String((node.props as Record<string, unknown>).presentation ?? 'default')}`}><legend>{activityPrompt(d)}</legend>
     {d.family === 'singleChoice' ? d.options.map(option => <label key={option.id}><input type="radio" name={name} checked={state.response === option.id} onChange={() => change(option.id)} />{option.text}</label>) : d.family === 'procedure' ? <ol>{d.steps.map(step => <li key={step.id}><label><input type="checkbox" checked={state.checked.includes(step.id)} onChange={e => { update({ checked: e.target.checked ? [...state.checked, step.id] : state.checked.filter(id => id !== step.id), submitted: false }); }} />{step.text}</label></li>)}</ol> : <label>Your response<textarea value={state.response} onChange={e => change(e.target.value)} /></label>}
     {d.family === 'procedure' && <label>Your reflection<textarea value={state.response} onChange={e => change(e.target.value)} /></label>}
     <button disabled={state.hint >= d.hints.length} onClick={() => { update({ hint: state.hint + 1 }); event('hint'); }}>Show preview hint</button><button onClick={() => { update({ revealed: true }); event('reveal'); }}>Reveal preview guidance</button><button onClick={() => { update({ submitted: true }); event('submit'); }}>Check preview response</button>
     {d.hints.slice(0, state.hint).map((hint, i) => <p key={i}>Hint: {hint}</p>)}{state.revealed && <p>Preview guidance: {reveal}</p>}
-    {state.revealed && d.family === 'constructed' && d.workedExampleBindingId && (workedExample ? <aside><h3>Worked example</h3><DocumentEditor document={workedExample} readOnly passive label="Worked example reading" onChange={() => {}} /></aside> : <p>Pinned worked example unavailable.</p>)}
+    <InstructionalSupport definition={d} preview />
+    {state.revealed && d.family === 'constructed'  && d.workedExampleBindingId && (workedExample ? <aside><h3>Worked example</h3><DocumentEditor document={workedExample} readOnly passive label="Worked example reading" onChange={() => {}} /></aside> : <p>Pinned worked example unavailable.</p>)}
     {state.submitted && <p role="status">{d.evaluation === 'exact' ? state.response === (d.family === 'singleChoice' ? d.correctOptionId : d.family === 'recall' ? d.answer : '') ? 'Exact answer matched.' : 'Exact answer did not match.' : 'Compare your work with the guidance. Assessment remains your choice; no result is recorded.'}</p>}
   </fieldset>;
 }

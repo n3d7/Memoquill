@@ -1,3 +1,4 @@
+mod assessment_commands;
 mod attachments;
 mod authoring;
 mod course_commands;
@@ -8,6 +9,8 @@ mod lesson_commands;
 mod native_files;
 pub mod organization;
 mod package_commands;
+mod review_commands;
+mod study_commands;
 pub mod workspace;
 
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -83,6 +86,14 @@ pub fn run() {
             lesson_commands::lesson_apply_draft,
             lesson_commands::lesson_discard_draft,
             lesson_commands::lesson_get_receipt,
+            assessment_commands::assessment_create,
+            assessment_commands::assessment_read,
+            assessment_commands::assessment_list,
+            review_commands::review_apply,
+            review_commands::review_overview,
+            study_commands::study_apply,
+            study_commands::study_read,
+            study_commands::study_sessions,
             check_draft,
             workspace_status,
             save_reading_preferences,

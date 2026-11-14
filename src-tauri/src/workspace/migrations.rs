@@ -36,6 +36,14 @@ pub(super) const MIGRATIONS: &[Migration] = &[
         version: 7,
         sql: include_str!("migrations/007_search_projection.sql"),
     },
+    Migration {
+        version: 8,
+        sql: include_str!("migrations/008_study.sql"),
+    },
+    Migration {
+        version: 9,
+        sql: include_str!("migrations/009_review.sql"),
+    },
 ];
 
 pub(super) fn checksum(bytes: &[u8]) -> String {
@@ -126,7 +134,7 @@ mod lesson_upgrade_tests {
         .unwrap();
         c.execute("UPDATE search_index_state SET dirty=0", [])
             .unwrap();
-        apply(&mut c, 6, MIGRATIONS).unwrap();
+        apply(&mut c, 6, &MIGRATIONS[..7]).unwrap();
         validate(&c, 7).unwrap();
         assert_eq!(
             c.query_row(
@@ -180,12 +188,13 @@ mod lesson_upgrade_tests {
         let mut c = Connection::open_in_memory().unwrap();
         c.pragma_update(None, "foreign_keys", true).unwrap();
         apply(&mut c, 0, MIGRATIONS).unwrap();
+        let current = super::super::database::SCHEMA_VERSION;
         let bad = [Migration {
-            version: 8,
+            version: current + 1,
             sql: "CREATE TABLE broken(id TEXT REFERENCES resources(id)); INSERT INTO broken VALUES('missing');",
         }];
         assert_eq!(
-            apply(&mut c, 7, &bad).unwrap_err().code,
+            apply(&mut c, current, &bad).unwrap_err().code,
             ErrorCode::RecoveryRequired
         );
         assert!(
@@ -195,7 +204,7 @@ mod lesson_upgrade_tests {
         assert_eq!(
             c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
                 .unwrap(),
-            7
+            current
         );
         assert_eq!(
             c.query_row(
@@ -206,6 +215,6 @@ mod lesson_upgrade_tests {
             .unwrap(),
             0
         );
-        validate(&c, 7).unwrap();
+        validate(&c, current).unwrap();
     }
 }

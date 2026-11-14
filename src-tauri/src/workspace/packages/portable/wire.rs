@@ -20,16 +20,20 @@ fn limit(n: &str) -> u64 {
     }
 }
 pub(super) fn validate_manifest(m: &PortableManifest) -> Result<()> {
+    let mut expected = sections(m.sections.contains_key("studyHistory"));
+    if m.sections.get("studyHistory") == Some(&1) {
+        expected.insert("studyHistory".into(), 1);
+    }
     if m.format_version != 1
         || m.kind != "portableContent"
         || m.scope != "selectedCourse"
-        || m.sections != sections()
+        || m.sections != expected
         || !m.required_adapters.is_empty()
     {
         return Err(AppError::new(ErrorCode::UnsupportedVersion));
     }
     if m.source_course_id.get_version_num() != 4
-        || m.omissions != OMISSIONS
+        || !valid_omissions(&m.omissions, m.sections.contains_key("studyHistory"))
         || m.payloads.len() < 2
         || m.payloads.len() >= MAX_ENTRIES
         || (m.originals_requested && !m.intentionally_omitted_assets.is_empty())

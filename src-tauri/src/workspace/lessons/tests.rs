@@ -1125,12 +1125,57 @@ fn offline_catalog_supplies_typed_event_action_state_and_fallback_contracts() {
     );
     assert!(!activity.state.persistent);
     assert!(activity.state.scope.contains("Occurrence"));
+    let variants = activity.schemas["activityDefinition"]["oneOf"]
+        .as_array()
+        .unwrap();
+    assert_eq!(variants.len(), 7);
+    let repair = &variants[6]["properties"]["instruction"];
+    assert_eq!(repair["properties"]["phase"]["const"], "errorRepair");
     assert_eq!(
-        activity.schemas["activityDefinition"]["oneOf"]
-            .as_array()
-            .unwrap()
-            .len(),
-        4
+        repair["required"],
+        json!(["phase", "material", "label", "expectedCorrection", "review"])
+    );
+    assert_eq!(
+        repair["properties"]["review"]["required"],
+        json!(["reviewer", "reference"])
+    );
+    assert_eq!(repair["additionalProperties"], false);
+    assert_eq!(
+        repair["properties"]["review"]["additionalProperties"],
+        false
+    );
+    let identities: Vec<_> = variants
+        .iter()
+        .map(|v| {
+            (
+                v["properties"]["family"]["const"].as_str().unwrap(),
+                v["properties"]["version"]["const"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        identities,
+        vec![
+            ("recall", 1),
+            ("singleChoice", 1),
+            ("constructed", 1),
+            ("procedure", 1),
+            ("recall", 2),
+            ("constructed", 2),
+            ("constructed", 3)
+        ]
+    );
+    assert_eq!(
+        variants[4]["properties"]["responseFormat"]["const"],
+        "boundedCloze"
+    );
+    assert_eq!(
+        variants[5]["properties"]["instruction"]["additionalProperties"],
+        false
+    );
+    assert_eq!(
+        variants[5]["properties"]["instruction"]["required"],
+        json!(["phase", "material"])
     );
     for descriptor in catalog {
         assert!(descriptor.fallback.preserves_opaque_payload);
@@ -1591,4 +1636,85 @@ fn scoped_resource_read_resolves_published_pins_in_validated_drafts() {
             .unwrap(),
         None
     );
+}
+
+#[test]
+fn bounded_cloze_v2_requires_one_literal_blank_and_a_bounded_answer() {
+    let valid = json!({"family":"recall","version":2,"responseFormat":"boundedCloze","prompt":"English: The word is {{answer}}.","answer":"Answer","hints":[],"evaluation":"exact"});
+    assert!(validation::activity(&valid).is_ok());
+    for (field, value) in [
+        ("version", json!(1)),
+        ("responseFormat", json!("executableTemplate")),
+        ("prompt", json!("No blank")),
+        ("prompt", json!("{{answer}} and {{answer}}")),
+        ("prompt", json!("{{answer}} {{other}}")),
+        ("answer", json!("a".repeat(1025))),
+    ] {
+        let mut bad = valid.clone();
+        bad[field] = value;
+        assert!(
+            validation::activity(&bad).is_err(),
+            "accepted invalid {field}"
+        );
+    }
+}
+
+#[test]
+fn study_instructional_definitions_require_bounded_explicit_material_and_known_phase() {
+    for instruction in [
+        json!({"phase":"completion","material":""}),
+        json!({"phase":"future","material":"x"}),
+        json!({"phase":"completion","material":"x","execute":"code"}),
+        json!({"phase":"completion","material":"x".repeat(16385)}),
+    ] {
+        let definition = json!({"family":"constructed","version":2,"prompt":"Complete","rubric":"Explain","hints":[],"evaluation":"self","instruction":instruction});
+        assert!(super::validation::activity(&definition).is_err());
+    }
+}
+
+#[test]
+fn error_repair_requires_versioned_label_correction_and_review_provenance() {
+    let definition = json!({"family":"constructed","version":3,"prompt":"Find and repair the error","rubric":"Explain the correction","hints":[],"evaluation":"self","instruction":{"phase":"errorRepair","material":"2 + 2 = 5","label":"Intentionally incorrect arithmetic","expectedCorrection":"2 + 2 = 4","review":{"reviewer":"Fixture author","reference":"Elementary addition reference"}}});
+    assert!(super::validation::activity(&definition).is_ok());
+    for (subject, material, correction) in [
+        ("English", "She go to school", "She goes to school"),
+        (
+            "Python",
+            "print(2 + 2) produces 5",
+            "The printed value is 4",
+        ),
+        ("Math", "2 + 2 = 5", "2 + 2 = 4"),
+        (
+            "Cooking",
+            "Stir an empty bowl after serving",
+            "Mix the ingredients before serving",
+        ),
+    ] {
+        let mut fixture = definition.clone();
+        fixture["instruction"]["label"] = json!(format!("Intentional {subject} error"));
+        fixture["instruction"]["material"] = json!(material);
+        fixture["instruction"]["expectedCorrection"] = json!(correction);
+        assert!(super::validation::activity(&fixture).is_ok(), "{subject}");
+    }
+    for key in ["label", "expectedCorrection", "material"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"][key] = json!("   ");
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    for key in ["label", "expectedCorrection", "review"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"].as_object_mut().unwrap().remove(key);
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    for key in ["reviewer", "reference"] {
+        let mut invalid = definition.clone();
+        invalid["instruction"]["review"][key] = json!("");
+        assert!(super::validation::activity(&invalid).is_err(), "{key}");
+    }
+    let mut old = definition.clone();
+    old["version"] = json!(2);
+    assert!(super::validation::activity(&old).is_err());
+    let mut untrusted = definition;
+    untrusted["instruction"]["review"]["verified"] = json!(true);
+    assert!(super::validation::activity(&untrusted).is_err());
 }

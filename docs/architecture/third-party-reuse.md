@@ -1,5 +1,26 @@
 # Third-party reuse and attribution
 
+## M4.2 linked recall and timezone components (2026-11-14)
+
+`fsrs =7.0.0` is linked unmodified from the locked crates.io archive (SHA-256
+5cfbc88edd1cc96cec10317192b57cc5a5c50bd48f3144d3920b9bf5da87fa69), under the
+actual BSD-3-Clause text, Copyright (c) 2023 Open Spaced Repetition. Retain its
+copyright, conditions, disclaimer and non-endorsement condition with source/binary
+distributions. Published default parameters and numerical fixtures identify the
+adapter's model; no optimizer or application code is copied. Primary source/license
+and toolchain/fixture evidence: [FSRS qualification](../research/fsrs-rust-integration.md).
+
+`jiff =0.2.38` and `jiff-tzdb =0.1.9` use their unmodified Unlicense/MIT choices,
+with actual original texts/notices preserved in the regenerated Linux inventory.
+Bundled TZif is selected explicitly for deterministic offline study days rather
+than host timezone files. The twenty-five added component/version pairs and every
+resolved Linux transitive source/archive/notice hash are in
+`docs/licenses/dependency-inventory.json`; original texts remain in the packaged
+`THIRD-PARTY-NOTICES.txt`. No project-license change, extra exception or copied
+Anki implementation/data is involved. Full license-policy gate remains a separate
+verification result, not a legal conclusion.
+
+
 ## G1 native package implementation (2026-11-11)
 
 Pinned `zip`9.5.0 is linked with default features disabled and deflate enabled.

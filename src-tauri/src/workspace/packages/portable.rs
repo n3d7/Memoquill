@@ -20,7 +20,7 @@ const OMISSIONS: &[&str] = &[
     "subject prior knowledge",
     "unreferenced assets",
     "derived search indexes",
-    "M4 attempts, history and schedules (not implemented)",
+    "study attempts, judgments and schedules",
 ];
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -66,12 +66,44 @@ fn stage() -> Result<tempfile::TempDir> {
         .prefix("memoquill-portable-")
         .tempdir()?)
 }
-fn sections() -> BTreeMap<String, u32> {
-    BTreeMap::from([
+fn sections(history: bool) -> BTreeMap<String, u32> {
+    let mut result = BTreeMap::from([
         ("content".into(), 1),
         ("readable".into(), 1),
         ("assets".into(), 1),
-    ])
+    ]);
+    if history {
+        result.insert("studyHistory".into(), 2);
+    }
+    result
+}
+fn omissions(history: bool) -> Vec<String> {
+    OMISSIONS
+        .iter()
+        .filter(|s| {
+            !history
+                || !matches!(
+                    **s,
+                    "learner responses and progress" | "study attempts, judgments and schedules"
+                )
+        })
+        .map(|s| {
+            if history && *s == "operation receipts" {
+                "workspace operation receipts".into()
+            } else {
+                (*s).into()
+            }
+        })
+        .chain(history.then(|| "schedules".into()))
+        .collect()
+}
+fn valid_omissions(value: &[String], history: bool) -> bool {
+    if value == omissions(history) {
+        return true;
+    }
+    let mut legacy = omissions(false);
+    *legacy.last_mut().unwrap() = "M4 attempts, history and schedules (not implemented)".into();
+    !history && value == legacy
 }
 fn versions(content: &Content) -> BTreeMap<String, u64> {
     BTreeMap::from([
@@ -139,8 +171,11 @@ fn asset_references(content: &Content) -> Result<BTreeSet<String>> {
 }
 fn projection(content: &Content) -> Result<Vec<u8>> {
     // Plain text avoids interpreting imported HTML/Markdown, scripts or resource URLs.
-    let mut text =
-        String::from("Memoquill portable content — content only; no learner history.\n\n");
+    let mut text = String::from(if content.has_history() {
+        "Memoquill portable content — includes opted-in study history.\n\n"
+    } else {
+        "Memoquill portable content — content only; no learner history.\n\n"
+    });
     for r in &content.resource_revisions {
         let title = content
             .resources
@@ -166,6 +201,18 @@ fn projection(content: &Content) -> Result<Vec<u8>> {
             s.id, s.filename, s.attribution, s.license, s.origin_url
         ));
     }
+    for attempt in &content.study_attempts {
+        text.push_str(&format!(
+            "STUDY RESPONSE {}\n{}\n\n",
+            attempt.id, attempt.data
+        ));
+    }
+    for judgment in &content.study_judgments {
+        text.push_str(&format!(
+            "STUDY JUDGMENT {}\n{}\n\n",
+            judgment.id, judgment.data
+        ));
+    }
     if text.len() as u64 > MAX_CONTENT {
         return Err(budget());
     }
@@ -185,17 +232,30 @@ fn put(staging: &Path, name: &str, bytes: &[u8]) -> Result<NativePayload> {
     })
 }
 impl Database {
+    #[cfg(test)]
     pub(in crate::workspace) fn capture_portable(
         &mut self,
         context: RequestContext,
         source_course_id: Uuid,
         originals: bool,
     ) -> Result<PortableCapture> {
+        self.capture_portable_with_history(context, source_course_id, originals, false)
+    }
+    pub(in crate::workspace) fn capture_portable_with_history(
+        &mut self,
+        context: RequestContext,
+        source_course_id: Uuid,
+        originals: bool,
+        history: bool,
+    ) -> Result<PortableCapture> {
         context.authorize()?;
         if source_course_id.get_version_num() != 4 {
             return Err(invalid());
         }
         let mut content = Content::capture(&self.connection)?;
+        if history {
+            content.capture_history(&self.connection)?;
+        }
         // Learner's prior knowledge is not authored shareable content.
         for subject in &mut content.subjects {
             subject.prior_knowledge = None;
@@ -260,12 +320,12 @@ impl Database {
             scope: "selectedCourse".into(),
             source_course_id,
             workspace_id: self.id.clone(),
-            sections: sections(),
+            sections: sections(history),
             required_adapters: BTreeMap::new(),
             originals_requested: originals,
             intentionally_omitted_assets: omitted,
             unavailable_assets: unavailable,
-            omissions: OMISSIONS.iter().map(|s| (*s).into()).collect(),
+            omissions: omissions(history),
             included_records: content.counts()?,
             authored_versions: versions(&content),
             payloads,
@@ -310,6 +370,12 @@ impl PortableCapture {
         staging: tempfile::TempDir,
     ) -> Result<Self> {
         wire::validate_manifest(&manifest)?;
+        if content.has_review() && manifest.sections.get("studyHistory") != Some(&2) {
+            return Err(AppError::new(ErrorCode::UnsupportedVersion));
+        }
+        if content.has_history() && !manifest.sections.contains_key("studyHistory") {
+            return Err(invalid());
+        }
         if content.counts()? != manifest.included_records
             || versions(&content) != manifest.authored_versions
             || content.subjects.iter().any(|s| s.prior_knowledge.is_some())

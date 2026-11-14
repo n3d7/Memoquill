@@ -1,0 +1,200 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "check": "isolated packaged M4 ready",
+      "passed": true
+    },
+    {
+      "check": "recall authoring available",
+      "passed": true
+    },
+    {
+      "check": "procedure authoring available",
+      "passed": true
+    },
+    {
+      "check": "lesson publication acknowledged",
+      "passed": true
+    },
+    {
+      "check": "topic placement controls available",
+      "passed": true
+    },
+    {
+      "check": "practice prompt available",
+      "passed": true
+    },
+    {
+      "check": "response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "practice advances to procedure",
+      "passed": true
+    },
+    {
+      "check": "procedure response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "practice completed with evidence",
+      "passed": true
+    },
+    {
+      "check": "explicit recall rating updated schedule once",
+      "passed": true
+    },
+    {
+      "check": "reminder procedure choices available",
+      "passed": true
+    },
+    {
+      "check": "separate practical reminder created",
+      "passed": true
+    },
+    {
+      "check": "fixed practical reminder rescheduled",
+      "passed": true
+    },
+    {
+      "check": "subject scope frozen from placed lesson",
+      "passed": true
+    },
+    {
+      "check": "frozen assessment starts",
+      "passed": true
+    },
+    {
+      "check": "response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "assessment withholds feedback between activities",
+      "passed": true
+    },
+    {
+      "check": "procedure response acknowledged",
+      "passed": true
+    },
+    {
+      "check": "assessment responses acknowledged",
+      "passed": true
+    },
+    {
+      "check": "global assessment feedback released",
+      "passed": true
+    },
+    {
+      "check": "coverage distinguishes practical outcome",
+      "passed": true
+    },
+    {
+      "check": "same private profile restarted",
+      "passed": true
+    },
+    {
+      "check": "frozen assessment survives real process restart",
+      "passed": true
+    },
+    {
+      "check": "recall schedule survives restart",
+      "passed": true
+    },
+    {
+      "check": "visible recovered window left open for user",
+      "passed": true
+    }
+  ],
+  "scope": "real installed X11 recall/procedure/schedule/reminder/subject-assessment/restart",
+  "screenshots": "synthetic profile only",
+  "restart_mode": "Controlled restart after terminating only owned synthetic-profile processes",
+  "normal_close_reopen": "not qualified: initial restart returned AlreadyOpen; remaining owner lifetime unresolved",
+  "passed_checks": 26,
+  "isolated_close_reopen_diagnosis": {
+    "status": "completed_with_original_desktop_cause_unresolved",
+    "normal_close_reopen_cases_passed": 3,
+    "busy_owner_controls_passed": 3,
+    "synthetic_m4_assertions": 22,
+    "report": "../task-reports/2026-11-14-m4-already-open-podman.md",
+    "original_desktop_normal_close_reopen": "unqualified",
+    "product_source_changed": false
+  },
+  "error_repair_candidate": {
+    "status": "passed",
+    "gui_checks": [
+      {
+        "check": "installed candidate ready",
+        "passed": true
+      },
+      {
+        "check": "versioned repair authored and saved",
+        "passed": true
+      },
+      {
+        "check": "practice response editor ready",
+        "passed": true
+      },
+      {
+        "check": "study lesson region available",
+        "passed": true
+      },
+      {
+        "check": "intentional error label visible",
+        "passed": true
+      },
+      {
+        "check": "author-supplied review displayed",
+        "passed": true
+      },
+      {
+        "check": "review does not claim factual verification",
+        "passed": true
+      },
+      {
+        "check": "expected correction initially hidden in study region",
+        "passed": true
+      },
+      {
+        "check": "response acknowledged",
+        "passed": true
+      },
+      {
+        "check": "explicit reveal displays pinned correction",
+        "passed": true
+      },
+      {
+        "check": "repair response durably submitted",
+        "passed": true
+      },
+      {
+        "check": "installed candidate ready",
+        "passed": true
+      }
+    ],
+    "passed_checks": 12,
+    "normal_close_reopen": {
+      "first_exit": 0,
+      "locks_after_close": [
+        {
+          "path": "io.github.n3d7.memoquill/courses/workspace.lock",
+          "held": false
+        },
+        {
+          "path": "io.github.n3d7.memoquill/workspace/workspace.lock",
+          "held": false
+        }
+      ],
+      "reopened_ready": true
+    },
+    "reference_visibility": {
+      "visible_in_whole_authoring_window": true,
+      "visible_in_study_region": false
+    },
+    "rpm_sha256": "869e0469207cd0f704f1aca578a7b1642b9608c12859f5b01f589ccc148daceb",
+    "image_id": "32d19356d39dc9cbf5314439748abb8b92d3b02a0e09fb14a17baf095c62c7b8",
+    "screenshots": false,
+    "scope": "private Podman X11; current errorRepair candidate; no workstation interaction"
+  },
+  "current_candidate_normal_close_reopen": "passed: guarded native X11 close, actual exit 0, both locks released, reopened app ready; original workstation cause is not attributed"
+}

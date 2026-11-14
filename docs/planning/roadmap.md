@@ -6,12 +6,14 @@ work is standalone and inactive after that cycle. Every main stage still preserv
 its explicit portability boundary. See the [platform contract](../architecture/platform-portability.md)
 and ADR-10 in [decisions](../architecture/decisions.md).
 
-Current continuation (2026-11-09): the user requested checking completed work,
-tool-catalog discovery and resuming Memoquill. M2 and post-M2 course isolation
-KER-127–130 are Done in Linear; current frontend/native-library checks pass.
-The user subsequently approved starting M3/KER-100 in the proposed order; its
-first passive extraction-preview slice is in implementation. See
-[M3 readiness](m3-readiness.md) and its linked design/plan. KER-100 is not complete.
+Current continuation (2026-11-13): M3 PR #5 is merged; KER-100 and KER-101 are
+Done, confirmed by Linear readback. M2 and post-M2 course isolation KER-127–130
+are also Done. PR #6 separately removed local agent instructions/skills from
+tracking while retaining local files. KER-97 is Backlog, with remaining physical
+Fedora/X11/human Orca acceptance deferred to M7; this is not a passed gate.
+M4.1 and M4.2 implementation is complete locally and a PR into main is authorized.
+See [M4 execution](m4-execution.md) and the M4 delivery/GUI receipts for actual
+qualification results and explicitly omitted release gates.
 M2 PR #3 was merged by the owner. Course-level isolation is a separate post-M2 step, not a reopened M2.
 [Requirements and substep map](learning-productivity-followup.md) owns the latest
 course/AI/manual-edit/research-schedule clarification. Full visual design remains
@@ -55,7 +57,7 @@ special cases, a drawing engine or universal pedagogical lockouts.
   by the user's X11-first decision; failures and unrun tests are retained, not passed.
 - Core X11 keyboard/semantic/focus, offline, data integrity, recovery, security and
   licensing requirements remain. Full X11 assistive-technology/reflow acceptance
-  belongs in M7 before a supported release claim; KER-97 remains In Review.
+  belongs in M7 before a supported release claim; KER-97 remains Backlog.
 - M3's conditional PDF gate still requires passive licensed/resource-bounded
   extraction/viewing and anchors. Failure reduces capability honestly.
 - M4 preserves history across revisions/schedule changes. FSRS applies only to

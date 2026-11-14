@@ -29,6 +29,8 @@ pub enum PackageKind {
 pub struct ExportRequest {
     kind: PackageKind,
     include_originals: bool,
+    #[serde(default)]
+    include_history: bool,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -136,10 +138,11 @@ pub async fn package_export<R: tauri::Runtime>(
         )),
         PackageKind::PortableContent => Capture::Portable(Box::new(
             service
-                .capture_portable(
+                .capture_portable_with_history(
                     RequestContext::local_ui(),
                     course_id,
                     request.include_originals,
+                    request.include_history,
                 )
                 .await?,
         )),

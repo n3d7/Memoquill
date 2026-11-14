@@ -10,12 +10,24 @@ type Reply<T> = oneshot::Sender<Result<T>>;
 const QUEUE_CAPACITY: usize = 64;
 
 enum Request {
+    AssessmentCreate(
+        RequestContext,
+        Box<CreateAssessment>,
+        Reply<FrozenAssessment>,
+    ),
+    AssessmentRead(RequestContext, uuid::Uuid, Reply<AssessmentView>),
+    AssessmentList(RequestContext, u64, Reply<Vec<AssessmentSummary>>),
+    ReviewApply(RequestContext, Box<ReviewMutation>, Reply<ReviewPlan>),
+    ReviewOverview(RequestContext, Reply<ReviewOverview>),
     Search(RequestContext, String, u64, Reply<SearchPage>),
     RebuildSearch(RequestContext, Reply<()>),
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
     Lessons(Box<LessonsRequest>),
+    StudyApply(RequestContext, Box<StudyMutation>, Reply<StudySession>),
+    StudyRead(RequestContext, uuid::Uuid, Reply<StudyView>),
+    StudySessions(RequestContext, String, u64, Reply<Vec<StudySession>>),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
     Receipt(RequestContext, OperationId, Reply<Option<OperationReceipt>>),
@@ -27,7 +39,13 @@ enum Request {
         Reply<AssetInfo>,
     ),
     CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
-    CapturePortable(RequestContext, uuid::Uuid, bool, Reply<PortableCapture>),
+    CapturePortable(
+        RequestContext,
+        uuid::Uuid,
+        bool,
+        bool,
+        Reply<PortableCapture>,
+    ),
     Reopen(Reply<WorkspaceStatus>),
     Shutdown(Reply<()>),
 }
@@ -128,6 +146,107 @@ pub struct ApplicationService {
     sender: mpsc::Sender<Request>,
 }
 impl ApplicationService {
+    pub async fn assessment_create(
+        &self,
+        context: RequestContext,
+        request: CreateAssessment,
+    ) -> Result<FrozenAssessment> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::AssessmentCreate(context, Box::new(request), reply),
+            true,
+        )
+        .await
+    }
+    pub async fn assessment_read(
+        &self,
+        context: RequestContext,
+        id: uuid::Uuid,
+    ) -> Result<AssessmentView> {
+        self.request(
+            context,
+            |reply| Request::AssessmentRead(context, id, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn assessment_list(
+        &self,
+        context: RequestContext,
+        offset: u64,
+    ) -> Result<Vec<AssessmentSummary>> {
+        self.request(
+            context,
+            |reply| Request::AssessmentList(context, offset, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn review_apply(
+        &self,
+        context: RequestContext,
+        request: ReviewMutation,
+    ) -> Result<ReviewPlan> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::ReviewApply(context, Box::new(request), reply),
+            true,
+        )
+        .await
+    }
+    pub async fn review_overview(&self, context: RequestContext) -> Result<ReviewOverview> {
+        self.request(
+            context,
+            |reply| Request::ReviewOverview(context, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn study_apply(
+        &self,
+        context: RequestContext,
+        request: StudyMutation,
+    ) -> Result<StudySession> {
+        context.authorize()?;
+        super::lessons::admission::admit(&request)?;
+        self.request(
+            context,
+            |reply| Request::StudyApply(context, Box::new(request), reply),
+            true,
+        )
+        .await
+    }
+    pub async fn study_read(
+        &self,
+        context: RequestContext,
+        session_id: uuid::Uuid,
+    ) -> Result<StudyView> {
+        self.request(
+            context,
+            |reply| Request::StudyRead(context, session_id, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn study_sessions(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        offset: u64,
+    ) -> Result<Vec<StudySession>> {
+        context.authorize()?;
+        super::lessons::admission::admit(&unit_id)?;
+        self.request(
+            context,
+            |reply| Request::StudySessions(context, unit_id, offset, reply),
+            false,
+        )
+        .await
+    }
     pub async fn lesson_source(
         &self,
         context: RequestContext,
@@ -745,9 +864,27 @@ impl ApplicationService {
         source_course_id: uuid::Uuid,
         include_originals: bool,
     ) -> Result<PortableCapture> {
+        self.capture_portable_with_history(context, source_course_id, include_originals, false)
+            .await
+    }
+    pub async fn capture_portable_with_history(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+        include_originals: bool,
+        include_history: bool,
+    ) -> Result<PortableCapture> {
         self.request(
             context,
-            |reply| Request::CapturePortable(context, source_course_id, include_originals, reply),
+            |reply| {
+                Request::CapturePortable(
+                    context,
+                    source_course_id,
+                    include_originals,
+                    include_history,
+                    reply,
+                )
+            },
             false,
         )
         .await
@@ -824,6 +961,30 @@ impl Store {
             Request::Notes(request) => self.handle_notes(request),
             Request::Sources(request) => self.handle_sources(request),
             Request::Lessons(request) => self.handle_lessons(*request),
+            Request::AssessmentCreate(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.assessment_create(context, &request)));
+            }
+            Request::AssessmentRead(context, id, reply) => {
+                let _ = reply.send(self.access(|db| db.assessment_read(context, id)));
+            }
+            Request::AssessmentList(context, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.assessment_list(context, offset)));
+            }
+            Request::ReviewApply(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.review_apply(context, &request)));
+            }
+            Request::ReviewOverview(context, reply) => {
+                let _ = reply.send(self.access(|db| db.review_overview(context)));
+            }
+            Request::StudyApply(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.study_apply(context, &request)));
+            }
+            Request::StudyRead(context, session_id, reply) => {
+                let _ = reply.send(self.access(|db| db.study_read(context, session_id)));
+            }
+            Request::StudySessions(context, unit_id, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.study_sessions(context, &unit_id, offset)));
+            }
             Request::Status(reply) => {
                 let _ = reply.send(self.access(status));
             }
@@ -841,9 +1002,10 @@ impl Store {
             Request::CaptureNative(context, course_id, reply) => {
                 let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
             }
-            Request::CapturePortable(context, course_id, originals, reply) => {
-                let _ = reply
-                    .send(self.access(|db| db.capture_portable(context, course_id, originals)));
+            Request::CapturePortable(context, course_id, originals, history, reply) => {
+                let _ = reply.send(self.access(|db| {
+                    db.capture_portable_with_history(context, course_id, originals, history)
+                }));
             }
             Request::Reopen(reply) => {
                 self.database = Err(AppError::new(ErrorCode::OwnerUnavailable));

@@ -65,12 +65,43 @@ fn appearance() -> Value {
 }
 fn activity_definition() -> Value {
     let items = json!({"type":"array","minItems":1,"maxItems":64,"items":object(json!({"id":string(128),"text":string(4096)}),&["id","text"]),"x-uniqueField":"id"});
-    let variants=["recall","singleChoice","constructed","procedure"].into_iter().map(|family|{let mut p=json!({"family":{"const":family},"version":{"const":1},"prompt":string(16384),"hints":{"type":"array","maxItems":16,"items":string(4096)},"evaluation":{"const":"self"}});let mut required=vec!["family","version","prompt","hints","evaluation"];match family {
+    let mut variants=["recall","singleChoice","constructed","procedure"].into_iter().map(|family|{let mut p=json!({"family":{"const":family},"version":{"const":1},"prompt":string(16384),"hints":{"type":"array","maxItems":16,"items":string(4096)},"evaluation":{"const":"self"}});let mut required=vec!["family","version","prompt","hints","evaluation"];match family {
  "recall"=>{p["answer"]=string(16384);p["evaluation"]=enumeration(&["self","exact"]);required.push("answer");},
  "singleChoice"=>{p["options"]=items.clone();p["correctOptionId"]=string(128);p["evaluation"]=json!({"const":"exact"});required.extend(["options","correctOptionId"]);},
  "constructed"=>{p["rubric"]=string(16384);p["workedExampleBindingId"]=string(128);required.push("rubric");},
  _=>{p["steps"]=items.clone();p["reflection"]=string(4096);required.extend(["steps","reflection"]);}}
  object(p,&required)}).collect::<Vec<_>>();
+    let mut cloze = variants[0].clone();
+    cloze["properties"]["version"] = json!({"const":2});
+    cloze["properties"]["responseFormat"] = json!({"const":"boundedCloze"});
+    cloze["properties"]["answer"] = string(1024);
+    cloze["required"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("responseFormat"));
+    variants.push(cloze);
+    let mut instruction = variants[2].clone();
+    instruction["properties"]["version"] = json!({"const":2});
+    instruction["properties"]["instruction"] = object(
+        json!({"phase":enumeration(&["workedExample","completion"]),"material":string(16384)}),
+        &["phase", "material"],
+    );
+    instruction["required"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("instruction"));
+    variants.push(instruction);
+    let mut repair = variants[2].clone();
+    repair["properties"]["version"] = json!({"const":3});
+    repair["properties"]["instruction"] = object(
+        json!({"phase":{"const":"errorRepair"},"material":string(16384),"label":string(1024),"expectedCorrection":string(16384),"review":object(json!({"reviewer":string(1024),"reference":string(4096)}), &["reviewer", "reference"])}),
+        &["phase", "material", "label", "expectedCorrection", "review"],
+    );
+    repair["required"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("instruction"));
+    variants.push(repair);
     json!({"oneOf":variants,"x-maxBytes":65536,"x-evidence":"previewNeverWritesStudyEvidence"})
 }
 pub(super) fn props_schema(t: &str) -> Value {
