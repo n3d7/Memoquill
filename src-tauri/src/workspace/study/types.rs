@@ -1,4 +1,4 @@
-use crate::workspace::ActivityRevision;
+use crate::workspace::{ActivityRevision, TextScale, Theme};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -79,6 +79,60 @@ pub struct StudyItem {
     pub activity: ActivityRevision,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StudyActivityFamily {
+    All,
+    Recall,
+    SingleChoice,
+    Constructed,
+    Procedure,
+}
+impl StudyActivityFamily {
+    pub(super) fn accepts(self, item: &StudyItem) -> bool {
+        let family = match self {
+            Self::All => return true,
+            Self::Recall => "recall",
+            Self::SingleChoice => "singleChoice",
+            Self::Constructed => "constructed",
+            Self::Procedure => "procedure",
+        };
+        item.activity.definition["family"] == family
+    }
+}
+/// Frozen presentation and learner intentions; never an assessment policy.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StudySettings {
+    pub contract_version: u8,
+    pub theme: Theme,
+    pub text_scale: TextScale,
+    pub goal: String,
+    pub focus: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_limit: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity_family: Option<StudyActivityFamily>,
+}
+impl StudySettings {
+    pub(super) fn validate(&self) -> super::Result<()> {
+        if self
+            .item_limit
+            .is_some_and(|limit| !(1..=64).contains(&limit))
+        {
+            return Err(super::invalid());
+        }
+        crate::workspace::SettingsLayer {
+            contract_version: self.contract_version,
+            overrides: crate::workspace::SettingsOverrides {
+                goal: Some(self.goal.clone()),
+                focus: Some(self.focus.clone()),
+                ..Default::default()
+            },
+        }
+        .validate()
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StudySession {
@@ -87,6 +141,8 @@ pub struct StudySession {
     pub unit_id: String,
     pub composition_revision_id: String,
     pub mode: StudyMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settings: Option<Box<StudySettings>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub assessment_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -218,12 +274,16 @@ pub enum StudyAction {
     StartScopedAssessment {
         assessment_id: Uuid,
         part_index: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        settings: Option<Box<StudySettings>>,
     },
     #[serde(rename_all = "camelCase")]
     Start {
         unit_id: String,
         composition_revision_id: String,
         mode: StudyMode,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        settings: Option<Box<StudySettings>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         binding_ids: Option<Vec<String>>,
         #[serde(default, skip_serializing_if = "StudyPhase::is_unspecified")]

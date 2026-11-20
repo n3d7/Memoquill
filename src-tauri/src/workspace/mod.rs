@@ -19,7 +19,9 @@ mod service;
 mod sources;
 mod study;
 pub use review::*;
+mod settings;
 mod types;
+pub use settings::{SettingsLayer, SettingsOverrides};
 
 pub use content::*;
 pub use courses::*;
@@ -31,9 +33,10 @@ pub use service::ApplicationService;
 pub use sources::*;
 pub use study::{
     AssessmentJudgment, AssessmentOutcome, AssessorIdentity, DeclaredAssistance,
-    JudgmentProvenance, JudgmentSource, JudgmentUncertainty, StudyAction, StudyAttempt, StudyDraft,
-    StudyHelp, StudyItem, StudyMode, StudyMutation, StudyPhase, StudyResponse, StudySession,
-    StudyView,
+    JudgmentProvenance, JudgmentSource, JudgmentUncertainty, LessonProgress, ProgressCoverage,
+    ProgressEvidence, ProgressJudgmentCount, ResumePage, ResumeSession, StudyAction, StudyAttempt,
+    StudyDraft, StudyHelp, StudyItem, StudyMode, StudyMutation, StudyPhase, StudyResponse,
+    StudySession, StudyView,
 };
 pub use types::*;
 
@@ -41,3 +44,6 @@ pub use types::*;
 mod tests;
 
 pub(crate) use lessons::admission as lesson_admission;
+
+#[cfg(test)]
+mod navigation_tests;

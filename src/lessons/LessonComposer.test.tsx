@@ -16,7 +16,13 @@ it('provides real manual node forms and isolates English and physics drafts with
   const english = within(screen.getByRole('region', { name: 'English' })); const physics = within(screen.getByRole('region', { name: 'Physics' }));
   await english.findByRole('button', { name: 'Add component' });
   fireEvent.change(english.getByLabelText('Component type'), { target: { value: 'section' } }); fireEvent.click(english.getByRole('button', { name: 'Add component' }));
-  await english.findByLabelText('Section title'); fireEvent.change(english.getByLabelText('Section title'), { target: { value: 'English only' } }); fireEvent.click(english.getByRole('button', { name: 'Save component settings' }));
+  const sectionTitle = await english.findByLabelText('Section title');
+  await waitFor(() => expect(sectionTitle).toBeEnabled());
+  fireEvent.change(sectionTitle, { target: { value: 'English only' } });
+  await waitFor(() => expect(sectionTitle).toHaveValue('English only'));
+  const saveComponent = english.getByRole('button', { name: 'Save component settings' });
+  await waitFor(() => expect(saveComponent).toBeEnabled());
+  fireEvent.click(saveComponent);
   await waitFor(() => expect(english.getByRole('button', { name: '2. Section — English only' })).toBeInTheDocument()); expect(physics.queryByText(/English only/)).not.toBeInTheDocument();
   expect(vi.mocked(port.editDraft).mock.calls.every(([request]) => request.unitId === 'english')).toBe(true);
   expect(english.getByRole('button', { name: 'Undo lesson change' })).toBeEnabled();

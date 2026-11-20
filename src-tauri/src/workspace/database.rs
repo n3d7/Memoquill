@@ -10,12 +10,13 @@ use rusqlite::{
     params,
 };
 use std::{
+    cell::Cell,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
 pub(super) const APPLICATION_ID: i32 = 0x4d514c4c;
-pub(super) const SCHEMA_VERSION: i64 = 9;
+pub(super) const SCHEMA_VERSION: i64 = 10;
 pub(super) const BUSY_MS: u64 = 2000;
 
 pub(super) struct Database {
@@ -23,6 +24,7 @@ pub(super) struct Database {
     pub(super) owner: Owner,
     pub(super) id: WorkspaceId,
     pub(super) recovery: super::RecoveryReport,
+    pub(super) search_validation: Cell<Option<(u64, i64, i64)>>,
 }
 impl Database {
     pub(super) fn recovery_report(&self) -> super::RecoveryReport {
@@ -38,6 +40,7 @@ impl Database {
             owner,
             id,
             recovery: super::RecoveryReport::default(),
+            search_validation: Cell::new(None),
         };
         db.preferences()?;
         db.recovery = super::recovery::reconcile(&mut db.connection, root)?;
@@ -198,8 +201,11 @@ fn seed_workspace(connection: &mut Connection) -> Result<()> {
         "INSERT INTO preferences(workspace_id,revision,data) VALUES (?1,0,?2)",
         params![
             id.as_str(),
-            serde_json::to_string(&ReadingPreferences::default())
-                .map_err(|_| AppError::new(ErrorCode::InvalidRequest))?
+            serde_json::to_string(&ReadingPreferences {
+                customization: Some(Box::default()),
+                ..ReadingPreferences::default()
+            })
+            .map_err(|_| AppError::new(ErrorCode::InvalidRequest))?
         ],
     )?;
     tx.pragma_update(None, "application_id", APPLICATION_ID)?;

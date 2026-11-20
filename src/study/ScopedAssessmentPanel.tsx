@@ -1,3 +1,4 @@
+import { useStudySettings } from './sessionSettings';
 import { useEffect, useRef, useState } from 'react';
 import { failureMessage, isConfirmedRejection } from '../application/errors';
 import type { LessonPort } from '../lessons/types';
@@ -6,6 +7,7 @@ import type { StudyMutation, StudyPort } from './types';
 import { StudyPanel } from './StudyPanel';
 
 export function ScopedAssessmentPanel({ port, study, lessons, subjects, topics }: { port: AssessmentPort; study: StudyPort; lessons: LessonPort; subjects: Record<string, { title: string; archived: boolean }>; topics: Record<string, { title: string; archived: boolean; subjectId: string }> }) {
+  const newSettings = useStudySettings();
   const [kind, setKind] = useState<'subject' | 'topic'>('subject'); const [scope, setScope] = useState(''); const [saved, setSaved] = useState<AssessmentSummary[]>([]); const [offset, setOffset] = useState<number | null>(null);
   const [view, setView] = useState<AssessmentView | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const [pending, setPending] = useState<CreateAssessment | null>(null); const [pendingPart, setPendingPart] = useState<StudyMutation | null>(null); const [active, setActive] = useState<number | null>(null); const [canLeave, setCanLeave] = useState(false);
@@ -47,9 +49,9 @@ export function ScopedAssessmentPanel({ port, study, lessons, subjects, topics }
     {pendingPart?.action.kind === 'startScopedAssessment' && !busy && <button onClick={() => { if (pendingPart.action.kind === 'startScopedAssessment') void startPart(pendingPart, pendingPart.action.partIndex, true); }}>Reconnect and retry assessment part</button>}
     {view && <><h4>{view.assessment.title}</h4><p>{view.feedbackAvailable ? 'All assessment parts are complete. Feedback is available.' : 'Feedback is withheld until every assessment part is complete.'}</p>
       <button disabled={blocked || active !== null} onClick={() => void read(view.assessment.id)}>Refresh assessment</button>
-      <ol>{view.assessment.parts.map((part,index) => <li key={part.sessionId}>{part.unitTitle}: {part.objective} — {view.parts[index]?.completed ?? 0}/{part.items.length}{view.parts[index]?.changedContent && <p>This lesson has changed; original questions are retained.</p>}<button disabled={blocked || active !== null} onClick={() => {
+      <ol>{view.assessment.parts.map((part,index) => <li key={part.sessionId}>{part.unitTitle}: {part.objective} — {view.parts[index]?.completed ?? 0}/{part.items.length}{view.parts[index]?.changedContent && <p>This lesson has changed; original questions are retained.</p>}<button disabled={blocked || active !== null || (!view.parts[index]?.started && !newSettings)} onClick={() => {
         if (view.parts[index]?.started) { setCanLeave(false); setActive(index); }
-        else void startPart({ operationId: crypto.randomUUID(), sessionId: part.sessionId, expectedRevision: 0, action: { kind: 'startScopedAssessment', assessmentId: view.assessment.id, partIndex: index } }, index);
+        else void startPart({ operationId: crypto.randomUUID(), sessionId: part.sessionId, expectedRevision: 0, action: { kind: 'startScopedAssessment', assessmentId: view.assessment.id, partIndex: index, settings: newSettings ?? undefined } }, index);
       }}>{view.parts[index]?.started ? 'Resume assessment part' : 'Start assessment part'}</button></li>)}</ol>
       {view.assessment.omissions.length > 0 && <p>{view.assessment.omissions.length} scope entries were excluded: instructional support, unsupported activities or lessons without assessable published content. These exclusions are retained with the assessment.</p>}
       <section aria-label="Assessment coverage"><h4>Coverage by outcome</h4><p>Declared unaided work, external help and unknown assistance remain separate. Recognition and self-reported practical work do not establish general competence.</p>

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useApplicationActive, useWorkspacePort } from './application/ApplicationProvider';
+import { useEffect, useRef, useState } from 'react';
+import { useWorkspacePort } from './application/ApplicationProvider';
 import type { WorkspacePort } from './application/ports';
 import type { PreferencesSnapshot, ReadingPreferences, SavePreferences, WorkspaceStatus } from './workspaceBridge';
 
@@ -45,8 +45,8 @@ function useInitialWorkspace(port: WorkspacePort, accept: (status: WorkspaceStat
   }, []); // Startup only: callbacks use stable state setters, never current edits.
 }
 export function useReadingPreferences() {
+  const saving = useRef(false);
   const port = useWorkspacePort();
-  const active = useApplicationActive();
   const [snapshot, setSnapshot] = useState<PreferencesSnapshot | null>(null);
   const [preferences, setPreferences] = useState<ReadingPreferences>({ theme: 'system', textScale: 100 });
   const [pending, setPending] = useState<SavePreferences | null>(null);
@@ -60,7 +60,6 @@ export function useReadingPreferences() {
     setRecovery(needsRecovery(status));setPending(null);setMessage(readyMessage(status));
   }
   useInitialWorkspace(port, accept, reason => setMessage(storageMessage(reason)), () => setWorking(false));
-  useEffect(() => { if (active) document.documentElement.style.fontSize = `${preferences.textScale}%`; }, [preferences.textScale, active]);
 
   async function reload(): Promise<string> {
     setWorking(true);
@@ -68,20 +67,26 @@ export function useReadingPreferences() {
     catch (reason) { const text = storageMessage(reason);setMessage(text);return text; }
     finally { setWorking(false); }
   }
-  async function save(): Promise<string> {
+  async function save(override?: ReadingPreferences): Promise<string> {
+    if (saving.current) return 'A preference save is already in progress.';
     if (!snapshot) return 'Open the workspace before saving preferences.';
     const request = pending ?? { contractVersion: 1, workspaceId: snapshot.workspaceId,
-      operationId: crypto.randomUUID(), expectedRevision: snapshot.revision, preferences } satisfies SavePreferences;
-    setPending(request);setWorking(true);
+      operationId: crypto.randomUUID(), expectedRevision: snapshot.revision, preferences: override ?? preferences } satisfies SavePreferences;
+    saving.current = true; setPending(request);setWorking(true);
     try {
       const result = await sendPreferences(request, pending !== null, port);
       setSnapshot(result);setPreferences(result.preferences);setPending(null);
       const text = 'Reading preferences saved. Material edits are unchanged.';
       setMessage(text);return text;
     } catch (reason) { const text = storageMessage(reason);setMessage(text);return text; }
-    finally { setWorking(false); }
+    finally { saving.current = false; setWorking(false); }
   }
-  return { preferences, setPreferences, working, recovery, message, save, reload,
-    loaded: snapshot !== null, retry: pending !== null };
+  async function saveNavigation(navigation: import('./application/workspaceTypes').NavigationContext | null): Promise<string> {
+    if (!snapshot) return 'Open the workspace first.';
+    if (JSON.stringify(preferences) !== JSON.stringify(snapshot.preferences)) return 'Save or reload appearance changes before changing remembered context.';
+    return save({ ...snapshot.preferences, navigation });
+  }
+  return { saveNavigation, preferences, setPreferences, working, recovery, message, save, reload,
+    loaded: snapshot !== null, pendingPreferences: pending?.preferences, retry: pending !== null };
 }
 export type ReadingController = ReturnType<typeof useReadingPreferences>;

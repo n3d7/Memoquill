@@ -2,6 +2,8 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "courses_list",
+            "workspace_settings",
+            "save_workspace_settings",
             "course_create",
             "course_select",
             "assessment_create",
@@ -12,6 +14,8 @@ fn main() {
             "study_apply",
             "study_read",
             "study_sessions",
+            "study_progress",
+            "study_resume_sessions",
             "lesson_discover",
             "lesson_read",
             "lesson_read_source",

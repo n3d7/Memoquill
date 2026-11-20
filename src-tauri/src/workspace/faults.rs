@@ -8,6 +8,7 @@ pub(super) enum Phase {
     DirectorySync,
     BeforeCommit,
     MigrationBeforeCommit,
+    SearchAfterValidation,
     AfterCommit,
 }
 

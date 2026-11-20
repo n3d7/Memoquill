@@ -7,6 +7,8 @@
   ],
   "permissions": [
     "allow-courses-list",
+    "allow-workspace-settings",
+    "allow-save-workspace-settings",
     "allow-course-create",
     "allow-course-select",
     "allow-check-draft",
@@ -41,6 +43,8 @@
     "allow-study-apply",
     "allow-study-read",
     "allow-study-sessions",
+    "allow-study-progress",
+    "allow-study-resume-sessions",
     "allow-lesson-discover",
     "allow-lesson-read",
     "allow-lesson-list-drafts",

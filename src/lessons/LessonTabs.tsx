@@ -1,25 +1,38 @@
+import type { ReviewOverview } from '../study/reviewTypes';
+import { EntitySelect } from '../application/EntitySelect';
+import { StudyStartPanel } from '../study/StudyStartPanel';
+import { ProgressPanel } from '../study/ProgressPanel';
 import { ScopedAssessmentPanel } from '../study/ScopedAssessmentPanel';
 import { ReviewDashboard } from '../study/ReviewDashboard';
-import { useId, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { Command, Library } from '../application/contentTypes';
 import type { SourcePort } from '../application/ports';
 import { LessonComposer } from './LessonComposer';
 import type { LessonPort } from './types';
-import { useOptionalStudyPort, useOptionalReviewPort, useOptionalAssessmentPort } from '../application/ApplicationProvider';
+import { useOptionalContinuityPort, useOptionalProgressPort, useOptionalStudyPort, useOptionalReviewPort, useOptionalAssessmentPort } from '../application/ApplicationProvider';
 import { StudyPanel } from '../study/StudyPanel';
 
 export function LessonTabs({ data, port, sources, perform }: { data: Library; port: LessonPort; sources: SourcePort; perform: (command: Command) => Promise<Library | null> }) {
+  const continuity = useOptionalContinuityPort();
+  const progress = useOptionalProgressPort();
   const study = useOptionalStudyPort(); const review = useOptionalReviewPort(); const assessments = useOptionalAssessmentPort();
+  // Both initial views use the same course snapshot. Refresh and mutation paths
+  // continue to call the original port for fresh data.
+  const initialOverview = useMemo(() => {
+    if (!review || !continuity || !study) return undefined;
+    let initial: Promise<ReviewOverview> | undefined;
+    return () => initial ??= review.overview();
+  }, [continuity, review, study, port, data.workspaceId]);
   const id = useId(); const [mounted, setMounted] = useState<string[]>([]); const [opened, setOpened] = useState<string[]>([]); const [active, setActive] = useState(''); const [chosen, setChosen] = useState('');
   const [title, setTitle] = useState(''); const [objective, setObjective] = useState(''); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const tabs = useRef(new Map<string, HTMLButtonElement>());
   function open(unitId: string) { if (!unitId) return; setMounted(old => old.includes(unitId) ? old : [...old, unitId]); setOpened(old => old.includes(unitId) ? old : [...old, unitId]); setActive(unitId); }
   async function create() { if (!title.trim() || busy) return; setBusy(true); const unitId = crypto.randomUUID(); try { const result = await perform({ type: 'createUnit', id: unitId, title: title.trim(), objective, goalIds: [], resourceIds: [] }); if (result) { open(unitId); setTitle(''); setObjective(''); setMessage('Lesson unit created. Choose Edit lesson to start composing.'); } } finally { setBusy(false); } }
   function close() { const remaining = opened.filter(unitId => unitId !== active); setOpened(remaining); const next = remaining.at(-1) ?? ''; setActive(next); if (next) tabs.current.get(next)?.focus(); setMessage('Lesson closed. Its editing draft and preview stay with this lesson when reopened.'); }
-  return <section aria-label="Lessons"><h2>Your lessons</h2>{assessments && study && <ScopedAssessmentPanel key={data.workspaceId} port={assessments} study={study} lessons={port} subjects={data.subjects} topics={data.collections} />}{review && study && <ReviewDashboard key={data.workspaceId} port={review} study={study} lessons={port} units={data.units} />}<p>Each lesson has its own editable layout, settings and preview responses.</p>
-    <form onSubmit={e => { e.preventDefault(); open(chosen); }}><label>Existing learning unit<select value={chosen} onChange={e => setChosen(e.target.value)}><option value="">Choose learning unit</option>{Object.values(data.units).filter(unit => !unit.archived).map(unit => <option key={unit.id} value={unit.id}>{unit.title}</option>)}</select></label><button disabled={!chosen}>Open lesson</button></form>
+  return <section aria-label="Lessons"><h2>Your lessons</h2>{continuity && review && study && <StudyStartPanel initialOverview={initialOverview} key={data.workspaceId} continuity={continuity} review={review} study={study} lessons={port} />}{assessments && study && <ScopedAssessmentPanel key={data.workspaceId} port={assessments} study={study} lessons={port} subjects={data.subjects} topics={data.collections} />}{review && study && <ReviewDashboard initialOverview={initialOverview} key={data.workspaceId} port={review} study={study} lessons={port} units={data.units} />}<p>Each lesson has its own editable layout, settings and preview responses.</p>
+    <form onSubmit={e => { e.preventDefault(); open(chosen); }}><EntitySelect label="Existing learning unit" placeholder="Choose learning unit" items={data.units} value={chosen} onChange={setChosen} /><button disabled={!chosen}>Open lesson</button></form>
     <form onSubmit={e => { e.preventDefault(); void create(); }}><fieldset disabled={busy}><legend>New lesson</legend><label>New lesson title<input required value={title} onChange={e => setTitle(e.target.value)} /></label><label>Lesson objective<textarea value={objective} onChange={e => setObjective(e.target.value)} /></label><button disabled={!title.trim()}>Create lesson</button></fieldset></form>
     {message && <p role="status">{message}</p>}<div role="tablist" aria-label="Open lessons">{opened.map(unitId => <button role="tab" key={unitId} id={`${id}-tab-${unitId}`} aria-controls={`${id}-panel-${unitId}`} aria-selected={active === unitId} tabIndex={active === unitId ? 0 : -1} ref={element => { if (element) tabs.current.set(unitId, element); else tabs.current.delete(unitId); }} onClick={() => setActive(unitId)} onKeyDown={e => { const position = opened.indexOf(unitId); const index = e.key === 'ArrowRight' ? (position + 1) % opened.length : e.key === 'ArrowLeft' ? (position + opened.length - 1) % opened.length : e.key === 'Home' ? 0 : e.key === 'End' ? opened.length - 1 : -1; if (index >= 0) { e.preventDefault(); setActive(opened[index]); tabs.current.get(opened[index])?.focus(); } }}>{data.units[unitId]?.title ?? 'Lesson'}</button>)}</div>
     {active && <button onClick={close}>Close current lesson</button>}
-    {mounted.map(unitId => <div key={unitId} role="tabpanel" id={`${id}-panel-${unitId}`} aria-labelledby={`${id}-tab-${unitId}`} hidden={active !== unitId || !opened.includes(unitId)}>{data.units[unitId] && <><LessonComposer workspaceId={data.workspaceId} unitId={unitId} title={data.units[unitId].title} materials={data.resources} port={port} sourcePort={sources} />{study && <StudyPanel unitId={unitId} lessons={port} port={study} />}</>}</div>)}
+    {mounted.map(unitId => <div key={unitId} role="tabpanel" id={`${id}-panel-${unitId}`} aria-labelledby={`${id}-tab-${unitId}`} hidden={active !== unitId || !opened.includes(unitId)}>{data.units[unitId] && <><LessonComposer workspaceId={data.workspaceId} unitId={unitId} title={data.units[unitId].title} materials={data.resources} port={port} sourcePort={sources} />{progress && <ProgressPanel key={data.workspaceId + unitId} unitId={unitId} port={progress} />}{study && <StudyPanel unitId={unitId} lessons={port} port={study} />}</>}</div>)}
   </section>;
 }

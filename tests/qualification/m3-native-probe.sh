@@ -37,6 +37,18 @@ for attempt in {1..100}; do
   sleep .1
 done
 if [[ "$ready" != 1 ]]; then echo 'Private IME did not become ready' >&2; exit 1; fi
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == customization ]]; then
+  timeout 300 python3 /input/m5-customization-journey.py x11
+  exit 0
+fi
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == study-settings ]]; then
+  timeout 300 python3 /input/m5-study-settings-journey.py x11
+  exit 0
+fi
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == settings ]]; then
+  timeout 240 python3 /input/m5-settings-journey.py x11
+  exit 0
+fi
 app_command=(memoquill)
 if [[ "${MEMOQUILL_NETWORK_TRACE:-0}" == 1 ]]; then
   app_command=(strace -f -qq -e trace=socket,connect,sendto,sendmsg,sendmmsg -s 32 -o /evidence/network-x11.log memoquill)

@@ -1,3 +1,4 @@
+import { type StudyActivityFamily, useStudySettings } from './sessionSettings';
 import { InstructionalSupport } from '../lessons/InstructionalSupport';
 import { activityPrompt, constructedReference } from '../lessons/activityPrompt';
 import { useEffect, useRef, useState } from 'react';
@@ -6,6 +7,7 @@ import type { LessonPort } from '../lessons/types';
 import type { AssessmentOutcome, DeclaredAssistance, StudyAction, StudyMutation, StudyPort, StudyResponse, StudySession, StudyView, StudyPhase } from './types';
 
 export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLeave }: { unitId: string; lessons: LessonPort; port: StudyPort; initialSessionId?: string; onSafeToLeave?: (safe: boolean) => void }) {
+  const newSettings = useStudySettings();
   const [sessions, setSessions] = useState<StudySession[]>([]); const [view, setView] = useState<StudyView | null>(null);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [response, setResponse] = useState<StudyResponse | null>(null); const [external, setExternal] = useState<DeclaredAssistance>('unknown');
@@ -16,6 +18,8 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
   const [retained, setRetained] = useState<{ index: number; activity: string; response: StudyResponse; external: DeclaredAssistance; rating: string; recallRating: string; outcome: AssessmentOutcome } | null>(null);
   const [recallRating, setRecallRating] = useState('');
   const [phase, setPhase] = useState<StudyPhase>('independent');
+  const [itemLimit, setItemLimit] = useState('64');
+  const [activityFamily, setActivityFamily] = useState<StudyActivityFamily>('all');
   const lock = useRef(false); const mounted = useRef(true);
   useEffect(() => { mounted.current = true; let current = true; void port.sessions(unitId).then(value => { if (current) { setSessions(value); setNextOffset(value.length === 64 ? 64 : null); } }, reason => { if (current) setError(failureMessage(reason)); }); return () => { current = false; mounted.current = false; }; }, [port, unitId]);
   useEffect(() => { if (initialSessionId) void open(initialSessionId); }, [initialSessionId]);
@@ -60,26 +64,27 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
     void run({ operationId: crypto.randomUUID(), sessionId: view.session.id, expectedRevision: view.session.revision, action: value });
   }
   async function start(mode: 'practice' | 'assessment') {
-    if (lock.current || pending || dirty) return; lock.current = true; setBusy(true); setError('');
+    if (lock.current || pending || dirty || !newSettings) return; lock.current = true; setBusy(true); setError('');
     let request: StudyMutation | null = null;
     try {
       const saved = await lessons.read(unitId);
       if (!saved || saved.unitId !== unitId) throw new Error('Publish this lesson with at least one activity before studying.');
-      let bindingIds: string[] | undefined;
-      setNotice('');
-      if (mode === 'assessment') {
-        const bindings = saved.composition.bindings.filter(binding => binding.targetKind === 'activity');
-        const activities = await Promise.all(bindings.map(binding => lessons.readActivity(unitId, binding.revisionId)));
-        bindingIds = bindings.filter((binding, index) => {
-          const activity = activities[index];
-          if (!activity || activity.unitId !== unitId || activity.id !== binding.revisionId) throw new Error('A pinned activity is unavailable. Reload this lesson before starting an assessment.');
-          const definition = activity.definition;
-          return definition.version === 1 && ['recall', 'singleChoice', 'constructed', 'procedure'].includes(definition.family) || definition.family === 'recall' && definition.version === 2;
-        }).map(binding => binding.bindingId);
-        if (bindingIds.length === 0) throw new Error('Publish at least one independent activity before starting an assessment. Worked examples and completion scaffolds are practice only.');
-        if (mounted.current && bindingIds.length < bindings.length) setNotice(`Assessment excludes ${bindings.length - bindingIds.length} instructional or unsupported activities and keeps the selected independent questions fixed.`);
-      }
-      request = { operationId: crypto.randomUUID(), sessionId: crypto.randomUUID(), expectedRevision: 0, action: { kind: 'start', unitId, compositionRevisionId: saved.id, mode, phase, ...(bindingIds ? { bindingIds } : {}) } };
+      const budget = Number(itemLimit);
+      if (!Number.isInteger(budget) || budget < 1 || budget > 64) throw new Error('Choose a session item limit from 1 to 64.');
+      const bindings = saved.composition.bindings.filter(binding => binding.targetKind === 'activity');
+      const activities = mode === 'assessment' || activityFamily !== 'all' ? await Promise.all(bindings.map(binding => lessons.readActivity(unitId, binding.revisionId))) : null;
+      const eligible = bindings.filter((binding, index) => {
+        if (!activities) return true;
+        const activity = activities[index];
+        if (!activity || activity.unitId !== unitId || activity.id !== binding.revisionId) throw new Error('A pinned activity is unavailable. Reload the lesson before starting.');
+        const definition = activity.definition;
+        const independent = definition.version === 1 && ['recall', 'singleChoice', 'constructed', 'procedure'].includes(definition.family) || definition.family === 'recall' && definition.version === 2;
+        return (mode !== 'assessment' || independent) && (activityFamily === 'all' || definition.family === activityFamily);
+      });
+      if (eligible.length === 0) throw new Error('No published activities match this session. Assessment supports independent activities only.');
+      const bindingIds = eligible.slice(0, budget).map(binding => binding.bindingId);
+      setNotice(mode === 'assessment' && activityFamily === 'all' ? `Assessment excludes ${bindings.length - eligible.length} instructional or unsupported activities. The workload selects ${bindingIds.length} independent questions in lesson order; the selected questions stay fixed.` : `Session excludes ${bindings.length - bindingIds.length} activities outside the selected workload, activity family or independent assessment scope. The selected questions stay fixed.`);
+      request = { operationId: crypto.randomUUID(), sessionId: crypto.randomUUID(), expectedRevision: 0, action: { kind: 'start', unitId, compositionRevisionId: saved.id, mode, settings: { ...newSettings, itemLimit: budget, activityFamily }, phase, bindingIds } };
     } catch (reason) { if (mounted.current) setError(failureMessage(reason)); }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
     if (request && mounted.current) await run(request);
@@ -88,11 +93,14 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
   const canSchedule = session?.mode === 'practice' && (session.phase === 'independent' || session.phase === 'delayedCheck') && definition?.family === 'recall' && session.draft.help.hintsRevealed === 0 && !session.draft.help.solutionRevealed && external === 'none';
   const blocked = busy || pending !== null || retained !== null; const feedback = view?.feedbackAvailable ?? (session?.mode === 'practice' || session?.cursor === session?.items.length);
   function edit(value: StudyResponse) { setResponse(value); setDirty(true); }
-  return <section aria-label="Study lesson"><h3>Study this lesson</h3>
+  return <section aria-label="Study lesson" className={session?.settings ? "study-surface" : undefined} data-theme={session?.settings?.theme} style={session?.settings ? { fontSize: `${16 * session.settings.textScale / 100}px` } : undefined}><h3>Study this lesson</h3>
     <p>Practice keeps hints and self-assessment separate from your response. Assessment withholds hints and feedback until the session ends.</p>
     {!initialSessionId && <><label>Study context<select value={phase} disabled={blocked || dirty} onChange={e => setPhase(e.target.value as StudyPhase)}><option value="independent">Independent attempt</option><option value="guided">Guided practice</option><option value="delayedCheck">Delayed check</option><option value="changedContext">Changed-context check</option></select></label>
-    <button disabled={blocked || dirty} onClick={() => void start('practice')}>Start practice</button>{' '}
-    <button disabled={blocked || dirty} onClick={() => void start('assessment')}>Start assessment</button></>}
+    <label>New session item limit<input type="number" min="1" max="64" step="1" value={itemLimit} disabled={blocked || dirty} onChange={e => setItemLimit(e.target.value)} /></label>
+      <label>New session activities<select value={activityFamily} disabled={blocked || dirty} onChange={e => setActivityFamily(e.target.value as StudyActivityFamily)}><option value="all">All activity families</option><option value="recall">Recall</option><option value="singleChoice">Recognition</option><option value="constructed">Constructed responses</option><option value="procedure">Procedural self-report</option></select></label>
+      <p>New sessions use the selected family and the first matching activities in lesson order, up to the item limit. Assessment still excludes instructional scaffolds. Saved sessions retain their original selection and policy.</p>
+      <button disabled={blocked || dirty || !newSettings} onClick={() => void start('practice')}>Start practice</button>{' '}
+    <button disabled={blocked || dirty || !newSettings} onClick={() => void start('assessment')}>Start assessment</button></>}
     {!initialSessionId && sessions.length > 0 && <label>Saved study sessions<select value={session?.id ?? ''} disabled={blocked || dirty} onChange={e => { if (e.target.value) void open(e.target.value); }}><option value="">Choose session to resume</option>{sessions.map(s => <option key={s.id} value={s.id}>{s.mode}: {s.cursor}/{s.items.length} completed — {s.id.slice(0, 8)}</option>)}</select></label>}
     {!initialSessionId && nextOffset !== null && <button disabled={blocked} onClick={() => void older()}>Load older study sessions</button>}
     {notice && <p role="status">{notice}</p>}
@@ -105,7 +113,8 @@ export function StudyPanel({ unitId, lessons, port, initialSessionId, onSafeToLe
       <button disabled={busy || pending !== null} onClick={() => setRetained(null)}>Dismiss retained local response</button>
     </aside>}
     {view?.changedContent && <p role="status">This lesson has changed. This session keeps its original questions and assessment references.</p>}
-    {session && <p>Completed {session.cursor} of {session.items.length}. {dirty ? 'Response has unsaved changes.' : 'Acknowledged responses are saved.'}</p>}
+    {session && <aside aria-label="Saved session settings">{session.settings ? <><p>Saved session appearance: {session.settings.theme}; text size: {session.settings.textScale}%. Resume keeps these settings until the session ends.</p><p>Saved workload: {session.settings.itemLimit ?? 'not specified'} items maximum; activity family: {session.settings.activityFamily ?? 'not specified'}. Actual pinned items: {session.items.length}.</p><p>Session goal: {session.settings.goal || 'Not set'}</p><p>Session focus: {session.settings.focus || 'Not set'}</p></> : <p>This older session has no saved settings snapshot. Current view settings apply; no past preferences are inferred.</p>}<p>Session context: {session.phase ?? 'unspecified'}. {session.mode === 'assessment' ? 'Assessment keeps its fixed feedback and assistance policy.' : 'Practice keeps assistance separate from responses.'}</p></aside>}
+      {session && <p>Completed {session.cursor} of {session.items.length}. {dirty ? 'Response has unsaved changes.' : 'Acknowledged responses are saved.'}</p>}
     {definition && session && <fieldset disabled={blocked}><legend>Current activity</legend><p>{activityPrompt(definition)}</p>
       {session.mode === 'practice' && <InstructionalSupport definition={definition} />}
       {(definition.family === 'recall' || definition.family === 'constructed') && <label>Your response<textarea maxLength={16384} value={response?.kind === 'text' ? response.value : ''} onChange={e => edit({ kind: 'text', value: e.target.value })} /></label>}

@@ -92,21 +92,7 @@ impl Database {
     ) -> Result<SearchPage> {
         context.authorize()?;
         validate_query(query, offset)?;
-        let (dirty, indexed, resources): (bool, i64, i64) = self.connection.query_row("SELECT dirty,(SELECT count(*) FROM search_projection),(SELECT count(*) FROM resources WHERE archived=0) FROM search_index_state WHERE id=1", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
-        let integrity = self.connection.execute(
-            "INSERT INTO search_fts(search_fts) VALUES('integrity-check')",
-            [],
-        );
-        let mut reconstructed = false;
-        if integrity.is_err() {
-            self.reset_search_index(context)?;
-            reconstructed = true;
-        }
-        let mismatch: bool = self.connection.query_row("SELECT (SELECT count(*) FROM search_fts)<>(SELECT count(*) FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_fts EXCEPT SELECT resource_id,title,body,tags FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_projection EXCEPT SELECT resource_id,title,body,tags FROM search_fts)", [], |r| r.get(0))?;
-        let index_rebuilt = dirty || indexed != resources || reconstructed || mismatch;
-        if index_rebuilt && !reconstructed {
-            self.rebuild_search_index(context)?;
-        }
+        let index_rebuilt = self.ensure_search_index(context)?;
         let revision = self.search_revision()?;
         let needle = query.to_lowercase();
         let rows = self.search_rows(offset, &needle)?;
@@ -133,6 +119,53 @@ impl Database {
             next_offset: continuation(offset, consumed, rows.len()),
             index_rebuilt,
         })
+    }
+
+    fn search_stamp(&self) -> Result<(u64, i64, i64)> {
+        Ok((
+            self.connection.total_changes(),
+            self.connection
+                .pragma_query_value(None, "data_version", |r| r.get(0))?,
+            self.connection
+                .pragma_query_value(None, "schema_version", |r| r.get(0))?,
+        ))
+    }
+
+    fn ensure_search_index(&self, context: RequestContext) -> Result<bool> {
+        let before = self.search_stamp()?;
+        if self.search_validation.get() == Some(before) {
+            return Ok(false);
+        }
+        self.search_validation.set(None);
+        let rebuilt = self.check_search_index(context)?;
+        super::faults::check(super::faults::Phase::SearchAfterValidation)?;
+        let after = self.search_stamp()?;
+        // Local writes (including the integrity command) advance total_changes.
+        // External commits advance data_version; DDL also advances schema_version.
+        // Never memoize verification across a concurrent external/schema change.
+        if before.1 == after.1 && before.2 == after.2 {
+            self.search_validation.set(Some(after));
+        }
+        Ok(rebuilt)
+    }
+
+    fn check_search_index(&self, context: RequestContext) -> Result<bool> {
+        let (dirty, indexed, resources): (bool, i64, i64) = self.connection.query_row("SELECT dirty,(SELECT count(*) FROM search_projection),(SELECT count(*) FROM resources WHERE archived=0) FROM search_index_state WHERE id=1", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
+        let integrity = self.connection.execute(
+            "INSERT INTO search_fts(search_fts) VALUES('integrity-check')",
+            [],
+        );
+        let mut reconstructed = false;
+        if integrity.is_err() {
+            self.reset_search_index(context)?;
+            reconstructed = true;
+        }
+        let mismatch: bool = self.connection.query_row("SELECT (SELECT count(*) FROM search_fts)<>(SELECT count(*) FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_fts EXCEPT SELECT resource_id,title,body,tags FROM search_projection) OR EXISTS(SELECT resource_id,title,body,tags FROM search_projection EXCEPT SELECT resource_id,title,body,tags FROM search_fts)", [], |r| r.get(0))?;
+        let index_rebuilt = dirty || indexed != resources || reconstructed || mismatch;
+        if index_rebuilt && !reconstructed {
+            self.rebuild_search_index(context)?;
+        }
+        Ok(index_rebuilt)
     }
 
     fn search_revision(&self) -> Result<u64> {

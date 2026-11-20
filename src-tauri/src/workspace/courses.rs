@@ -407,11 +407,15 @@ fn validate_title(title: &str) -> Result<()> {
 fn initialize(connection: &mut Connection, legacy: bool, has_managed_data: bool) -> Result<()> {
     connection.pragma_update(None, "foreign_keys", true)?;
     let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version > 1 {
+    if version > 2 {
         return Err(AppError::new(ErrorCode::UnsupportedSchema));
     }
-    if version == 1 {
+    if version == 2 {
         return Ok(());
+    }
+    if version == 1 {
+        catalogue(connection)?;
+        return migrate_settings(connection);
     }
     let tables: i64 = connection.query_row(
         "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
@@ -440,6 +444,16 @@ fn initialize(connection: &mut Connection, legacy: bool, has_managed_data: bool)
     )?;
     tx.execute("INSERT INTO catalogue_meta VALUES(1,?1)", [id])?;
     tx.pragma_update(None, "user_version", 1)?;
+    tx.commit()?;
+    migrate_settings(connection)
+}
+
+fn migrate_settings(connection: &mut Connection) -> Result<()> {
+    let tx = connection.transaction()?;
+    tx.execute_batch("CREATE TABLE workspace_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL CHECK(revision>=0), data TEXT NOT NULL);
+        CREATE TABLE settings_receipts(id TEXT PRIMARY KEY, hash TEXT NOT NULL, result TEXT NOT NULL);
+        INSERT INTO workspace_settings VALUES(1,0,'{\"contractVersion\":1,\"overrides\":{}}');")?;
+    tx.pragma_update(None, "user_version", 2)?;
     tx.commit()?;
     Ok(())
 }
@@ -502,3 +516,7 @@ fn catalogue(connection: &Connection) -> Result<CourseCatalogue> {
 
 #[cfg(test)]
 mod tests;
+
+#[path = "courses/settings.rs"]
+mod settings;
+pub use settings::{SaveWorkspaceSettings, WorkspaceSettings};

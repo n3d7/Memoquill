@@ -144,7 +144,7 @@ fn validate_manifest(manifest: &NativeManifest) -> Result<()> {
     }
     // M3 packages remain readable. Older layouts need a separately qualified
     // semantic validator; accepting a version range would query unknown schemas.
-    if !matches!(manifest.schema_version, 7 | 8) && manifest.schema_version != SCHEMA_VERSION {
+    if !NATIVE_SCHEMA_VERSIONS.contains(&manifest.schema_version) {
         return Err(AppError::new(ErrorCode::UnsupportedSchema));
     }
     if manifest.source_course_id.get_version_num() != 4

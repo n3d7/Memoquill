@@ -10,7 +10,7 @@ vi.mock('./contentBridge', async importOriginal => ({ ...await importOriginal<ty
 vi.mock('./useReadingPreferences', () => ({ useReadingPreferences: () => ({ preferences: { theme: 'system', textScale: 100 }, status: 'Saved', loading: false, saving: false, dirty: false, error: null, update: vi.fn(), save: vi.fn(), reset: vi.fn() }) }));
 vi.mock('./ReadingPreferencesPanel', () => ({ ReadingPreferencesPanel: () => <div /> }));
 vi.mock('./MaterialPanel', () => ({ MaterialPanel: ({ resourceId }: { resourceId: string }) => <section aria-label="Open material">{resourceId}</section> }));
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => { vi.clearAllMocks(); calls.searchResources.mockReset(); });
 it('creates an arbitrary blank subject without a template using the common typed contract', async () => {
   const snapshot: Library = { workspaceId: 'workspace', revision: 0, subjects: {}, goals: {}, collections: {}, resources: {}, placements: {}, units: {}, paths: {}, relations: {}, tags: {} };
   calls.library.mockResolvedValue(snapshot);
@@ -37,33 +37,126 @@ it('keeps an unconfirmed organization request through reload and blocks replacem
   await user.click(screen.getByRole('button', { name: 'Retry last change' }));
   expect(calls.applyContent.mock.calls[1][0]).toEqual(calls.applyContent.mock.calls[0][0]);
 });
-it('searches explicitly, follows opaque cursors even after an empty page, and keeps the current material', async () => {
-  calls.library.mockResolvedValue({ ...blank(), resources: { r: { id: 'r', title: 'Current', archived: false } } });
-  calls.searchResources.mockResolvedValueOnce({ revision: 0, items: [], nextOffset: 200 }).mockResolvedValueOnce({ revision: 0, items: [{ resourceId: 'r', title: 'Current', snippet: 'A canonical text match' }], nextOffset: null });
+it('finds later matches without manual empty-page clicks and keeps the current material', async () => {
+  const resources = Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`r${i}`, { id: `r${i}`, title: i === 200 ? 'Current' : `Material ${i}`, archived: false }]));
+  calls.library.mockResolvedValue({ ...blank(), resources });
+  calls.searchResources.mockResolvedValueOnce({ revision: 0, items: [], nextOffset: 200 }).mockResolvedValueOnce({ revision: 0, items: [{ resourceId: 'r200', title: 'Current', snippet: 'A canonical text match' }], nextOffset: null });
   render(<LibraryApp />); const user = userEvent.setup();
+  await user.click(await screen.findByRole('button', { name: 'Last materials' }));
   await user.click(await screen.findByRole('button', { name: 'Current' }));
   await user.type(screen.getByLabelText('Search titles, tags and text'), 'canonical');
   expect(calls.searchResources).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Search materials' }));
-  expect(await screen.findByText('No matches in this batch. More materials remain to search.')).toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'Continue search' }));
   expect(await screen.findByText('A canonical text match')).toBeVisible();
   expect(calls.searchResources.mock.calls).toEqual([['canonical', 0], ['canonical', 200]]);
-  expect(screen.getByRole('region', { name: 'Open material' })).toHaveTextContent('r');
+  expect(screen.getByRole('region', { name: 'Open material' })).toHaveTextContent('r200');
+  expect(screen.getByText(/Matching material positions 201–201 of 201/)).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Search results' })).toHaveFocus();
 });
 it('shows accessible pagination and restores archived resources with their stable IDs', async () => {
   const resources = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`r${i}`, { id: `r${i}`, title: `Material ${i}`, archived: false }]));
   const snapshot = { ...blank(), resources: { ...resources, archived: { id: 'archived', title: 'Saved material', archived: true } } };
-  calls.library.mockResolvedValue(snapshot); calls.applyContent.mockResolvedValue({ ...snapshot, revision: 1 });
+  calls.library.mockResolvedValue(snapshot); calls.applyContent.mockResolvedValue({ ...snapshot, revision: 1, resources: { ...snapshot.resources, archived: { ...snapshot.resources.archived, archived: false } } });
   render(<LibraryApp />); const user = userEvent.setup();
   await screen.findByRole('button', { name: 'Material 0' });
   await user.click(screen.getByRole('button', { name: 'Next materials' }));
   expect(screen.getByRole('button', { name: 'Material 20' })).toBeVisible();
-  expect(screen.getByRole('heading', { name: 'Available materials' })).toHaveFocus();
+  const heading = screen.getByRole('heading', { name: 'Available materials' });
+  expect(heading).toHaveFocus();
+  expect(heading).toHaveAccessibleDescription('21 materials. Showing 21–21.');
   await user.click(screen.getByText('Manage archived items'));
+  await user.click(screen.getByRole('button', { name: 'Next material archive page' }));
   await user.click(screen.getByRole('button', { name: 'Restore material Saved material' }));
   expect(calls.applyContent).toHaveBeenCalledWith(expect.objectContaining({ command: { type: 'archive', target: { kind: 'resource', id: 'archived' }, archived: false } }));
+  expect(await screen.findByRole('button', { name: 'Archive material Saved material' })).toHaveFocus();
+});
+
+it('bounds automatic empty-batch scanning and rejects a nonadvancing cursor', async () => {
+  calls.library.mockResolvedValue(blank());
+  calls.searchResources.mockImplementation(async (_query, offset) => ({ revision: 0, items: [], nextOffset: offset + 200 }));
+  render(<LibraryApp />); const user = userEvent.setup();
+  await user.type(await screen.findByLabelText('Search titles, tags and text'), 'missing');
+  await user.click(screen.getByRole('button', { name: 'Search materials' }));
+  await waitFor(() => expect(calls.searchResources).toHaveBeenCalledTimes(64));
+  expect(screen.getByRole('button', { name: 'Continue search' })).toBeEnabled();
+  calls.searchResources.mockClear().mockResolvedValue({ revision: 0, items: [], nextOffset: 0 });
+  await user.click(screen.getByRole('button', { name: 'Search materials' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Search could not continue');
+  expect(calls.searchResources).toHaveBeenCalledTimes(1);
+});
+
+it('cancels an automatic scan when the query changes without displaying a late batch', async () => {
+  calls.library.mockResolvedValue(blank());
+  let finish!: (value: { revision: number; items: { resourceId: string; title: string; snippet: string }[]; nextOffset: null }) => void;
+  calls.searchResources.mockResolvedValueOnce({ revision: 0, items: [], nextOffset: 200 }).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  render(<LibraryApp />); const user = userEvent.setup();
+  await user.type(await screen.findByLabelText('Search titles, tags and text'), 'old');
+  await user.click(screen.getByRole('button', { name: 'Search materials' }));
+  await waitFor(() => expect(calls.searchResources).toHaveBeenCalledTimes(2));
+  await user.type(screen.getByLabelText('Search titles, tags and text'), ' changed');
+  await act(async () => { finish({ revision: 0, items: [{ resourceId: 'late', title: 'Late match', snippet: '' }], nextOffset: null }); });
+  expect(screen.queryByText('Late match')).toBeNull();
+  expect(calls.searchResources).toHaveBeenCalledTimes(2);
+});
+
+it('keeps keyboard focus in the query when a pending continuation is cancelled', async () => {
+  calls.library.mockResolvedValue({ ...blank(), resources: { r: { id: 'r', title: 'Current', archived: false } } });
+  let finish!: (value: { revision: number; items: { resourceId: string; title: string; snippet: string }[]; nextOffset: null }) => void;
+  calls.searchResources.mockResolvedValueOnce({ revision: 0, items: [{ resourceId: 'r', title: 'Current', snippet: 'First result' }], nextOffset: 20 })
+    .mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  render(<LibraryApp />); const user = userEvent.setup();
+  const input = await screen.findByLabelText('Search titles, tags and text');
+  await user.type(input, 'old'); await user.click(screen.getByRole('button', { name: 'Search materials' }));
+  await screen.findByText('First result');
+  await user.click(screen.getByRole('button', { name: 'Continue search' }));
+  await waitFor(() => expect(calls.searchResources).toHaveBeenCalledTimes(2));
+  await user.type(input, ' changed');
+  expect(input).toHaveValue('old changed'); expect(input).toHaveFocus();
+  await act(async () => { finish({ revision: 0, items: [{ resourceId: 'r', title: 'Current', snippet: 'Late continuation' }], nextOffset: null }); });
+  expect(screen.queryByText('Late continuation')).toBeNull(); expect(input).toHaveFocus();
+});
+
+it('keeps archive pages bounded and reaches the end with an accessible count and heading focus', async () => {
+  const resources = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`r${i}`, { id: `r${i}`, title: `Material ${i}`, archived: false }]));
+  calls.library.mockResolvedValue({ ...blank(), resources });
+  render(<LibraryApp />); const user = userEvent.setup();
+  await screen.findByRole('button', { name: 'Material 0' });
+  await user.click(screen.getByText('Manage archived items'));
+  expect(screen.getAllByRole('button', { name: /^Archive material / })).toHaveLength(20);
+  await user.click(screen.getByRole('button', { name: 'Last material archive page' }));
+  expect(screen.getByRole('button', { name: 'Archive material Material 99' })).toBeVisible();
+  expect(screen.getByText('100 material items. Showing 81–100.')).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Material archive controls' })).toHaveFocus();
+});
+
+it('keeps search cursors opaque while automatically following distinct batches', async () => {
+  calls.library.mockResolvedValue({ ...blank(), resources: { r: { id: 'r', title: 'Target', archived: false } } });
+  calls.searchResources.mockResolvedValueOnce({ revision: 0, items: [], nextOffset: 200 })
+    .mockResolvedValueOnce({ revision: 0, items: [], nextOffset: 64 })
+    .mockResolvedValueOnce({ revision: 0, items: [{ resourceId: 'r', title: 'Target', snippet: 'Later match' }], nextOffset: null });
+  render(<LibraryApp />); const user = userEvent.setup();
+  await user.type(await screen.findByLabelText('Search titles, tags and text'), 'later');
+  await user.click(screen.getByRole('button', { name: 'Search materials' }));
+  expect(await screen.findByText('Later match')).toBeVisible();
+  expect(calls.searchResources.mock.calls).toEqual([['later', 0], ['later', 200], ['later', 64]]);
+  expect(screen.getByText(/Matching material positions 1–1 of 1/)).toBeVisible();
+});
+
+it('sorts and filters archive controls without changing canonical items or stealing input focus', async () => {
+  const resources = Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`r${i}`, { id: `r${i}`, title: `Material ${i}`, archived: false }]));
+  calls.library.mockResolvedValue({ ...blank(), resources });
+  render(<LibraryApp />); const user = userEvent.setup();
+  await screen.findByRole('button', { name: 'Material 0' });
+  await user.click(screen.getByText('Manage archived items'));
+  await user.selectOptions(screen.getByLabelText('Sort material archive items'), 'descending');
+  expect(screen.getAllByRole('button', { name: /^Archive material / })[0]).toHaveAccessibleName('Archive material Material 24');
+  const filter = screen.getByLabelText('Filter material archive items');
+  await user.type(filter, 'Material 12');
+  expect(screen.getAllByRole('button', { name: /^Archive material / })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Archive material Material 12' })).toBeVisible();
+  expect(screen.getByText('Filter matches: 1 of 25 material items. Showing 1–1.')).toBeVisible();
+  expect(filter).toHaveFocus();
+  expect(calls.applyContent).not.toHaveBeenCalled();
 });
 
 it('ignores an outdated search response after the query changes and retains errors for retry', async () => {
@@ -113,7 +206,7 @@ it('passes literal search syntax and the opaque offset as native parameters', as
 it('limits search by Unicode scalars and discards results when the library revision changes', async () => {
   const snapshot: Library = { ...blank(), resources: { r: { id: 'r', title: 'Current', archived: false } } };
   calls.library.mockResolvedValue(snapshot); calls.applyContent.mockResolvedValue({ ...snapshot, revision: 1 });
-  calls.searchResources.mockResolvedValue({ revision: 0, items: [], nextOffset: 200 });
+  calls.searchResources.mockResolvedValue({ revision: 0, items: [{ resourceId: 'r', title: 'Current', snippet: 'Emoji result' }], nextOffset: 200 });
   render(<LibraryApp />); const user = userEvent.setup(); const input = await screen.findByLabelText('Search titles, tags and text');
   fireEvent.change(input, { target: { value: '😀'.repeat(257) } });
   expect(screen.getByRole('button', { name: 'Search materials' })).toBeDisabled();

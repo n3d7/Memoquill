@@ -49,7 +49,7 @@ fn uuid(id: Uuid) -> Result<()> {
         Err(invalid())
     }
 }
-fn load(connection: &Connection, id: Uuid) -> Result<StudySession> {
+pub(super) fn load(connection: &Connection, id: Uuid) -> Result<StudySession> {
     let row: Option<(String, String)> = connection
         .query_row(
             "SELECT data,digest FROM study_sessions WHERE id=?1",
@@ -95,6 +95,18 @@ fn validate_help(session: &StudySession, index: usize, help: &StudyHelp) -> Resu
 }
 fn validate_session(session: &StudySession) -> Result<()> {
     uuid(session.id).map_err(|_| corrupt())?;
+    if let Some(settings) = &session.settings {
+        settings.validate().map_err(|_| corrupt())?;
+        if settings
+            .item_limit
+            .is_some_and(|n| session.items.len() > usize::from(n))
+            || settings
+                .activity_family
+                .is_some_and(|family| session.items.iter().any(|item| !family.accepts(item)))
+        {
+            return Err(corrupt());
+        }
+    }
     if let Some(id) = session.assessment_id {
         uuid(id).map_err(|_| corrupt())?;
         if session.mode != StudyMode::Assessment
@@ -231,6 +243,7 @@ impl Database {
         let scoped = if let StudyAction::StartScopedAssessment {
             assessment_id,
             part_index,
+            settings: _,
         } = &request.action
         {
             Some((
@@ -254,6 +267,10 @@ impl Database {
             unit_id: part.unit_id.clone(),
             composition_revision_id: part.composition_revision_id.clone(),
             mode: StudyMode::Assessment,
+            settings: match &request.action {
+                StudyAction::StartScopedAssessment { settings, .. } => settings.clone(),
+                _ => None,
+            },
             phase: StudyPhase::Independent,
             binding_ids: Some(part.items.iter().map(|p| p.binding_id.clone()).collect()),
         });
@@ -262,10 +279,14 @@ impl Database {
             unit_id,
             composition_revision_id,
             mode,
+            settings,
             phase,
             binding_ids,
         } = effective
         {
+            if let Some(settings) = settings {
+                settings.validate()?;
+            }
             if request.expected_revision != 0 {
                 return Err(conflict());
             }
@@ -328,6 +349,13 @@ impl Database {
             if *mode == StudyMode::Assessment && items.iter().any(instructional) {
                 return Err(invalid());
             }
+            if settings.as_ref().is_some_and(|s| {
+                s.item_limit.is_some_and(|n| items.len() > usize::from(n))
+                    || s.activity_family
+                        .is_some_and(|family| items.iter().any(|item| !family.accepts(item)))
+            }) {
+                return Err(invalid());
+            }
             let draft = initial_draft(items.first());
             StudySession {
                 contract_version: 1,
@@ -335,6 +363,7 @@ impl Database {
                 unit_id: unit_id.clone(),
                 composition_revision_id: saved.id,
                 mode: *mode,
+                settings: settings.clone(),
                 assessment_id: scoped.as_ref().map(|(id, _)| *id),
                 binding_ids: binding_ids.clone(),
                 phase: *phase,
@@ -772,6 +801,7 @@ pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Res
                 || receipt.mode != session.mode
                 || receipt.binding_ids != session.binding_ids
                 || receipt.phase != session.phase
+                || receipt.settings != session.settings
                 || receipt.started_at_unix_ms != session.started_at_unix_ms
                 || receipt.revision != index as i64 + 1
                 || receipt.cursor > session.cursor

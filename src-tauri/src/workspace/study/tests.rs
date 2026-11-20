@@ -4,6 +4,19 @@ use crate::workspace::{database::Database, faults, *};
 use serde_json::json;
 use uuid::Uuid;
 
+#[cfg(test)]
+#[path = "continuity_tests.rs"]
+mod continuity_tests;
+#[path = "index_migration_tests.rs"]
+mod index_migration_tests;
+#[cfg(test)]
+#[path = "progress_tests.rs"]
+mod progress_tests;
+#[path = "scale_tests.rs"]
+mod scale_tests;
+#[path = "settings_tests.rs"]
+mod settings_tests;
+
 fn context() -> RequestContext {
     RequestContext::local_ui()
 }
@@ -107,6 +120,7 @@ fn start(db: &mut Database, unit: &str, revision: &str, mode: StudyMode) -> Stud
             session_id: Uuid::new_v4(),
             expected_revision: 0,
             action: StudyAction::Start {
+                settings: None,
                 unit_id: unit.into(),
                 composition_revision_id: revision.into(),
                 mode,
@@ -315,6 +329,26 @@ fn study_four_subject_families_keep_deterministic_and_self_report_separate() {
             .unwrap();
         let view = db.study_read(context(), s.id).unwrap();
         assert_eq!(view.judgments[0].outcome, expected);
+        let progress = db.study_progress(context(), &unit, 0).unwrap();
+        let outcome = match view.session.items[0].activity.definition["family"]
+            .as_str()
+            .unwrap()
+        {
+            "recall" => "recall",
+            "singleChoice" => "recognition",
+            "constructed" => "constructedResponse",
+            "procedure" => "practicalSelfReport",
+            _ => unreachable!(),
+        };
+        assert_eq!(progress.coverage[0].outcome, outcome);
+        assert_eq!(progress.evidence[0].outcome, outcome);
+        assert!(
+            progress.coverage[0]
+                .judgments
+                .iter()
+                .any(|j| j.source == JudgmentSource::Deterministic && j.outcome == expected)
+        );
+
         assert_eq!(view.judgments[0].source, JudgmentSource::Deterministic);
         assert_eq!(view.judgments[1].source, JudgmentSource::SelfReport);
         validate_native_data(&db.connection).unwrap();
@@ -342,6 +376,7 @@ fn study_assessment_refuses_help_and_wrong_response_or_scope() {
         session_id: Uuid::new_v4(),
         expected_revision: 0,
         action: StudyAction::Start {
+            settings: None,
             unit_id: Uuid::new_v4().to_string(),
             composition_revision_id: revision.clone(),
             mode: StudyMode::Practice,
@@ -527,6 +562,7 @@ fn study_context_and_provenance_survive_retry_without_rewriting_evidence() {
         session_id: Uuid::new_v4(),
         expected_revision: 0,
         action: StudyAction::Start {
+            settings: None,
             unit_id: unit,
             composition_revision_id: revision,
             mode: StudyMode::Practice,
@@ -958,6 +994,7 @@ fn study_instructional_phases_pin_material_and_never_become_unassisted_assessmen
             session_id: Uuid::new_v4(),
             expected_revision: 0,
             action: StudyAction::Start {
+                settings: None,
                 unit_id: unit,
                 composition_revision_id: revision,
                 mode: StudyMode::Assessment,
@@ -998,6 +1035,7 @@ fn error_repair_pins_review_and_keeps_correction_hidden_until_requested() {
         session_id: Uuid::new_v4(),
         expected_revision: 0,
         action: StudyAction::Start {
+            settings: None,
             unit_id: unit,
             composition_revision_id: revision,
             mode: StudyMode::Assessment,
@@ -1538,6 +1576,7 @@ fn study_review_rejects_assisted_non_independent_recall_and_recognition() {
                 session_id: Uuid::new_v4(),
                 expected_revision: 0,
                 action: StudyAction::Start {
+                    settings: None,
                     unit_id: unit,
                     composition_revision_id: revision,
                     mode: StudyMode::Practice,
@@ -1607,6 +1646,110 @@ fn study_review_rejects_assisted_non_independent_recall_and_recognition() {
         ErrorCode::InvalidRequest
     );
 }
+#[test]
+fn study_review_caps_offers_but_checks_candidates_beyond_the_limit() {
+    let (_temp, mut db, _, _) = setup_sequence(vec![recall(); 10]);
+    for _ in 0..6 {
+        publish_test_lesson(&mut db, vec![recall(); 10]);
+    }
+    let before = db.review_overview(context()).unwrap();
+    assert_eq!(before.new_total, 70);
+    assert_eq!(before.offered.len(), 10);
+    db.review_apply(
+        context(),
+        &ReviewMutation {
+            operation_id: Uuid::new_v4(),
+            expected_revision: before.plan.revision,
+            action: ReviewAction::SetPolicy {
+                time_zone: "Etc/UTC".into(),
+                day_start_hour: 4,
+                daily_new_limit: 100,
+                daily_review_limit: 50,
+                retention_basis_points: 9000,
+            },
+        },
+    )
+    .unwrap();
+    let capped = db.review_overview(context()).unwrap();
+    assert_eq!(capped.new_total, 70);
+    assert_eq!(capped.offered.len(), 64);
+    assert_eq!(
+        capped.offered[..10]
+            .iter()
+            .map(|item| &item.activity_revision_id)
+            .collect::<Vec<_>>(),
+        before
+            .offered
+            .iter()
+            .map(|item| &item.activity_revision_id)
+            .collect::<Vec<_>>()
+    );
+    let offered: std::collections::HashSet<_> = capped
+        .offered
+        .iter()
+        .map(|item| item.activity_revision_id.as_str())
+        .collect();
+    let mut query = db
+        .connection
+        .prepare("SELECT id FROM lesson_activity_revisions")
+        .unwrap();
+    let not_offered = query
+        .query_map([], |row| row.get::<_, String>(0))
+        .unwrap()
+        .map(|row| row.unwrap())
+        .find(|id| !offered.contains(id.as_str()))
+        .unwrap();
+    drop(query);
+    db.connection
+        .execute(
+            "UPDATE lesson_activity_revisions SET digest='bad' WHERE id=?1",
+            [not_offered],
+        )
+        .unwrap();
+    assert_eq!(
+        db.review_overview(context()).unwrap_err().code,
+        ErrorCode::RecoveryRequired
+    );
+}
+
+#[test]
+fn study_review_due_order_keeps_the_earlier_due_item_at_capacity() {
+    let (_temp, mut db, first_id, first_revision) = setup(recall());
+    let (second_id, second_revision) = publish_test_lesson(&mut db, vec![recall()]);
+    let mut lessons = [(first_id, first_revision), (second_id, second_revision)];
+    lessons.sort();
+    let now = db.review_overview(context()).unwrap().now_unix_ms;
+    db.review_apply_at(
+        context(),
+        &ReviewMutation {
+            operation_id: Uuid::new_v4(),
+            expected_revision: 0,
+            action: ReviewAction::SetPolicy {
+                time_zone: "Etc/UTC".into(),
+                day_start_hour: 4,
+                daily_new_limit: 10,
+                daily_review_limit: 1,
+                retention_basis_points: 9000,
+            },
+        },
+        now,
+    )
+    .unwrap();
+    // Unit order places the later due item in the one-slot queue first.
+    for ((id, revision), rating) in lessons.iter().zip([4, 3]) {
+        let s = start(&mut db, id, revision, StudyMode::Practice);
+        let s = review_save(&mut db, &s, "Answer");
+        db.study_apply(context(), &scheduled_submit(&s, rating))
+            .unwrap();
+    }
+    let view = db
+        .review_overview_at(context(), now + 90 * 86_400_000)
+        .unwrap();
+    assert_eq!(view.due_total, 2);
+    assert_eq!(view.offered.len(), 1);
+    assert_eq!(view.offered[0].unit_id, lessons[1].0);
+}
+
 #[test]
 fn study_review_policy_generations_and_budget_preserve_existing_history() {
     let (_temp, mut db, unit, revision) = setup(recall());
@@ -1951,6 +2094,7 @@ mod scoped_assessment_tests {
                 session_id: run.parts[index].session_id,
                 expected_revision: 0,
                 action: StudyAction::StartScopedAssessment {
+                    settings: None,
                     assessment_id: run.id,
                     part_index: index,
                 },
@@ -2050,13 +2194,34 @@ mod scoped_assessment_tests {
         let view = db.study_read(context(), s.id).unwrap();
         assert!(!view.feedback_available);
         assert!(view.judgments.is_empty());
+        let resumed = db.study_resume_sessions(context(), 0).unwrap();
+        assert!(
+            resumed
+                .sessions
+                .iter()
+                .all(|candidate| candidate.session_id != s.id)
+        );
+
         let partial = db.assessment_read(context(), run.id).unwrap();
         assert!(!partial.feedback_available);
         assert!(partial.coverage.iter().all(|c| c.feedback.is_none()));
+        let progress = db.study_progress(context(), &unit, 0).unwrap();
+        assert_eq!(progress.total_attempts, 1);
+        assert!(!progress.evidence[0].feedback_available);
+        assert!(progress.evidence[0].judgments.is_empty());
+        assert!(progress.coverage.iter().all(|r| r.judgments.is_empty()));
+        assert_eq!(progress.coverage[0].feedback_withheld_attempts, 1);
+        assert!(!progress.evidence[0].current_activity);
+
         assert!(partial.parts[recall_index].changed_content);
         let s = part(&mut db, &run, 1 - recall_index);
         finish(&mut db, &s);
         let complete = db.assessment_read(context(), run.id).unwrap();
+        let progress = db.study_progress(context(), &unit, 0).unwrap();
+        assert!(progress.evidence[0].feedback_available);
+        assert!(!progress.evidence[0].judgments.is_empty());
+        assert!(!progress.coverage[0].judgments.is_empty());
+
         assert!(complete.feedback_available);
         let recall = complete
             .coverage
@@ -2103,6 +2268,7 @@ mod scoped_assessment_tests {
             session_id: p.session_id,
             expected_revision: 0,
             action: StudyAction::Start {
+                settings: None,
                 unit_id: p.unit_id.clone(),
                 composition_revision_id: p.composition_revision_id.clone(),
                 mode: StudyMode::Practice,
@@ -2119,6 +2285,7 @@ mod scoped_assessment_tests {
             session_id: Uuid::new_v4(),
             expected_revision: 0,
             action: StudyAction::StartScopedAssessment {
+                settings: None,
                 assessment_id: run.id,
                 part_index: 0,
             },
@@ -2190,6 +2357,30 @@ mod scoped_assessment_tests {
             )
             .unwrap();
         assert!(super::super::super::assessments::validate_native_data(&db.connection).is_err());
+    }
+    #[test]
+    fn canonical_settings_do_not_change_frozen_assessment_policy() {
+        let (_temp, mut db, unit, _) = setup(recall());
+        let (subject, _) = scope(&mut db, &[unit]);
+        let run = db
+            .assessment_create(context(), &create(AssessmentScope::Subject { id: subject }))
+            .unwrap();
+        let settings = json!({"contractVersion":1,"theme":"dark","textScale":200,"goal":"Explain","focus":"Compare"});
+        let start: StudyMutation = serde_json::from_value(json!({"operationId":Uuid::new_v4(),"sessionId":run.parts[0].session_id,"expectedRevision":0,"action":{"kind":"startScopedAssessment","assessmentId":run.id,"partIndex":0,"settings":settings}})).unwrap();
+        let saved = db.study_apply(context(), &start).unwrap();
+        assert_eq!(saved.phase, StudyPhase::Independent);
+        assert_eq!(serde_json::to_value(&saved.settings).unwrap(), settings);
+        assert!(
+            !db.study_read(context(), saved.id)
+                .unwrap()
+                .feedback_available
+        );
+        assert!(
+            db.study_apply(context(), &request(&saved, StudyAction::RevealHint))
+                .is_err()
+        );
+        super::super::validate_native_data(&db.connection).unwrap();
+        crate::workspace::assessments::validate_native_data(&db.connection).unwrap();
     }
 }
 

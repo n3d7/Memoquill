@@ -3,9 +3,9 @@ use crate::workspace::{
     DeclaredAssistance, RequestContext, StudyAttempt, StudyMode, StudyPhase, StudySession,
     database::Database, migrations::checksum, operations,
 };
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, Statement, TransactionBehavior, params};
 use serde::{Serialize, de::DeserializeOwned};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 fn encode(value: &impl Serialize) -> Result<String> {
     serde_json::to_string(value).map_err(|_| invalid())
@@ -53,13 +53,20 @@ fn plan(connection: &Connection) -> Result<ReviewPlan> {
     validate_plan(&value).map_err(|_| corrupt())?;
     Ok(value)
 }
+const ACTIVITY_SQL: &str =
+    "SELECT definition,digest FROM lesson_activity_revisions WHERE id=?1 AND unit_id=?2";
+
 fn activity(connection: &Connection, unit: &str, revision: &str) -> Result<serde_json::Value> {
-    let row: Option<(String, String)> = connection
-        .query_row(
-            "SELECT definition,digest FROM lesson_activity_revisions WHERE id=?1 AND unit_id=?2",
-            params![revision, unit],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
+    read_activity(&mut connection.prepare(ACTIVITY_SQL)?, unit, revision)
+}
+
+fn read_activity(
+    query: &mut Statement<'_>,
+    unit: &str,
+    revision: &str,
+) -> Result<serde_json::Value> {
+    let row: Option<(String, String)> = query
+        .query_row(params![revision, unit], |r| Ok((r.get(0)?, r.get(1)?)))
         .optional()?;
     let (data, digest) = row.ok_or_else(invalid)?;
     decode(data, digest, 65536)
@@ -161,8 +168,17 @@ fn apply_plan(
     validate_plan(&value)?;
     Ok(value)
 }
+const LATEST_SQL: &str = "SELECT e.data,e.digest FROM recall_states s
+    JOIN recall_review_events e ON e.id=s.event_id WHERE s.activity_revision_id=?1";
+
 fn latest(connection: &Connection, revision: &str) -> Result<Option<RecallReviewEvent>> {
-    let row: Option<(String,String)> = connection.query_row("SELECT e.data,e.digest FROM recall_states s JOIN recall_review_events e ON e.id=s.event_id WHERE s.activity_revision_id=?1",[revision],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+    read_latest(&mut connection.prepare(LATEST_SQL)?, revision)
+}
+
+fn read_latest(query: &mut Statement<'_>, revision: &str) -> Result<Option<RecallReviewEvent>> {
+    let row: Option<(String, String)> = query
+        .query_row([revision], |r| Ok((r.get(0)?, r.get(1)?)))
+        .optional()?;
     row.map(|(data, digest)| decode(data, digest, 8192))
         .transpose()
 }
@@ -346,6 +362,9 @@ impl Database {
         now: i64,
     ) -> Result<ReviewOverview> {
         context.authorize()?;
+        // The plan, current lessons and events must describe one SQLite snapshot.
+        // Keeping it open also avoids reopening the pager for each binding read.
+        let _snapshot = self.connection.unchecked_transaction()?;
         let value = plan(&self.connection)?;
         let today = study_day(now, &value.time_zone, value.day_start_hour)?;
         let (new_used, reviews_used) = daily_counts(&self.connection, &value, now)?;
@@ -359,11 +378,36 @@ impl Database {
         if units.len() > 20000 {
             return Err(AppError::new(ErrorCode::BudgetExceeded));
         }
-        let (mut due, mut new) = (Vec::new(), Vec::new());
+        const OFFER_LIMIT: usize = 64;
+        let due_limit = if rollback {
+            0
+        } else {
+            usize::from(
+                value
+                    .daily_review_limit
+                    .saturating_sub(reviews_used.min(u16::MAX as u32) as u16),
+            )
+            .min(OFFER_LIMIT)
+        };
+        let new_limit = if rollback {
+            0
+        } else {
+            usize::from(
+                value
+                    .daily_new_limit
+                    .saturating_sub(new_used.min(u16::MAX as u32) as u16),
+            )
+            .min(OFFER_LIMIT)
+        };
+        let mut due = BTreeMap::<(i32, &str, String), RecallQueueItem>::new();
+        let mut new = Vec::new();
+        let (mut due_total, mut new_total) = (0, 0);
         let mut seen = std::collections::HashSet::new();
-        for (unit, composition) in units {
+        let mut definitions = self.connection.prepare(ACTIVITY_SQL)?;
+        let mut states = self.connection.prepare(LATEST_SQL)?;
+        for (unit, composition) in &units {
             let saved = self
-                .lesson_read(context, &unit, Some(&composition))?
+                .lesson_read(context, unit, Some(composition))?
                 .ok_or_else(corrupt)?;
             for binding in saved
                 .composition
@@ -371,58 +415,50 @@ impl Database {
                 .iter()
                 .filter(|b| b.target_kind == "activity")
             {
-                let d = activity(&self.connection, &unit, &binding.revision_id)?;
+                let d = read_activity(&mut definitions, unit, &binding.revision_id)?;
                 if d["family"] != "recall" || !seen.insert(binding.revision_id.clone()) {
                     continue;
                 }
-                let state = latest(&self.connection, &binding.revision_id)?;
-                let due_day = state.map(|s| s.due_day);
-                let prompt = if d["version"] == 2 {
-                    d["prompt"]
-                        .as_str()
-                        .ok_or_else(corrupt)?
-                        .replace("{{answer}}", "[blank]")
-                } else {
-                    d["prompt"].as_str().ok_or_else(corrupt)?.into()
-                };
-                let item = RecallQueueItem {
+                let due_day = read_latest(&mut states, &binding.revision_id)?.map(|s| s.due_day);
+                let prompt = d["prompt"].as_str().ok_or_else(corrupt)?;
+                // Check even entries that are outside the visible offer.
+                let due_date = due_day.map(day_label).transpose()?;
+                let make_item = || RecallQueueItem {
                     unit_id: unit.clone(),
                     composition_revision_id: composition.clone(),
                     binding_id: binding.binding_id.clone(),
                     activity_revision_id: binding.revision_id.clone(),
-                    prompt,
+                    prompt: if d["version"] == 2 {
+                        prompt.replace("{{answer}}", "[blank]")
+                    } else {
+                        prompt.into()
+                    },
                     due_day,
-                    due_date: due_day.map(day_label).transpose()?,
+                    due_date,
                 };
-                if due_day.is_none() {
-                    new.push(item);
-                } else if due_day.is_some_and(|day| day <= today) {
-                    due.push(item);
+                match due_day {
+                    None => {
+                        new_total += 1;
+                        if new.len() < new_limit {
+                            new.push(make_item());
+                        }
+                    }
+                    Some(day) if day <= today => {
+                        due_total += 1;
+                        // Keep the earliest offers in the existing day/unit/binding order.
+                        let key = (day, unit.as_str(), binding.binding_id.clone());
+                        if due.len() < due_limit {
+                            due.insert(key, make_item());
+                        } else if due.last_key_value().is_some_and(|(last, _)| &key < last) {
+                            due.pop_last();
+                            due.insert(key, make_item());
+                        }
+                    }
+                    Some(_) => {}
                 }
             }
         }
-        due.sort_by_key(|item| (item.due_day, item.unit_id.clone(), item.binding_id.clone()));
-        let due_total = due.len() as u32;
-        let new_total = new.len() as u32;
-        let offered = if rollback {
-            Vec::new()
-        } else {
-            due.into_iter()
-                .take(usize::from(
-                    value
-                        .daily_review_limit
-                        .saturating_sub(reviews_used.min(u16::MAX as u32) as u16),
-                ))
-                .chain(
-                    new.into_iter().take(usize::from(
-                        value
-                            .daily_new_limit
-                            .saturating_sub(new_used.min(u16::MAX as u32) as u16),
-                    )),
-                )
-                .take(64)
-                .collect()
-        };
+        let offered = due.into_values().chain(new).take(OFFER_LIMIT).collect();
         Ok(ReviewOverview {
             plan: value,
             now_unix_ms: now,

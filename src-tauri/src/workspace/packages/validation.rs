@@ -2,7 +2,7 @@ use super::*;
 use rusqlite::{limits::Limit, types::ValueRef};
 use std::collections::{BTreeMap, BTreeSet};
 
-// Schema9 has 132 trusted objects; keep enumeration bounded and require exact DDL.
+// Schema10 has 135 trusted objects; keep enumeration bounded and require exact DDL.
 const MAX_SCHEMA_OBJECTS: usize = 160;
 type Schema = Vec<(String, String, String, Option<String>)>;
 fn schema(connection: &Connection) -> Result<Schema> {
@@ -67,7 +67,7 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     let app: i32 = connection.pragma_query_value(None, "application_id", |r| r.get(0))?;
     let version: i64 = connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if app != database::APPLICATION_ID
-        || (version != 7 && version != 8 && version != SCHEMA_VERSION)
+        || !NATIVE_SCHEMA_VERSIONS.contains(&version)
         || version != manifest.schema_version
     {
         return Err(AppError::new(ErrorCode::UnsupportedSchema));

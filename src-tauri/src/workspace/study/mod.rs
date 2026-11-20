@@ -1,6 +1,10 @@
 //! Durable, course-local study evidence. Author previews never enter this module.
 use super::{AppError, ErrorCode, error::Result};
+mod continuity;
+mod progress;
 mod storage;
+pub use continuity::*;
+pub use progress::*;
 mod types;
 pub(super) use storage::validate_native_data;
 pub use types::*;
