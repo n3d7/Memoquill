@@ -27,6 +27,8 @@ const MAX_DATABASE: u64 = 256 * 1024 * 1024;
 const MAX_ASSET: u64 = 64 * 1024 * 1024;
 const MAX_ENTRIES: usize = 4098;
 const MAX_MANIFEST: u64 = 2 * 1024 * 1024;
+// Keep qualified historical versions explicit when the writer schema advances.
+const NATIVE_SCHEMA_VERSIONS: &[i64] = &[7, 8, 9, 10];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

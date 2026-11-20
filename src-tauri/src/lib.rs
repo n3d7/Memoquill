@@ -71,6 +71,8 @@ pub fn run() {
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
             course_commands::courses_list,
+            course_commands::workspace_settings,
+            course_commands::save_workspace_settings,
             course_commands::course_create,
             course_commands::course_select,
             lesson_commands::lesson_discover,
@@ -94,6 +96,8 @@ pub fn run() {
             study_commands::study_apply,
             study_commands::study_read,
             study_commands::study_sessions,
+            study_commands::study_progress,
+            study_commands::study_resume_sessions,
             check_draft,
             workspace_status,
             save_reading_preferences,
@@ -414,6 +418,8 @@ mod tests {
             .manage(manager)
             .invoke_handler(tauri::generate_handler![
                 course_commands::courses_list,
+                course_commands::workspace_settings,
+                course_commands::save_workspace_settings,
                 course_commands::course_create,
                 course_commands::course_select,
                 workspace_status,
@@ -956,6 +962,137 @@ mod tests {
             },
         )
     }
+
+    #[test]
+    fn m5_settings_ipc_admits_local_main_and_denies_other_surfaces() {
+        use serde_json::json;
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let app = mock_builder()
+            .manage(manager)
+            .invoke_handler(tauri::generate_handler![
+                course_commands::workspace_settings,
+                course_commands::save_workspace_settings
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let body = json!({"request":{"operationId":uuid::Uuid::new_v4(),"expectedRevision":0,"settings":{"contractVersion":1,"overrides":{"goal":"Synthetic goal"}}}});
+        let saved = raw_ipc(
+            &main,
+            "save_workspace_settings",
+            "tauri://localhost",
+            body.clone(),
+        )
+        .unwrap()
+        .deserialize::<serde_json::Value>()
+        .unwrap();
+        assert_eq!(saved["revision"], 1);
+        assert_eq!(
+            raw_ipc(&main, "workspace_settings", "tauri://localhost", json!({}))
+                .unwrap()
+                .deserialize::<serde_json::Value>()
+                .unwrap(),
+            saved
+        );
+        for command in ["workspace_settings", "save_workspace_settings"] {
+            for (view, origin) in [
+                (&other, "tauri://localhost"),
+                (&main, "https://example.com"),
+            ] {
+                assert!(raw_ipc(view, command, origin, body.clone()).is_err());
+            }
+        }
+        let mut invalid = body;
+        invalid["request"]["settings"]["overrides"]["unknown"] = json!(true);
+        assert!(
+            raw_ipc(
+                &main,
+                "save_workspace_settings",
+                "tauri://localhost",
+                invalid
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn m5_read_permissions_admit_only_the_main_local_scoped_transport() {
+        let temp = tempfile::tempdir().unwrap();
+        let manager = CourseManager::open(temp.path().to_owned()).unwrap();
+        let course = manager.list().unwrap().selected_course_id;
+        let service = manager.service(course).unwrap();
+        let app = mock_builder()
+            .manage(manager)
+            .invoke_handler(tauri::generate_handler![
+                study_commands::study_progress,
+                study_commands::study_resume_sessions,
+            ])
+            .build(tauri::generate_context!())
+            .unwrap();
+        let main = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let other = tauri::WebviewWindowBuilder::new(&app, "other", Default::default())
+            .build()
+            .unwrap();
+        let body = || {
+            InvokeBody::Raw(
+                serde_json::to_vec(&serde_json::json!({"courseId":course,"offset":0})).unwrap(),
+            )
+        };
+        assert!(raw_ipc(&main, "study_resume_sessions", "tauri://localhost", body()).is_ok());
+        assert!(raw_ipc(&other, "study_resume_sessions", "tauri://localhost", body()).is_err());
+        assert!(
+            raw_ipc(
+                &main,
+                "study_resume_sessions",
+                "https://example.invalid",
+                body()
+            )
+            .is_err()
+        );
+        for value in [
+            serde_json::json!({"offset":0}),
+            serde_json::json!({"courseId":uuid::Uuid::new_v4()}),
+            serde_json::json!({"courseId":course,"trustedUi":true}),
+        ] {
+            assert!(
+                raw_ipc(
+                    &main,
+                    "study_resume_sessions",
+                    "tauri://localhost",
+                    InvokeBody::Raw(serde_json::to_vec(&value).unwrap())
+                )
+                .is_err()
+            );
+        }
+        // A missing unit reaches scoped domain admission instead of being denied
+        // by an absent command permission. The UI cannot create or read raw state.
+        let missing =
+            serde_json::json!({"courseId":course,"unitId":uuid::Uuid::new_v4().to_string()});
+        let error = raw_ipc(
+            &main,
+            "study_progress",
+            "tauri://localhost",
+            InvokeBody::Raw(serde_json::to_vec(&missing).unwrap()),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            serde_json::to_value(workspace::AppError::new(
+                workspace::ErrorCode::InvalidRequest
+            ))
+            .unwrap()
+        );
+        tauri::async_runtime::block_on(service.shutdown()).unwrap();
+    }
+
     #[test]
     fn native_preference_save_and_receipt_round_trip_preserves_authority() {
         let temp = tempfile::tempdir().unwrap();
@@ -985,8 +1122,12 @@ mod tests {
             operation_id: OperationId::generate(),
             expected_revision: 0,
             preferences: workspace::ReadingPreferences {
+                subject_settings: None,
+                shortcuts: None,
                 theme: workspace::Theme::Dark,
                 text_scale: workspace::TextScale::try_from(150).unwrap(),
+                navigation: None,
+                customization: None,
             },
         };
         let body = serde_json::json!({"request":request});

@@ -1,3 +1,4 @@
+import { EntitySelect } from './application/EntitySelect';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Command, Entity, Library, RelationKind, Step, Unit } from './contentBridge';
 
@@ -15,12 +16,12 @@ export function UnitForms({ data, perform }: { data: Library; perform: Perform }
   const [editing, setEditing] = useState('');
   return <section><h3>Learning units and links</h3>
     <NameForm label="New learning unit" action="Create unit" onSubmit={title => perform({ type: 'createUnit', id: crypto.randomUUID(), title, objective: title, goalIds: [], resourceIds: [] })} />
-    <label>Edit learning unit<select value={editing} onChange={e => setEditing(e.target.value)}><option value="">Choose unit</option><Options items={data.units} /></select></label>
+    <EntitySelect label="Edit learning unit" placeholder="Choose unit" items={data.units} value={editing} onChange={setEditing} />
     {data.units[editing] && <UnitEditor key={editing} unit={data.units[editing]} data={data} perform={perform} />}
     <form onSubmit={event => { event.preventDefault(); void perform({ type: 'relate', id: crypto.randomUUID(), kind, from, to }); }}>
-      <label>From unit<select required value={from} onChange={e => setFrom(e.target.value)}><option value="">Choose unit</option><Options items={data.units} /></select></label>
+      <EntitySelect label="From unit" placeholder="Choose unit" items={data.units} value={from} onChange={setFrom} required />
       <label>Link type<select value={kind} onChange={e => setKind(e.target.value as RelationKind)}><option value="prerequisite">Prerequisite</option><option value="related">Related</option><option value="reference">Reference</option></select></label>
-      <label>To unit<select required value={to} onChange={e => setTo(e.target.value)}><option value="">Choose unit</option><Options items={data.units} /></select></label><button>Add link</button>
+      <EntitySelect label="To unit" placeholder="Choose unit" items={data.units} value={to} onChange={setTo} required /><button>Add link</button>
     </form>
     <ul>{Object.values(data.relations).map(link => <li key={link.id}>{data.units[link.from]?.title} → {link.kind} → {data.units[link.to]?.title} <button type="button" onClick={() => void perform({ type: 'removeRelation', id: link.id })}>Remove link</button></li>)}</ul>
   </section>;
@@ -50,7 +51,7 @@ export function PathForms({ data, perform }: { data: Library; perform: Perform }
   return <section><h3>Learning paths</h3>
     <NameForm label="New path" action="Create path" onSubmit={title => perform({ type: 'createPath', id: crypto.randomUUID(), title, steps: [] })} />
     <label>Path<select value={path} onChange={e => setPath(e.target.value)}><option value="">Choose path</option><Options items={data.paths} /></select></label>
-    <label>Next unit<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Choose unit</option><Options items={data.units} /></select></label>
+    <EntitySelect label="Next unit" placeholder="Choose unit" items={data.units} value={unit} onChange={setUnit} />
     <button type="button" disabled={!path || !unit} onClick={append}>Append unit</button>
     <ol>{data.paths[path]?.steps.map((step: Step, index) => <li key={step.id}>{data.units[step.unitId]?.title}<ReorderControls title={`step ${index + 1}: ${data.units[step.unitId]?.title}`} id={step.id} ids={data.paths[path].steps.map(item => item.id)} reorder={ids => void perform({ type: 'setPathSteps', id: path, steps: ids.flatMap(id => data.paths[path].steps.filter(item => item.id === id)) })} /><button type="button" onClick={() => void perform({ type: 'setPathSteps', id: path, steps: data.paths[path].steps.filter(x => x.id !== step.id) })}>Remove step</button></li>)}</ol>
   </section>;

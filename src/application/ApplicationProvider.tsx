@@ -13,6 +13,8 @@ export interface ApplicationPorts {
   workspace: WorkspacePort;
   identity: IdentityPort;
   lessons?: LessonPort;
+  continuity?: import('../study/continuityTypes').ContinuityPort;
+  progress?: import('../study/progressTypes').ProgressPort;
   study?: import('../study/types').StudyPort;
   review?: import('../study/reviewTypes').ReviewPort;
   assessments?: import('../study/assessmentTypes').AssessmentPort;
@@ -35,6 +37,8 @@ export const useIdentityPort = () => useContext(ApplicationContext).identity;
 export const useOptionalLessonPort = () => useContext(ApplicationContext).lessons;
 export const useOptionalAssessmentPort = () => useContext(ApplicationContext).assessments;
 export const useOptionalReviewPort = () => useContext(ApplicationContext).review;
+export const useOptionalContinuityPort = () => useContext(ApplicationContext).continuity;
+export const useOptionalProgressPort = () => useContext(ApplicationContext).progress;
 export const useOptionalStudyPort = () => useContext(ApplicationContext).study;
 export const useOptionalIngestionPort = () => useContext(ApplicationContext).ingestion;
 export function useLessonPort(): LessonPort {

@@ -1,7 +1,11 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { EntitySelect } from './application/EntitySelect';
+import { useKeyboardShortcuts } from './settings/shortcuts';
+import { StudySettingsProvider } from './study/sessionSettings';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useContentLibrary } from './useContentLibrary';
 import { GoalForm, NameForm, Options, PathForms, ReorderControls, UnitForms } from './OrganizationForms';
 import { MaterialPanel } from './MaterialPanel';
+import { SettingsPanel, useSettings } from './settings/SettingsPanel';
 import { ReadingPreferencesPanel } from './ReadingPreferencesPanel';
 import { useReadingPreferences } from './useReadingPreferences';
 import { failureMessage, type Collection, type Command, type Entity, type Library, type SearchPage } from './contentBridge';
@@ -9,6 +13,7 @@ import { failureMessage, type Collection, type Command, type Entity, type Librar
 import { useContentPort, useIdentityPort, useOptionalLessonPort, useSourcePort } from './application/ApplicationProvider';
 import { LessonTabs } from './lessons/LessonTabs';
 import { StatusMessage } from './application/controls';
+import type { NavigationContext } from './application/workspaceTypes';
 
 type Perform = (command: Command) => Promise<Library | null>;
 type Content = ReturnType<typeof useContentLibrary>;
@@ -17,24 +22,59 @@ export function LibraryApp() {
   const lessonPort = useOptionalLessonPort(); const sourcePort = useSourcePort();
   const content = useContentLibrary(); const reading = useReadingPreferences();
   const [subjectId, setSubjectId] = useState(''); const [collectionId, setCollectionId] = useState<string | null>(null);
+  const selectedSubject = content.snapshot?.subjects[subjectId];
+  const settings = useSettings(reading, selectedSubject && !selectedSubject.archived ? subjectId : '');
+  const appRef = useRef<HTMLDivElement>(null); const settingsRef = useRef<HTMLDetailsElement>(null);
+  useKeyboardShortcuts(reading.preferences.shortcuts, {
+    openSettings: () => { const node = settingsRef.current; if (!node) return false; node.open = true; node.querySelector('summary')?.focus(); return true; },
+    focusSearch: () => { const input = appRef.current?.querySelector<HTMLInputElement>('input[type="search"]'); if (!input || input.disabled || input.closest('[hidden]')) return false; input.focus(); return true; },
+    focusWorkspace: () => { const node = document.getElementById(mainId); if (!node) return false; node.focus(); return true; },
+  });
   const [resourceId, setResourceId] = useState(''); const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState('');
+  const [initialNavigation, setInitialNavigation] = useState<NavigationContext | null>(null);
+  const browserContext = useRef({ query: '', page: 0, searchOffset: 0, searchActive: false });
+  const updateBrowserContext = (part: Partial<NavigationContext>) => { Object.assign(browserContext.current, part); };
+  async function rememberContext() {
+    const context: NavigationContext = { contractVersion: 1, subjectId, collectionId, resourceId, ...browserContext.current };
+    setNotice(await reading.saveNavigation(context));
+  }
+  function restoreContext() {
+    const context = reading.preferences.navigation;
+    if (!context || !data || dirty || content.busy || content.hasPending) return;
+    const subject = data.subjects[context.subjectId];
+    const subjectId = subject && !subject.archived ? context.subjectId : '';
+    const collection = context.collectionId ? data.collections[context.collectionId] : null;
+    setSubjectId(subjectId); setCollectionId(collection && !collection.archived && collection.subjectId === subjectId ? context.collectionId : null);
+    const resource = data.resources[context.resourceId];
+    setResourceId(resource && !resource.archived ? context.resourceId : '');
+    Object.assign(browserContext.current, context);
+    setInitialNavigation({ ...context });
+    setNotice('Remembered workspace context restored. Missing or archived selections are left closed; search is rebuilt from current saved data.');
+    document.getElementById(mainId)?.focus();
+  }
   const data = content.snapshot;
   const identity = useIdentityPort();
   const session = data ? identity.session(data.workspaceId) : null;
   function openResource(id: string) { if (dirty && id !== resourceId) { setNotice('Save or discard the current draft before opening another material.'); return; } setResourceId(id); setNotice(''); }
-  return <div className="app" data-theme={reading.preferences.theme}>
+  return <StudySettingsProvider settings={reading.loaded && (!settings.workspace?.available || settings.workspace.loaded) ? settings.effective : null}><div ref={appRef} className="app" data-theme={settings.effective.theme}>
     <a className="skip-link" href={`#${mainId}`}>Skip to workspace</a><header><p className="eyebrow">Your local learning workspace</p><h1>Memoquill</h1><p>Create subjects, organize shared materials and author your own learning paths.</p></header>
     <p aria-label="Local identity">{session ? 'Local guest · Offline workspace' : 'Local guest'}</p>
-    <ReadingPreferencesPanel reading={reading} />
+    <ReadingPreferencesPanel reading={reading} effective={settings.effective} /><SettingsPanel reading={reading} settings={settings} detailsRef={settingsRef} subjects={data?.subjects} />
+    <section aria-label="Workspace continuity"><h2>Remembered workspace context</h2>
+      <button disabled={!data || !reading.loaded || reading.working || reading.retry} onClick={() => void rememberContext()}>Remember workspace context</button>
+      <button disabled={!data || !reading.preferences.navigation || reading.working || reading.retry || dirty || content.busy || content.hasPending} onClick={restoreContext}>Restore remembered workspace context</button>
+      <button disabled={!reading.preferences.navigation || reading.working || reading.retry} onClick={() => { void reading.saveNavigation(null).then(setNotice); }}>Forget remembered workspace context</button>
+      <p>Stores selection, query and page for this course. Reading positions stay attached to saved material revisions. Restore keeps unsaved material drafts protected.</p>
+    </section>
     <main id={mainId} tabIndex={-1}>
       <OrganizationStatus content={content} />
       {notice && <p role="alert">{notice}</p>}
       <SubjectNavigation content={content} selected={subjectId} select={id => { setSubjectId(id); setCollectionId(null); }} />
-      {data && <LibraryContents data={data} content={content} subjectId={subjectId} collectionId={collectionId} selectCollection={setCollectionId} resourceId={resourceId} openResource={openResource} onDirty={setDirty} />}
+      {data && <LibraryContents data={data} content={content} subjectId={subjectId} collectionId={collectionId} selectCollection={setCollectionId} initialNavigation={initialNavigation} updateBrowserContext={updateBrowserContext} resourceId={resourceId} openResource={openResource} onDirty={setDirty} />}
     {data && lessonPort && <LessonTabs data={data} port={lessonPort} sources={sourcePort} perform={content.perform} />}
     </main>
-  </div>;
+  </div></StudySettingsProvider>;
 }
 function OrganizationStatus({ content }: { content: Content }) {
   return <><StatusMessage>{content.busy ? 'Saving organization…' : content.message}</StatusMessage>{(content.error || content.hasPending) && <div role="alert"><p>{content.message}</p><button onClick={() => void content.retry()}>Retry last change</button><button onClick={() => void content.reload()}>Reload organization</button></div>}</>;
@@ -44,10 +84,10 @@ function SubjectNavigation({ content, selected, select }: { content: Content; se
   async function create(title: string) { const id = crypto.randomUUID(); const result = await content.perform({ type: 'createSubject', id, title, priorKnowledge: null }); if (result) select(id); return result; }
   return <fieldset disabled={content.busy || content.hasPending || !content.snapshot}><legend>Subjects</legend><NameForm label="New subject" action="Create subject" onSubmit={create} /><nav aria-label="Subjects"><ul>{subjects.map(subject => <li key={subject.id}><button aria-current={selected === subject.id ? 'page' : undefined} onClick={() => select(subject.id)}>{subject.title}</button></li>)}</ul></nav>{content.snapshot && !subjects.length && <p>No active subjects. Create a subject to begin.</p>}</fieldset>;
 }
-function LibraryContents({ data, content, subjectId, collectionId, selectCollection, resourceId, openResource, onDirty }: { data: Library; content: Content; subjectId: string; collectionId: string | null; selectCollection: (id: string | null) => void; resourceId: string; openResource: (id: string) => void; onDirty: (dirty: boolean) => void }) {
+function LibraryContents({ data, content, subjectId, collectionId, selectCollection, resourceId, openResource, onDirty, initialNavigation, updateBrowserContext }: { data: Library; content: Content; subjectId: string; collectionId: string | null; selectCollection: (id: string | null) => void; resourceId: string; openResource: (id: string) => void; onDirty: (dirty: boolean) => void; initialNavigation: NavigationContext | null; updateBrowserContext: (part: Partial<NavigationContext>) => void }) {
   async function createMaterial(title: string) { const id = crypto.randomUUID(); const result = await content.perform({ type: 'createResource', id, title }); if (result) openResource(id); return result; }
   return <>{subjectId && <fieldset disabled={content.busy || content.hasPending}><legend>Selected subject</legend><SubjectPanel data={data} subjectId={subjectId} collectionId={collectionId} selectCollection={selectCollection} perform={content.perform} openResource={openResource} /></fieldset>}
-    <fieldset disabled={content.busy || content.hasPending}><legend>Materials</legend><NameForm label="New material" action="Create material" onSubmit={createMaterial} /><MaterialList data={data} selected={resourceId} open={openResource} /></fieldset>
+    <fieldset disabled={content.busy || content.hasPending}><legend>Materials</legend><NameForm label="New material" action="Create material" onSubmit={createMaterial} /><MaterialList data={data} selected={resourceId} open={openResource} initialNavigation={initialNavigation} onContext={updateBrowserContext} /></fieldset>
     {data.resources[resourceId] && <MaterialPanel key={resourceId} data={data} resourceId={resourceId} onDirty={onDirty} perform={content.perform} onLibraryChanged={() => void content.reload()} />}
     <fieldset disabled={content.busy || content.hasPending}><legend>Units and paths</legend><UnitForms data={data} perform={content.perform} /><PathForms data={data} perform={content.perform} /></fieldset>
     <fieldset disabled={content.busy || content.hasPending}><legend>Archive and restore</legend><ArchivePanel data={data} perform={content.perform} /></fieldset></>;
@@ -56,74 +96,104 @@ function SubjectPanel({ data, subjectId, collectionId, selectCollection, perform
   const subject = data.subjects[subjectId];
   return <fieldset disabled={subject.archived}><legend>{subject.title}</legend><p>Current subject: {subject.title}{subject.archived ? ' (archived)' : ''}</p><GoalForm key={subjectId} subjectId={subjectId} perform={perform} /><ul>{Object.values(data.goals).filter(goal => goal.subjectId === subjectId && !goal.archived).map(goal => <li key={goal.id}>{goal.title}{goal.criteria && <p>{goal.criteria}</p>}</li>)}</ul><CollectionPanel data={data} subjectId={subjectId} selected={collectionId} select={selectCollection} perform={perform} openResource={openResource} /></fieldset>;
 }
-function useMaterialSearch(libraryRevision: number) {
+function useMaterialSearch(libraryRevision: number, onContext: (part: Partial<NavigationContext>) => void) {
   const { searchResources, rebuildSearchIndex } = useContentPort();
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<SearchPage | null>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const [result, setResult] = useState<SearchPage | null>(null);
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [scannedBatches, setScannedBatches] = useState(0);
   const request = useRef(0); const revision = useRef(libraryRevision); revision.current = libraryRevision;
-  useEffect(() => { request.current += 1; setResult(null); setBusy(false); setError(''); }, [libraryRevision]);
+  useEffect(() => { request.current += 1; setResult(null); setScannedBatches(0); setBusy(false); setError(''); }, [libraryRevision]);
   useEffect(() => () => { request.current += 1; }, []);
-  async function search(offset = 0) {
+  async function search(offset = 0, restoredQuery?: string) {
+    const currentQuery = restoredQuery ?? query;
     const token = ++request.current; const expected = libraryRevision;
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setScannedBatches(0);
     try {
-      const value = await searchResources(query, offset);
-      if (token !== request.current || revision.current !== expected) return;
-      if (value.revision !== expected) { setResult(null); setError('The library changed. Reload organization before searching again.'); return; }
-      setResult(value);
+      let cursor = offset; const seen = new Set([cursor]);
+      for (let batch = 0; batch < 64; batch += 1) {
+        const value = await searchResources(currentQuery, cursor);
+        if (token !== request.current || revision.current !== expected) return;
+        if (value.revision !== expected) { setResult(null); setError('The library changed. Reload organization before searching again.'); return; }
+        if (value.nextOffset !== null && (!Number.isSafeInteger(value.nextOffset) || value.nextOffset < 0 || seen.has(value.nextOffset))) {
+          setResult(null); setError('Search could not continue. Try searching again.'); return;
+        }
+        if (value.items.length || value.nextOffset === null || batch === 63) {
+          setResult(value); onContext({ query: currentQuery, searchOffset: cursor, searchActive: true }); return;
+        }
+        seen.add(value.nextOffset); cursor = value.nextOffset; setScannedBatches(batch + 1);
+      }
     } catch (reason) { if (token === request.current) setError(failureMessage(reason)); }
-    finally { if (token === request.current) setBusy(false); }
+    finally { if (token === request.current) { setBusy(false); setScannedBatches(0); } }
   }
-  function edit(value: string) { request.current += 1; setQuery(value); setResult(null); setBusy(false); setError(''); }
-  async function rebuild() { if (!rebuildSearchIndex) return; const token = ++request.current; setBusy(true); setError(''); try { await rebuildSearchIndex(); if (token === request.current) setResult(null); } catch (reason) { if (token === request.current) setError(failureMessage(reason)); } finally { if (token === request.current) setBusy(false); } }
-  return { query, result, busy, error, search, edit, rebuild, canRebuild: !!rebuildSearchIndex };
+  function edit(value: string) { onContext({ query: value, searchOffset: 0, searchActive: false }); request.current += 1; setQuery(value); setResult(null); setScannedBatches(0); setBusy(false); setError(''); }
+  async function rebuild() { if (!rebuildSearchIndex) return; const token = ++request.current; setBusy(true); setError(''); setScannedBatches(0); try { await rebuildSearchIndex(); if (token === request.current) setResult(null); } catch (reason) { if (token === request.current) setError(failureMessage(reason)); } finally { if (token === request.current) setBusy(false); } }
+  return { restore: (context: NavigationContext) => { edit(context.query); if (context.searchActive) void search(context.searchOffset, context.query); }, query, result, scannedBatches, busy, error, search, edit, rebuild, canRebuild: !!rebuildSearchIndex };
 }
 type MaterialSearch = ReturnType<typeof useMaterialSearch>;
-function MaterialList({ data, selected, open }: { data: Library; selected: string; open: (id: string) => void }) {
-  const search = useMaterialSearch(data.revision); const [page, setPage] = useState(0);
-  const heading = useRef<HTMLHeadingElement>(null); const focus = useRef(false);
+function MaterialList({ data, selected, open, initialNavigation, onContext }: { data: Library; selected: string; open: (id: string) => void; initialNavigation: NavigationContext | null; onContext: (part: Partial<NavigationContext>) => void }) {
+  const search = useMaterialSearch(data.revision, onContext); const [page, setPage] = useState(0);
+  useEffect(() => { if (initialNavigation) { setPage(initialNavigation.page); search.restore(initialNavigation); } }, [initialNavigation]);
+  const heading = useRef<HTMLHeadingElement>(null); const focus = useRef(false); const materialStatusId = useId();
   useEffect(() => { if (focus.current) { heading.current?.focus(); focus.current = false; } }, [search.result, page]);
   const result = search.result;
   const resources = Object.values(data.resources).filter(item => !item.archived);
   const lastPage = Math.max(0, Math.ceil(resources.length / 20) - 1); const currentPage = Math.min(page, lastPage);
   const visible = materialResults(result, resources, currentPage);
   return <section aria-label="Material browser">
-    <SearchForm search={search} beforeSearch={() => { focus.current = true; }} />
+    <SearchForm search={search} beforeSearch={() => { focus.current = true; }} beforeEdit={() => { focus.current = false; }} />
     {search.canRebuild && <button disabled={search.busy} onClick={() => void search.rebuild()}>Rebuild search index</button>}
-    <h3 ref={heading} tabIndex={-1}>{result ? 'Search results' : 'Available materials'}</h3>
-    {result ? <><SearchStatus result={result} />{result.indexRebuilt && <p role="status">The search index was rebuilt from saved materials.</p>}</> : <MaterialCount count={resources.length} page={currentPage} />}
+    <h3 ref={heading} tabIndex={-1} aria-describedby={materialStatusId}>{result ? 'Search results' : 'Available materials'}</h3>
+    {result ? <><SearchStatus result={result} resources={resources} id={materialStatusId} />{result.indexRebuilt && <p role="status">The search index was rebuilt from saved materials.</p>}</> : <MaterialCount count={resources.length} page={currentPage} id={materialStatusId} />}
     <ul>{visible.map(item => <li key={item.id}><button aria-current={selected === item.id ? 'page' : undefined} onClick={() => open(item.id)}>{item.title}</button>{item.snippet && <p>{item.snippet}</p>}{'references' in item && item.references?.map((ref, index) => <p key={`${ref.sourceId}-${index}`}>Original {ref.sourceId}, {ref.locator.kind} {ref.locator.value}{!ref.originalAvailable && ' — original unavailable or corrupt'}</p>)}</li>)}</ul>
-    {result ? <ContinueSearch search={search} beforeSearch={() => { focus.current = true; }} /> : <div className="actions"><button disabled={!currentPage} onClick={() => { focus.current = true; setPage(currentPage - 1); }}>Previous materials</button><button disabled={currentPage >= lastPage} onClick={() => { focus.current = true; setPage(currentPage + 1); }}>Next materials</button></div>}
+    {result ? <ContinueSearch search={search} beforeSearch={() => { focus.current = true; }} /> : <div className="actions"><button disabled={!currentPage} onClick={() => { focus.current = true; setPage(0); onContext({ page: 0 }); }}>First materials</button><button disabled={!currentPage} onClick={() => { focus.current = true; setPage(currentPage - 1); onContext({ page: currentPage - 1 }); }}>Previous materials</button><button disabled={currentPage >= lastPage} onClick={() => { focus.current = true; setPage(currentPage + 1); onContext({ page: currentPage + 1 }); }}>Next materials</button><button disabled={currentPage >= lastPage} onClick={() => { focus.current = true; setPage(lastPage); onContext({ page: lastPage }); }}>Last materials</button></div>}
   </section>;
 }
 function materialResults(result: SearchPage | null, resources: Entity[], page: number) {
   if (result) return result.items.map(item => ({ id: item.resourceId, title: item.title, snippet: item.snippet, references: item.references }));
   return resources.slice(page * 20, page * 20 + 20).map(item => ({ ...item, snippet: '' }));
 }
-function SearchForm({ search, beforeSearch }: { search: MaterialSearch; beforeSearch: () => void }) {
+function SearchForm({ search, beforeSearch, beforeEdit }: { search: MaterialSearch; beforeSearch: () => void; beforeEdit: () => void }) {
   const helpId = useId();
   const valid = search.query.length > 0 && [...search.query].length <= 256;
   function submit(event: FormEvent) { event.preventDefault(); if (valid) { beforeSearch(); void search.search(); } }
-  return <><form onSubmit={submit}><label>Search titles, tags and text<input type="search" value={search.query} onChange={event => search.edit(event.target.value)} aria-describedby={helpId} /></label><p id={helpId}>Literal text, up to 256 characters. Searches saved titles, tags and canonical text in bounded batches.</p><button disabled={search.busy || !valid}>Search materials</button><button type="button" onClick={() => search.edit('')}>Show all materials</button></form>{[...search.query].length > 256 && <p role="alert">Use at most 256 characters.</p>}{search.error && <p role="alert">{search.error}</p>}{search.busy && <p role="status">Searching saved materials…</p>}</>;
+  return <><form onSubmit={submit}><label>Search titles, tags and text<input type="search" value={search.query} onFocus={beforeEdit} onChange={event => { beforeEdit(); search.edit(event.target.value); }} aria-describedby={helpId} /></label><p id={helpId}>Literal text, up to 256 characters. Searches saved titles, tags and canonical text in bounded batches.</p><button disabled={search.busy || !valid}>Search materials</button><button type="button" onClick={() => { beforeEdit(); search.edit(''); }}>Show all materials</button></form>{[...search.query].length > 256 && <p role="alert">Use at most 256 characters.</p>}{search.error && <p role="alert">{search.error}</p>}{search.busy && <p role="status">Searching saved materials…{search.scannedBatches > 0 && ` ${search.scannedBatches} batches checked.`}</p>}</>;
 }
 function ContinueSearch({ search, beforeSearch }: { search: MaterialSearch; beforeSearch: () => void }) {
   const offset = search.result?.nextOffset ?? null;
   return <button disabled={search.busy || offset === null} onClick={() => { if (offset !== null) { beforeSearch(); void search.search(offset); } }}>Continue search</button>;
 }
-function MaterialCount({ count, page }: { count: number; page: number }) {
-  return <p role="status">{count ? `${count} materials. Showing ${page * 20 + 1}–${Math.min((page + 1) * 20, count)}.` : 'No active materials. Create a material to begin.'}</p>;
+function MaterialCount({ count, page, id }: { count: number; page: number; id: string }) {
+  return <p id={id} role="status">{count ? `${count} materials. Showing ${page * 20 + 1}–${Math.min((page + 1) * 20, count)}.` : 'No active materials. Create a material to begin.'}</p>;
 }
-function SearchStatus({ result }: { result: SearchPage }) {
-  if (result.items.length) return <p role="status">{result.items.length} matches in this batch.{result.nextOffset !== null ? ' More materials remain to search.' : ' Search complete.'}</p>;
-  return <p role="status">{result.nextOffset === null ? 'No matches in this batch. Search complete.' : 'No matches in this batch. More materials remain to search.'}</p>;
+function SearchStatus({ result, resources, id }: { result: SearchPage; resources: Entity[]; id: string }) {
+  const positions = result.items.map(item => resources.findIndex(resource => resource.id === item.resourceId) + 1).filter(position => position > 0);
+  const range = positions.length ? `Matching material positions ${Math.min(...positions)}–${Math.max(...positions)} of ${resources.length}. ` : '';
+  const matches = result.items.length ? `${result.items.length} matches in this batch.` : 'No matches in this batch.';
+  return <p id={id} role="status">{range}{matches}{result.nextOffset !== null ? ' More materials remain to search.' : ' Search complete.'}</p>;
 }
 function ArchivePanel({ data, perform }: { data: Library; perform: Perform }) {
+  const [open, setOpen] = useState(false);
   const groups = [['subject', data.subjects], ['goal', data.goals], ['collection', data.collections], ['resource', data.resources], ['unit', data.units], ['path', data.paths]] as const;
-  return <details><summary>Manage archived items</summary><p>Archiving preserves the item and its identity. Restore an item to make it available again.</p>{groups.map(([kind, items]) => <ArchiveGroup key={kind} kind={kind} items={items} perform={perform} />)}<ul>{Object.values(data.placements).filter(item => item.archived).map(item => <li key={item.id}>Removed placement in {data.collections[item.collectionId]?.title}<button aria-label={`Restore placement ${item.id}`} onClick={() => void perform({ type: 'archive', target: { kind: 'placement', id: item.id }, archived: false })}>Restore placement</button></li>)}</ul></details>;
+  return <details onToggle={event => setOpen(event.currentTarget.open)}><summary>Manage archived items</summary>{open && <><p>Archiving preserves the item and its identity. Restore an item to make it available again.</p>{groups.map(([kind, items]) => <ArchiveGroup key={kind} kind={kind} items={items} perform={perform} />)}<ul>{Object.values(data.placements).filter(item => item.archived).map(item => <li key={item.id}>Removed placement in {data.collections[item.collectionId]?.title}<button aria-label={`Restore placement ${item.id}`} onClick={() => void perform({ type: 'archive', target: { kind: 'placement', id: item.id }, archived: false })}>Restore placement</button></li>)}</ul></>}</details>;
 }
 function ArchiveGroup({ kind, items, perform }: { kind: 'subject' | 'goal' | 'collection' | 'resource' | 'unit' | 'path'; items: Record<string, Entity>; perform: Perform }) {
   const label = kind === 'resource' ? 'material' : kind;
-  return <section><h3>{label.charAt(0).toUpperCase() + label.slice(1)} archive controls</h3><ul>{Object.values(items).map(item => <li key={item.id}>{item.title}{item.archived ? ' (archived)' : ''}<button aria-label={`${item.archived ? 'Restore' : 'Archive'} ${label} ${item.title}`} onClick={() => void perform({ type: 'archive', target: { kind, id: item.id }, archived: !item.archived })}>{item.archived ? 'Restore' : 'Archive'}</button></li>)}</ul></section>;
+  const [page, setPage] = useState(0); const [query, setQuery] = useState(''); const [order, setOrder] = useState('default');
+  const heading = useRef<HTMLHeadingElement>(null); const focus = useRef(false);
+  const collator = useMemo(() => new Intl.Collator('en', { sensitivity: 'base', numeric: true }), []);
+  const all = Object.values(items); const entries = all.filter(item => item.title.toLowerCase().includes(query.toLowerCase()));
+  if (order !== 'default') entries.sort((a, b) => (order === 'descending' ? -1 : 1) * (collator.compare(a.title, b.title) || a.id.localeCompare(b.id)));
+  const lastPage = Math.max(0, Math.ceil(entries.length / 20) - 1); const currentPage = Math.min(page, lastPage);
+  useEffect(() => { if (focus.current) { heading.current?.focus(); focus.current = false; } }, [currentPage]);
+  function turn(next: number) { focus.current = true; setPage(next); }
+  const title = `${label.charAt(0).toUpperCase() + label.slice(1)} archive controls`;
+  return <section aria-label={title}><h3 ref={heading} tabIndex={-1}>{title}</h3>
+    <label>Filter {label} archive items<input type="search" value={query} onChange={event => { focus.current = false; setQuery(event.target.value); setPage(0); }} /></label>
+    <label>Sort {label} archive items<select value={order} onChange={event => { focus.current = false; setOrder(event.target.value); setPage(0); }}><option value="default">Default order</option><option value="ascending">Title ascending</option><option value="descending">Title descending</option></select></label>
+    <p role="status">{query ? `Filter matches: ${entries.length} of ${all.length} ${label} items.` : `${entries.length} ${label} items.`}{entries.length ? ` Showing ${currentPage * 20 + 1}–${Math.min((currentPage + 1) * 20, entries.length)}.` : ' No items to show.'}</p>
+    <ul>{entries.slice(currentPage * 20, currentPage * 20 + 20).map(item => <li key={item.id}>{item.title}{item.archived ? ' (archived)' : ''}<button type="button" aria-label={`${item.archived ? 'Restore' : 'Archive'} ${label} ${item.title}`} onClick={() => void perform({ type: 'archive', target: { kind, id: item.id }, archived: !item.archived })}>{item.archived ? 'Restore' : 'Archive'}</button></li>)}</ul>
+    <div className="actions"><button type="button" disabled={!currentPage} onClick={() => turn(0)}>First {label} archive page</button><button type="button" disabled={!currentPage} onClick={() => turn(currentPage - 1)}>Previous {label} archive page</button><button type="button" disabled={currentPage >= lastPage} onClick={() => turn(currentPage + 1)}>Next {label} archive page</button><button type="button" disabled={currentPage >= lastPage} onClick={() => turn(lastPage)}>Last {label} archive page</button></div>
+  </section>;
 }
 function CollectionPanel({ data, subjectId, selected, select, perform, openResource }: { data: Library; subjectId: string; selected: string | null; select: (id: string | null) => void; perform: Perform; openResource: (id: string) => void }) {
   const current = selected ? data.collections[selected] : null;
@@ -149,9 +219,9 @@ function CollectionActions({ current, data, select, perform, openResource }: { c
       <label>Destination parent<select value={targetParent} onChange={e => setTargetParent(e.target.value)}><option value="">Subject root</option>{Object.values(data.collections).filter(x => x.subjectId === targetSubject && !x.archived).map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></label>
       <button disabled={!targetSubject} onClick={() => void move()}>Move collection</button>
       <button onClick={() => void perform({ type: 'archive', target: { kind: 'collection', id: current.id }, archived: true }).then(result => { if (result) select(null); })}>Archive collection</button>
-      <label>Reuse material<select value={resource} onChange={e => setResource(e.target.value)}><option value="">Choose material</option><Options items={data.resources} /></select></label>
+      <EntitySelect label="Reuse material" placeholder="Choose material" items={data.resources} value={resource} onChange={setResource} />
       <button disabled={!resource} onClick={() => void perform({ type: 'place', id: crypto.randomUUID(), collectionId: current.id, target: { kind: 'resource', id: resource } })}>Add shared placement</button>
-      <label>Place learning unit<select value={unit} onChange={e => setUnit(e.target.value)}><option value="">Choose unit</option><Options items={data.units} /></select></label>
+      <EntitySelect label="Place learning unit" placeholder="Choose unit" items={data.units} value={unit} onChange={setUnit} />
       <button disabled={!unit} onClick={() => void perform({ type: 'place', id: crypto.randomUUID(), collectionId: current.id, target: { kind: 'unit', id: unit } })}>Place unit</button>
       <ol>{placements.map(item => <PlacementRow key={item.id} item={item} data={data} siblings={placements} perform={perform} openResource={openResource} />)}</ol>
       {!placements.length && <p>No shared placements in this collection.</p>}

@@ -3,12 +3,130 @@ use crate::document::Document;
 use uuid::Uuid;
 
 #[test]
+fn cached_search_does_not_memoize_a_concurrent_external_change() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    let db = Database::open(&root).unwrap();
+    let id = resource(&db, "notes");
+    document(&db, id, 1, "canonical rare phrase");
+    let once = std::cell::Cell::new(false);
+    crate::workspace::faults::using(move |phase| {
+        if phase == crate::workspace::faults::Phase::SearchAfterValidation && !once.replace(true) {
+            let external = rusqlite::Connection::open(root.join("memoquill.sqlite3")).unwrap();
+            external.execute("UPDATE search_fts SET body='external change after verification' WHERE resource_id=?1", [id.to_string()]).unwrap();
+        }
+        Ok(())
+    }, || db.search_resources(RequestContext::local_ui(), "rare phrase", 0)).unwrap();
+    let repaired = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert!(repaired.index_rebuilt);
+    assert_eq!(repaired.items[0].resource_id, id);
+}
+
+#[test]
+fn cached_search_reuses_current_index_without_derived_writes() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    let id = resource(&db, "notes");
+    document(&db, id, 1, "canonical rare phrase");
+    let first = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert_eq!(first.items[0].resource_id, id);
+    let changes = db.connection.total_changes();
+    let second = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert_eq!(second.items, first.items);
+    assert!(!second.index_rebuilt);
+    assert_eq!(db.connection.total_changes(), changes);
+}
+
+#[test]
+fn cached_search_rechecks_commits_from_another_connection() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("workspace");
+    let db = Database::open(&path).unwrap();
+    let id = resource(&db, "notes");
+    document(&db, id, 1, "canonical rare phrase");
+    db.search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    let local_changes = db.connection.total_changes();
+    let external = rusqlite::Connection::open(path.join("memoquill.sqlite3")).unwrap();
+    external
+        .execute(
+            "UPDATE search_fts SET body='stale external content' WHERE resource_id=?1",
+            [id.to_string()],
+        )
+        .unwrap();
+    drop(external);
+    assert_eq!(db.connection.total_changes(), local_changes);
+    let page = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert!(page.index_rebuilt);
+    assert_eq!(page.items[0].resource_id, id);
+}
+
+#[test]
+fn cached_search_rechecks_schema_changes_and_failed_reads() {
+    let temp = tempfile::tempdir().unwrap();
+    let db = Database::open(&temp.path().join("workspace")).unwrap();
+    let id = resource(&db, "notes");
+    document(&db, id, 1, "canonical rare phrase");
+    db.search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    db.connection
+        .execute_batch("DROP TABLE search_fts")
+        .unwrap();
+    let page = db
+        .search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
+    assert!(page.index_rebuilt);
+    assert_eq!(page.items[0].resource_id, id);
+    let digest: String = db
+        .connection
+        .query_row(
+            "SELECT digest FROM resource_revisions WHERE resource_id=?1",
+            [id.to_string()],
+            |r| r.get(0),
+        )
+        .unwrap();
+    db.connection
+        .execute(
+            "UPDATE resource_revisions SET digest=?1 WHERE resource_id=?2",
+            params!["0".repeat(64), id.to_string()],
+        )
+        .unwrap();
+    assert!(
+        db.search_resources(RequestContext::local_ui(), "rare phrase", 0)
+            .is_err()
+    );
+    db.connection
+        .execute(
+            "UPDATE resource_revisions SET digest=?1 WHERE resource_id=?2",
+            params![digest, id.to_string()],
+        )
+        .unwrap();
+    assert_eq!(
+        db.search_resources(RequestContext::local_ui(), "rare phrase", 0)
+            .unwrap()
+            .items[0]
+            .resource_id,
+        id
+    );
+}
+
+#[test]
 fn same_count_stale_index_never_hides_canonical_results() {
     let temp = tempfile::tempdir().unwrap();
     let db = Database::open(&temp.path().join("workspace")).unwrap();
     let id = resource(&db, "notes");
     document(&db, id, 1, "canonical rare phrase");
     db.rebuild_search_index(RequestContext::local_ui()).unwrap();
+    db.search_resources(RequestContext::local_ui(), "rare phrase", 0)
+        .unwrap();
     db.connection
         .execute(
             "UPDATE search_fts SET body='stale content' WHERE resource_id=?1",

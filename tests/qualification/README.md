@@ -101,3 +101,46 @@ helpers can briefly retain unrelated flock descriptors until exec/close. Explici
 process contention/crash tests still exercise real concurrency. Mutation workers
 materialize private Rust source files and reuse passive assets; source build
 failures must not be counted as behavioral kills.
+
+## M5 settings scenario
+
+`python3 tools/verification/verify.py run --profile native --scenario settings
+--native-image localhost/memoquill-m1-desktop:20261027 --native-input
+.qualification/m5-settings/native-input` packages the current candidate, builds an
+offline installed image and runs only the settings journey. The input directory
+must exist and contain only synthetic regular fixtures. The runner binds the RPM,
+image and staged scripts to its report. The journey uses keyboard/AT-SPI in the
+private Podman desktop, checks inheritance, staged reset, two-course isolation,
+normal close/locks and actual restart. No screenshots are captured. It does not
+claim audible Orca, broad usability or whole-M5 acceptance.
+
+## M5 canonical session settings and scheduled Due
+
+Use the verification runner native profile with `--scenario study-settings` and
+the same reviewed local desktop base/synthetic fixture directory as `settings`.
+The separate journey verifies canonical settings/workload after actual restarts,
+changed defaults, and policy-offered Due. It uses a synthetic time-zone policy-day
+advance rather than changing clocks or editing the database. No screenshots,
+real learning data or host desktop/bus access. This narrow automated scenario does
+not establish large-fixture, audible Orca, human usability or complete A/B/D/E/F.
+
+## M5 subject and keyboard customization
+
+The runner native `--scenario customization` journey covers subject isolation,
+retained draft ownership, staged category resets, explicit key conflicts/focus,
+keyboard JSON and actual close/reopen. It uses the same private X11 profile and
+synthetic fixture directory as `settings`, without screenshots or OS keybinding
+changes. A harness-only correction may use the isolated verification-engine
+adapter in `.qualification/m5-subject-shortcuts/` to reuse an unchanged SHA-attested
+RPM/image; this remains a focused correction, not a new full-native profile pass.
+
+## M5 full scale fixture (2026-11-15)
+
+Exclusive synthetic SSD generation uses `MEMOQUILL_SCALE_MODE=pilot` or `full`
+with the local verification runner adapter `tests/qualification/verify-m5-scale.py`
+when the workstation runner is installed. The full fixture has 100 subjects,
+10,000 resources, 100,000 activities, 1,000,000 attempts and 10 GB of assets.
+The generator exclusively creates its output directory. The scale journeys use
+an isolated synthetic XDG workspace copy, read-only assets and an attested RPM.
+Orca speech requests are read from the private instance after it exits.
+See [M5 integration evidence](../../docs/quality/m5-integration.md).

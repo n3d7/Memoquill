@@ -1,3 +1,4 @@
+import { WorkspaceSettingsProvider } from '../settings/WorkspaceSettingsProvider';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApplicationProvider, type ApplicationPorts } from '../application/ApplicationProvider';
 import type { ImportResult } from '../application/packageTypes';
@@ -36,7 +37,7 @@ export function CourseApp({ coursePort = nativeCoursePort, makePorts = createNat
   function create(event: FormEvent) {
     event.preventDefault(); if (title.trim() && !busy && !pending) void run({ type: 'create', operationId: crypto.randomUUID(), title });
   }
-  return <div className="course-shell">
+  return <WorkspaceSettingsProvider port={coursePort.settings}><div className="course-shell">
     <aside className="course-sidebar"><h2>Courses</h2><nav aria-label="Courses"><ul>{catalogue?.courses.map(course => <li key={course.id}>
       <button disabled={busy || pending !== null} aria-current={catalogue.selectedCourseId === course.id ? 'page' : undefined} onClick={() => void run({ type: 'select', id: course.id })}>{course.title}</button>
     </li>)}</ul></nav>
@@ -48,5 +49,5 @@ export function CourseApp({ coursePort = nativeCoursePort, makePorts = createNat
     <div className="course-workspace">{imported && <section aria-label="Latest package import result"><p role="status">Created new course {imported.report.courseId}. Existing courses were preserved.</p><p>Course remap: {imported.report.sourceCourseId} → {imported.report.courseId}.</p><pre>{JSON.stringify(imported.report, null, 2)}</pre></section>}{mounted.map(course => <div key={course.id} hidden={catalogue?.selectedCourseId !== course.id} inert={catalogue?.selectedCourseId !== course.id} data-course-id={course.id}>
       <ApplicationProvider ports={course.ports} active={catalogue?.selectedCourseId === course.id}>{course.ports.packages && <PackagePanel port={course.ports.packages} onImported={async result => { setImported(result); accept(await coursePort.list()); }} />}<LibraryApp /></ApplicationProvider>
     </div>)}</div>
-  </div>;
+  </div></WorkspaceSettingsProvider>;
 }

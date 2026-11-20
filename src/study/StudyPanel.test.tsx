@@ -1,3 +1,4 @@
+import { StudySettingsProvider } from './sessionSettings';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { createNativeLessonPort } from '../lessons/nativeLessonPort';
@@ -152,7 +153,7 @@ it('starts a lesson assessment with independent pins and explicitly excludes ins
   render(<StudyPanel unitId="unit" lessons={lessons} port={port} />);
   fireEvent.click(screen.getByRole('button', { name: 'Start assessment' }));
   await waitFor(() => expect(port.apply).toHaveBeenCalledOnce());
-  expect(vi.mocked(port.apply).mock.calls[0][0].action).toEqual({ kind: 'start', unitId: 'unit', compositionRevisionId: 'composition', mode: 'assessment', phase: 'independent', bindingIds: ['independent'] });
+  expect(vi.mocked(port.apply).mock.calls[0][0].action).toEqual({ kind: 'start', unitId: 'unit', compositionRevisionId: 'composition', mode: 'assessment', settings: { contractVersion: 1, theme: 'system', textScale: 100, goal: '', focus: '', itemLimit: 64, activityFamily: 'all' }, phase: 'independent', bindingIds: ['independent'] });
   expect(await screen.findByText(/Assessment excludes 1 instructional/)).toBeInTheDocument();
 });
 
@@ -164,4 +165,56 @@ it.each([Number.MAX_SAFE_INTEGER, 8_640_000_000_000_001])('retains a valid persi
   await screen.findByRole('option', { name: /practice: 1\/1/ }); fireEvent.change(screen.getByLabelText('Saved study sessions'), { target: { value: 'session' } });
   expect(await screen.findByText(new RegExp(`${submittedAtUnixMs} UTC Unix ms`))).toHaveTextContent('outside supported date display range');
   expect(port.apply).not.toHaveBeenCalled();
+});
+
+it('restores the durable session settings instead of changed defaults and keeps the saved response', async () => {
+  const s = session(); s.phase = 'delayedCheck'; s.settings = { contractVersion: 1, theme: 'dark', textScale: 150, goal: 'Saved goal', focus: 'Saved focus' };
+  const { port, lessons } = fixture(s);
+  const { rerender } = render(<StudySettingsProvider settings={{ theme: 'light', textScale: 100, goal: 'New goal', focus: 'New focus' }}><StudyPanel unitId="unit" lessons={lessons} port={port} initialSessionId="session" /></StudySettingsProvider>);
+  expect(await screen.findByText('Session goal: Saved goal')).toBeInTheDocument();
+  expect(screen.getByText('Session focus: Saved focus')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Study lesson' })).toHaveAttribute('data-theme', 'dark');
+  expect(screen.getByRole('region', { name: 'Study lesson' })).toHaveStyle({ fontSize: '24px' });
+  expect(screen.getByText(/Session context: delayedCheck/)).toBeInTheDocument();
+  rerender(<StudySettingsProvider settings={null}><StudyPanel unitId="unit" lessons={lessons} port={port} initialSessionId="session" /></StudySettingsProvider>);
+  expect(screen.getByDisplayValue('My draft')).toBeInTheDocument();
+  expect(screen.getByText('Session goal: Saved goal')).toBeInTheDocument();
+  expect(port.apply).not.toHaveBeenCalled();
+});
+it('does not infer old settings and blocks new starts until settings sources load', async () => {
+  const { port, lessons } = fixture(session());
+  render(<StudySettingsProvider settings={null}><StudyPanel unitId="unit" lessons={lessons} port={port} initialSessionId="session" /></StudySettingsProvider>);
+  expect(await screen.findByText(/older session has no saved settings snapshot/)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Study lesson' })).not.toHaveAttribute('data-theme');
+  expect(port.apply).not.toHaveBeenCalled();
+});
+it('captures settings at Start and retries the exact snapshot after defaults change', async () => {
+  const s = session(); const { port, lessons } = fixture(s);
+  const { composition } = await import('../lessons/testFixtures'); const c = composition(); c.unitId = 'unit'; c.bindings = [{ bindingId: 'question', targetKind: 'activity', targetId: 'activity', revisionId: 'activity-revision' }];
+  vi.spyOn(lessons, 'read').mockResolvedValue({ id: 'composition', unitId: 'unit', composition: c, parentRevisionId: null, registryContractVersion: 1, hash: 'hash' });
+  vi.mocked(port.apply).mockRejectedValueOnce({ code: 'OutcomeUnconfirmed' });
+  const settings = { theme: 'dark' as const, textScale: 150 as const, goal: 'Initial goal', focus: 'Initial focus' };
+  const { rerender } = render(<StudySettingsProvider settings={settings}><StudyPanel unitId="unit" lessons={lessons} port={port} /></StudySettingsProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Start practice' }));
+  await screen.findByRole('button', { name: 'Reconnect and retry pending study action' });
+  rerender(<StudySettingsProvider settings={{ ...settings, goal: 'Changed default' }}><StudyPanel unitId="unit" lessons={lessons} port={port} /></StudySettingsProvider>);
+  fireEvent.click(screen.getByRole('button', { name: 'Reconnect and retry pending study action' }));
+  await waitFor(() => expect(port.apply).toHaveBeenCalledTimes(2));
+  const calls = vi.mocked(port.apply).mock.calls;
+  expect(calls[0][0].action).toMatchObject({ kind: 'start', settings: { contractVersion: 1, ...settings } });
+  expect(calls[1][0]).toEqual(calls[0][0]);
+});
+
+it('selects an explicit bounded activity workload without changing other lessons', async () => {
+  const s = session(); const { port, lessons } = fixture(s);
+  const { composition } = await import('../lessons/testFixtures'); const c = composition(); c.unitId = 'unit';
+  c.bindings = ['one', 'two', 'three'].map(id => ({ bindingId: id, targetKind: 'activity' as const, targetId: 'activity', revisionId: id }));
+  vi.spyOn(lessons, 'read').mockResolvedValue({ id: 'composition', unitId: 'unit', composition: c, parentRevisionId: null, registryContractVersion: 1, hash: 'hash' });
+  vi.spyOn(lessons, 'readActivity').mockImplementation(async (_unit, id) => ({ ...s.items[0].activity, id, definition: id === 'one' ? { family: 'procedure', version: 1, prompt: 'Task', steps: [{ id: 'step', text: 'Do' }], reflection: 'Observe', hints: [], evaluation: 'self' } : s.items[0].activity.definition }));
+  render(<StudyPanel unitId="unit" lessons={lessons} port={port} />);
+  fireEvent.change(screen.getByLabelText('New session activities'), { target: { value: 'recall' } });
+  fireEvent.change(screen.getByLabelText('New session item limit'), { target: { value: '1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Start practice' }));
+  await waitFor(() => expect(port.apply).toHaveBeenCalledOnce());
+  expect(vi.mocked(port.apply).mock.calls[0][0].action).toMatchObject({ kind: 'start', bindingIds: ['two'], settings: { itemLimit: 1, activityFamily: 'recall' } });
 });

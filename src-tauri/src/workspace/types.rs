@@ -77,12 +77,82 @@ impl From<TextScale> for u16 {
 pub struct ReadingPreferences {
     pub theme: Theme,
     pub text_scale: TextScale,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_navigation"
+    )]
+    pub navigation: Option<NavigationContext>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::settings::deserialize_settings"
+    )]
+    pub customization: Option<Box<super::SettingsLayer>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::settings::deserialize_subject_settings"
+    )]
+    pub subject_settings: Option<Box<std::collections::BTreeMap<String, super::SettingsLayer>>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "super::settings::deserialize_shortcuts"
+    )]
+    pub shortcuts: Option<Box<super::settings::ShortcutPreferences>>,
+}
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NavigationContext {
+    pub contract_version: u32,
+    pub subject_id: String,
+    pub collection_id: Option<String>,
+    pub resource_id: String,
+    pub query: String,
+    pub page: u32,
+    pub search_offset: u64,
+    pub search_active: bool,
+}
+impl NavigationContext {
+    pub(super) fn valid(&self) -> bool {
+        let id = |s: &str| {
+            s.len() <= 128
+                && s.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
+        };
+        self.contract_version == 1
+            && id(&self.subject_id)
+            && id(&self.resource_id)
+            && self
+                .collection_id
+                .as_deref()
+                .is_none_or(|s| !s.is_empty() && id(s))
+            && self.query.chars().count() <= 256
+            && !self.query.contains('\0')
+            && self.page <= 1_000_000
+            && self.search_offset <= 1_000_000
+            && (!self.search_active || !self.query.is_empty())
+    }
+}
+fn deserialize_navigation<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<Option<NavigationContext>, D::Error> {
+    let value = Option::<NavigationContext>::deserialize(d)?;
+    if value.as_ref().is_some_and(|v| !v.valid()) {
+        return Err(serde::de::Error::custom("Invalid navigation context"));
+    }
+    Ok(value)
 }
 impl Default for ReadingPreferences {
     fn default() -> Self {
         Self {
             theme: Theme::System,
             text_scale: TextScale(100),
+            navigation: None,
+            customization: None,
+            subject_settings: None,
+            shortcuts: None,
         }
     }
 }

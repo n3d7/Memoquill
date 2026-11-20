@@ -936,10 +936,54 @@ fn malformed_ingestion_job_domains_are_rejected() {
 }
 
 fn historical_native_package(version: i64) -> (tempfile::TempDir, NativeCapture) {
-    let (temp, _db, mut package) = capture();
+    let (temp, mut db, mut package) = capture();
+    if version == 9 {
+        let resource = crate::organization::ResourceId::generate();
+        db.apply_content(
+            RequestContext::local_ui(),
+            &crate::workspace::ApplyContent {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                expected_revision: 0,
+                command: crate::organization::Command::CreateResource {
+                    id: resource,
+                    title: "Schema9 preserved material".into(),
+                },
+            },
+        )
+        .unwrap();
+        db.save_document(
+            RequestContext::local_ui(),
+            &crate::workspace::SaveDocument {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+                resource_id: resource,
+                expected_revision: 0,
+                document: crate::document::Document {
+                    schema_version: 1,
+                    blocks: vec![crate::document::Block {
+                        id: Uuid::new_v4(),
+                        content: crate::document::BlockContent::Code {
+                            text: "Preserved v9 text 😀".into(),
+                            language: None,
+                        },
+                    }],
+                },
+            },
+        )
+        .unwrap();
+        package = db
+            .capture_native(RequestContext::local_ui(), Uuid::new_v4())
+            .unwrap();
+    }
     let path = package.staging.path().join("database.sqlite3");
     let connection = Connection::open(&path).unwrap();
-    connection.execute_batch("DROP TABLE assessment_parts; DROP TABLE assessment_runs; DROP TABLE recall_states; DROP TABLE recall_review_events; DROP TABLE review_journal; DROP TABLE review_operations; DROP TABLE review_plan; DELETE FROM schema_migrations WHERE version=9;").unwrap();
+    connection.execute_batch("DROP INDEX study_sessions_unit; DROP INDEX study_judgments_attempt; DROP INDEX study_operations_session; DELETE FROM schema_migrations WHERE version=10;").unwrap();
+    if version < 9 {
+        connection.execute_batch("DROP TABLE assessment_parts; DROP TABLE assessment_runs; DROP TABLE recall_states; DROP TABLE recall_review_events; DROP TABLE review_journal; DROP TABLE review_operations; DROP TABLE review_plan; DELETE FROM schema_migrations WHERE version=9;").unwrap();
+    }
     if version == 7 {
         connection.execute_batch("DROP TABLE study_operations; DROP TABLE study_judgments; DROP TABLE study_attempts; DROP TABLE study_sessions; DELETE FROM schema_migrations WHERE version=8;").unwrap();
     }
@@ -961,6 +1005,53 @@ fn historical_native_package(version: i64) -> (tempfile::TempDir, NativeCapture)
 
 fn m3_native_package() -> (tempfile::TempDir, NativeCapture) {
     historical_native_package(7)
+}
+
+#[test]
+fn schema_nine_package_keeps_immutable_payload_and_restores_into_index_schema() {
+    let (temp, package) = historical_native_package(9);
+    let verified = roundtrip(&package);
+    assert!(verified.manifest.table_counts["resources"] > 0);
+    let path = verified.staging.path().join("database.sqlite3");
+    let original = hash_file(&path, MAX_DATABASE).unwrap();
+    let manager = CourseManager::open(temp.path().join("schema9-restored")).unwrap();
+    let operation = Uuid::new_v4();
+    manager
+        .restore_native(operation, "Schema9 recovery".into(), &verified, false)
+        .unwrap();
+    let root = temp
+        .path()
+        .join("schema9-restored/courses/data")
+        .join(operation.to_string());
+    let db = Database::open(&root).unwrap();
+    assert_eq!(
+        db.connection
+            .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
+        SCHEMA_VERSION
+    );
+    assert_eq!(db.preferences().unwrap().revision, 17);
+    let library = db.library(RequestContext::local_ui()).unwrap();
+    let resource = *library.resources.keys().next().unwrap();
+    assert_eq!(
+        db.read_document(RequestContext::local_ui(), resource, None)
+            .unwrap()
+            .unwrap()
+            .document
+            .text(),
+        "Preserved v9 text 😀"
+    );
+    assert!(
+        root.join("migration-backups")
+            .read_dir()
+            .unwrap()
+            .next()
+            .is_some()
+    );
+    assert_eq!(hash_file(&path, MAX_DATABASE).unwrap(), original);
+    manager
+        .restore_native(operation, "Schema9 recovery".into(), &verified, false)
+        .unwrap();
 }
 
 #[test]

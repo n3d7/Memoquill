@@ -54,3 +54,10 @@ it('unbound compatibility facades fail before invoking data commands', async () 
   await expect(workspace.workspaceStatus()).rejects.toThrow('course-bound');
   expect(invoke).not.toHaveBeenCalled();
 });
+
+it('routes typed global defaults independently of selected course without raw filesystem access', async () => {
+  await nativeCoursePort.settings!.read();
+  const request = { operationId: 'op', expectedRevision: 3, settings: { contractVersion: 1 as const, overrides: { goal: 'Explain' } } };
+  await nativeCoursePort.settings!.save(request);
+  expect(vi.mocked(invoke).mock.calls).toEqual([['workspace_settings'], ['save_workspace_settings', { request }]]);
+});

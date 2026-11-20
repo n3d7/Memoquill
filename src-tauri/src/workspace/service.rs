@@ -27,6 +27,8 @@ enum Request {
     Lessons(Box<LessonsRequest>),
     StudyApply(RequestContext, Box<StudyMutation>, Reply<StudySession>),
     StudyRead(RequestContext, uuid::Uuid, Reply<StudyView>),
+    StudyResumeSessions(RequestContext, u64, Reply<ResumePage>),
+    StudyProgress(RequestContext, String, u64, Reply<LessonProgress>),
     StudySessions(RequestContext, String, u64, Reply<Vec<StudySession>>),
     Status(Reply<WorkspaceStatus>),
     Save(RequestContext, SavePreferences, Reply<PreferencesSnapshot>),
@@ -228,6 +230,33 @@ impl ApplicationService {
         self.request(
             context,
             |reply| Request::StudyRead(context, session_id, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn study_resume_sessions(
+        &self,
+        context: RequestContext,
+        offset: u64,
+    ) -> Result<ResumePage> {
+        self.request(
+            context,
+            |reply| Request::StudyResumeSessions(context, offset, reply),
+            false,
+        )
+        .await
+    }
+    pub async fn study_progress(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        offset: u64,
+    ) -> Result<LessonProgress> {
+        context.authorize()?;
+        super::lessons::admission::admit(&unit_id)?;
+        self.request(
+            context,
+            |reply| Request::StudyProgress(context, unit_id, offset, reply),
             false,
         )
         .await
@@ -982,6 +1011,12 @@ impl Store {
             Request::StudyRead(context, session_id, reply) => {
                 let _ = reply.send(self.access(|db| db.study_read(context, session_id)));
             }
+            Request::StudyResumeSessions(context, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.study_resume_sessions(context, offset)));
+            }
+            Request::StudyProgress(context, unit_id, offset, reply) => {
+                let _ = reply.send(self.access(|db| db.study_progress(context, &unit_id, offset)));
+            }
             Request::StudySessions(context, unit_id, offset, reply) => {
                 let _ = reply.send(self.access(|db| db.study_sessions(context, &unit_id, offset)));
             }
@@ -1220,8 +1255,12 @@ mod tests {
                 operation_id: OperationId::generate(),
                 expected_revision: 0,
                 preferences: ReadingPreferences {
+                    subject_settings: None,
+                    shortcuts: None,
                     theme: Theme::Dark,
                     text_scale: TextScale::try_from(125).unwrap(),
+                    navigation: None,
+                    customization: None,
                 },
             };
             let (reply, response) = oneshot::channel();

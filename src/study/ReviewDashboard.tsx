@@ -1,3 +1,5 @@
+import { EntitySelect } from '../application/EntitySelect';
+import { useStudySettings } from './sessionSettings';
 import { useEffect, useRef, useState } from 'react';
 import { failureMessage, isConfirmedRejection } from '../application/errors';
 import type { LessonPort } from '../lessons/types';
@@ -5,7 +7,8 @@ import type { StudyMutation, StudyPort } from './types';
 import type { RecallQueueItem, ReviewAction, ReviewMutation, ReviewOverview, ReviewPort } from './reviewTypes';
 import { StudyPanel } from './StudyPanel';
 
-export function ReviewDashboard({ port, study, lessons, units }: { port: ReviewPort; study: StudyPort; lessons: LessonPort; units: Record<string, { title: string; archived: boolean }> }) {
+export function ReviewDashboard({ port, study, lessons, units, initialOverview }: { port: ReviewPort; study: StudyPort; lessons: LessonPort; units: Record<string, { title: string; archived: boolean }>; initialOverview?: ReviewPort["overview"] }) {
+  const newSettings = useStudySettings();
   const [view, setView] = useState<ReviewOverview | null>(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<ReviewMutation | null>(null); const [pendingStudy, setPendingStudy] = useState<StudyMutation | null>(null);
   const [canLeave, setCanLeave] = useState(false);
@@ -13,8 +16,8 @@ export function ReviewDashboard({ port, study, lessons, units }: { port: ReviewP
   const [reminderUnit, setReminderUnit] = useState(''); const [reminderActivity, setReminderActivity] = useState(''); const [activities, setActivities] = useState<{ id: string; prompt: string }[]>([]);
   const [delay, setDelay] = useState('1'); const [interval, setInterval] = useState('');
   const lock = useRef(false); const mounted = useRef(true);
-  async function refresh() { const value = await port.overview(); if (mounted.current) setView(value); }
-  useEffect(() => { mounted.current = true; void refresh().catch(reason => { if (mounted.current) setError(failureMessage(reason)); }); return () => { mounted.current = false; }; }, [port]);
+  async function refresh(overview = () => port.overview()) { const value = await overview(); if (mounted.current) setView(value); }
+  useEffect(() => { mounted.current = true; void refresh(initialOverview).catch(reason => { if (mounted.current) setError(failureMessage(reason)); }); return () => { mounted.current = false; }; }, [port, initialOverview]);
   useEffect(() => { let current = true; setActivities([]); setReminderActivity(''); if (reminderUnit) void lessons.read(reminderUnit).then(async saved => {
     const values = saved ? await Promise.all(saved.composition.bindings.filter(b => b.targetKind === 'activity').map(b => lessons.readActivity(reminderUnit, b.revisionId))) : [];
     if (current) setActivities(values.flatMap(v => v?.definition.family === 'procedure' ? [{ id: v.id, prompt: v.definition.prompt }] : []));
@@ -32,7 +35,7 @@ export function ReviewDashboard({ port, study, lessons, units }: { port: ReviewP
     catch (reason) { if (mounted.current) { setError(failureMessage(reason)); if (isConfirmedRejection(reason)) setPendingStudy(null); } }
     finally { lock.current = false; if (mounted.current) setBusy(false); }
   }
-  function review(item: RecallQueueItem) { if (!busy && !pending && !pendingStudy) void start({ operationId: crypto.randomUUID(), sessionId: crypto.randomUUID(), expectedRevision: 0, action: { kind: 'start', unitId: item.unitId, compositionRevisionId: item.compositionRevisionId, bindingIds: [item.bindingId], mode: 'practice', phase: 'independent' } }, item.unitId); }
+  function review(item: RecallQueueItem) { if (!busy && !pending && !pendingStudy) void start({ operationId: crypto.randomUUID(), sessionId: crypto.randomUUID(), expectedRevision: 0, action: { kind: 'start', unitId: item.unitId, compositionRevisionId: item.compositionRevisionId, bindingIds: [item.bindingId], mode: 'practice', settings: newSettings ?? undefined, phase: 'independent' } }, item.unitId); }
   const blocked = busy || pending !== null || pendingStudy !== null;
   return <section aria-label="Recall review and practical reminders"><h3>Recall review</h3>
     <p>FSRS schedules explicitly rated repeatable recall. It does not estimate problem-solving or practical competence. Practical reminders are separate.</p>
@@ -42,13 +45,13 @@ export function ReviewDashboard({ port, study, lessons, units }: { port: ReviewP
     {view && <><p>Study day {view.todayDate}, {view.plan.timeZone}, starts at {view.plan.dayStartHour}:00. New {view.newUsed}/{view.plan.dailyNewLimit}; reviews {view.reviewsUsed}/{view.plan.dailyReviewLimit}. Overdue/due {view.dueTotal}; unscheduled recall candidates {view.newTotal}.</p>
       {view.clockRollback && <p role="alert">The clock is earlier than your latest review. Scheduled reviews are withheld until it is corrected. History is retained.</p>}
       <button disabled={blocked} onClick={() => { void refresh().catch(reason => setError(failureMessage(reason))); }}>Refresh recall queue</button>
-      <ul>{view.offered.map(item => <li key={item.activityRevisionId}>{units[item.unitId]?.title ?? 'Lesson'}: {item.prompt} — {item.dueDate ?? 'Not scheduled'} <button disabled={blocked || active !== null} onClick={() => review(item)}>Review this recall</button></li>)}</ul>
+      <ul>{view.offered.map(item => <li key={item.activityRevisionId}>{units[item.unitId]?.title ?? 'Lesson'}: {item.prompt} — {item.dueDate ?? 'Not scheduled'} <button disabled={blocked || active !== null || !newSettings} onClick={() => review(item)}>Review this recall</button></li>)}</ul>
       <p>Limits defer work without deleting overdue items. New content revisions start separate schedules. Policy changes apply to subsequent reviews and retain previous events.</p>
       <Policy key={view.plan.revision} view={view} disabled={blocked} save={action} />
       <section aria-label="Practical reminders"><h4>Practical reminders</h4><p>Completion is a self-reported reminder action; it does not create a study attempt or prove competence.</p>
         <ul>{view.plan.reminders.filter(r => !r.archived).map(r => <li key={r.id}>{units[r.unitId]?.title ?? 'Lesson'}: {r.dueDay <= view.today ? 'Due' : `In ${r.dueDay - view.today} study days`}; {r.intervalDays ? `every ${r.intervalDays} days` : 'manual reminder'} <button disabled={blocked} onClick={() => action({ kind: 'completeReminder', id: r.id })}>Mark reminder completed</button><button disabled={blocked} onClick={() => action({ kind: 'archiveReminder', id: r.id })}>Archive reminder</button></li>)}</ul>
         <form onSubmit={e => { e.preventDefault(); action({ kind: 'addReminder', id: crypto.randomUUID(), unitId: reminderUnit, activityRevisionId: reminderActivity, dueDay: view.today + Number(delay), intervalDays: interval ? Number(interval) : null }); }}><fieldset disabled={blocked}><legend>Add a practical reminder</legend>
-          <label>Reminder lesson<select value={reminderUnit} onChange={e => setReminderUnit(e.target.value)}><option value="">Choose lesson</option>{Object.entries(units).filter(([,u]) => !u.archived).map(([id,u]) => <option key={id} value={id}>{u.title}</option>)}</select></label>
+          <EntitySelect label="Reminder lesson" placeholder="Choose lesson" items={units} value={reminderUnit} onChange={setReminderUnit} />
           <label>Practical activity<select value={reminderActivity} onChange={e => setReminderActivity(e.target.value)}><option value="">Choose published procedure</option>{activities.map(a => <option key={a.id} value={a.id}>{a.prompt}</option>)}</select></label>
           <label>Due in study days<input type="number" min="0" max="3650" required value={delay} onChange={e => setDelay(e.target.value)} /></label><label>Repeat every days (empty for manual)<input type="number" min="1" max="3650" value={interval} onChange={e => setInterval(e.target.value)} /></label><button disabled={!reminderActivity}>Add reminder</button>
         </fieldset></form>

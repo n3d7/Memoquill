@@ -1,3 +1,4 @@
+import { useSettings } from './settings/SettingsPanel';
 import { useRef, useState } from 'react';
 import { checkDraft, pickQualificationSource } from './bridge';
 import type { QualificationDraft } from './bridge';
@@ -25,6 +26,7 @@ export function QualificationApp() {
   const [code, setCode] = useState('def double(x):\n    return x * 2');
   const [preview, setPreview] = useState(false);
   const reading = useReadingPreferences();
+  const settings = useSettings(reading);
   const [status, setStatus] = useState('Ready. No files have been read.');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,13 +67,13 @@ export function QualificationApp() {
     });
   }
 
-  return <div className="app" data-theme={reading.preferences.theme}>
+  return <div className="app" data-theme={settings.effective.theme}>
     <a className="skip-link" href="#main">Skip to material</a>
     <header><p className="eyebrow">Durable workspace · M1.2</p><h1>Memoquill</h1>
       <p>Read, edit and check a small learning material fixture.</p>
       <p className="notice">Material changes are kept only until this window closes. Reading preferences can be saved locally. This fixture has no learning history.</p>
     </header>
-    <ReadingPreferencesPanel reading={reading} />
+    <ReadingPreferencesPanel reading={reading} effective={settings.effective} />
     <main id="main" tabIndex={-1}>
       <h2>Learning material</h2>
       <label htmlFor="title">Title</label><input id="title" value={title} onChange={event => setTitle(event.target.value)} />

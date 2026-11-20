@@ -56,3 +56,34 @@ pub async fn study_sessions(
         .study_sessions(RequestContext::local_ui(), args.unit_id, args.offset)
         .await
 }
+
+#[tauri::command]
+pub async fn study_progress(
+    manager: State<'_, CourseManager>,
+    request: Request<'_>,
+) -> Result<LessonProgress, AppError> {
+    let args: List = lesson_admission::decode(request.body())?;
+    manager
+        .service(args.course_id)?
+        .study_progress(RequestContext::local_ui(), args.unit_id, args.offset)
+        .await
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ResumeList {
+    course_id: uuid::Uuid,
+    #[serde(default)]
+    offset: u64,
+}
+#[tauri::command]
+pub async fn study_resume_sessions(
+    manager: State<'_, CourseManager>,
+    request: Request<'_>,
+) -> Result<ResumePage, AppError> {
+    let args: ResumeList = lesson_admission::decode(request.body())?;
+    manager
+        .service(args.course_id)?
+        .study_resume_sessions(RequestContext::local_ui(), args.offset)
+        .await
+}

@@ -27,3 +27,17 @@ pub fn course_select(
 ) -> Result<CourseCatalogue, AppError> {
     manager.select(course_id)
 }
+
+#[tauri::command]
+pub fn workspace_settings(
+    manager: State<'_, CourseManager>,
+) -> Result<crate::workspace::WorkspaceSettings, AppError> {
+    manager.workspace_settings(crate::workspace::RequestContext::local_ui())
+}
+#[tauri::command]
+pub fn save_workspace_settings(
+    manager: State<'_, CourseManager>,
+    request: crate::workspace::SaveWorkspaceSettings,
+) -> Result<crate::workspace::WorkspaceSettings, AppError> {
+    manager.save_workspace_settings(crate::workspace::RequestContext::local_ui(), request)
+}

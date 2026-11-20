@@ -51,8 +51,24 @@ impl Database {
 }
 
 fn validate_preferences_request(request: &SavePreferences) -> Result<()> {
-    if request.contract_version != 1 || !(0..MAX_REVISION).contains(&request.expected_revision) {
+    if request.contract_version != 1
+        || !(0..MAX_REVISION).contains(&request.expected_revision)
+        || request
+            .preferences
+            .navigation
+            .as_ref()
+            .is_some_and(|n| !n.valid())
+    {
         return Err(AppError::new(ErrorCode::InvalidRequest));
+    }
+    if let Some(layer) = &request.preferences.customization {
+        layer.validate()?;
+    }
+    if let Some(settings) = &request.preferences.subject_settings {
+        super::settings::validate_subject_settings(settings)?;
+    }
+    if let Some(shortcuts) = &request.preferences.shortcuts {
+        shortcuts.validate()?;
     }
     Ok(())
 }
@@ -311,8 +327,12 @@ mod tests {
             operation_id: OperationId::generate(),
             expected_revision: 0,
             preferences: ReadingPreferences {
+                subject_settings: None,
+                shortcuts: None,
                 theme: Theme::Dark,
                 text_scale: TextScale::try_from(200).unwrap(),
+                navigation: None,
+                customization: None,
             },
         }
     }
