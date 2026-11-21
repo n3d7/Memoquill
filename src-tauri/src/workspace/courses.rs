@@ -359,6 +359,19 @@ impl CourseManager {
     /// Captured before awaiting: selection changes never retarget an accepted request.
     pub fn service(&self, course_id: Uuid) -> Result<ApplicationService> {
         let mut state = self.state.lock().map_err(|_| unavailable())?;
+        self.open_service(&mut state, course_id)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn selected_service(&self, course_id: Uuid) -> Result<ApplicationService> {
+        let mut state = self.state.lock().map_err(|_| unavailable())?;
+        if catalogue(&state.connection)?.selected_course_id != course_id {
+            return Err(AppError::new(ErrorCode::RevisionConflict));
+        }
+        self.open_service(&mut state, course_id)
+    }
+
+    fn open_service(&self, state: &mut State, course_id: Uuid) -> Result<ApplicationService> {
         if state.closing {
             return Err(unavailable());
         }

@@ -6,7 +6,10 @@ use std::collections::BTreeMap;
 pub(super) fn load(db: &Database) -> Result<Snapshot> {
     load_connection(&db.connection, &db.id)
 }
-pub(super) fn load_connection(connection: &Connection, id: &WorkspaceId) -> Result<Snapshot> {
+pub(in crate::workspace) fn load_connection(
+    connection: &Connection,
+    id: &WorkspaceId,
+) -> Result<Snapshot> {
     let workspace_id = uuid(id.as_str())?;
     let revision: i64 = connection
         .query_row(
@@ -46,7 +49,7 @@ fn rows<K: DeserializeOwned + Ord, T: DeserializeOwned>(
     Ok(result)
 }
 
-pub(super) fn save(tx: &Connection, snapshot: &Snapshot) -> Result<()> {
+pub(in crate::workspace) fn save(tx: &Connection, snapshot: &Snapshot) -> Result<()> {
     save_entities(tx, snapshot)?;
     save_links(tx, snapshot)?;
     tx.execute("INSERT INTO library_meta(workspace_id,revision) VALUES(?1,?2) ON CONFLICT(workspace_id) DO UPDATE SET revision=excluded.revision",params![snapshot.workspace_id.to_string(),snapshot.revision as i64])?;

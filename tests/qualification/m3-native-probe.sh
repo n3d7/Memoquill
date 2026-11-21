@@ -37,6 +37,10 @@ for attempt in {1..100}; do
   sleep .1
 done
 if [[ "$ready" != 1 ]]; then echo 'Private IME did not become ready' >&2; exit 1; fi
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == mcp ]]; then
+  timeout 180 python3 /input/m6-connections-journey.py x11
+  exit 0
+fi
 if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == customization ]]; then
   timeout 300 python3 /input/m5-customization-journey.py x11
   exit 0

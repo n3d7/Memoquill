@@ -2328,6 +2328,114 @@ Source archive: https://crates.io/api/v1/crates/zopfli/0.8.4/download
 Authors (upstream metadata): []
 Notices: 018b1cb87efdf7a04c2fcc13d57ed63f62149113fb207b27ea13430d64f13513
 
+cargo: block-buffer 0.12.1
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/block-buffer/0.12.1/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, 98181e7249d0c01737645ec982499ce99a0f07eb8f7d625b8840d799d10dbc01
+cargo: const-oid 0.10.3
+License expression: Apache-2.0 OR MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/const-oid/0.10.3/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, 73b9dc2e79c7308998dd30296e073aefaefb944a68fb89aa412c23c0edcabcaa
+cargo: crypto-common 0.2.2
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/crypto-common/0.2.2/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, d2e7ec5355c96eeade56b09187ceb48a6a30299da3ce7531a66d3d11405ab963
+cargo: digest 0.11.3
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/digest/0.11.3/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, af59cea35d7f5e2777a713b8d155d65efa2c339eb43f3c14e868c6ac8506edad
+cargo: futures 0.3.34
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/futures/0.3.34/download
+Authors (upstream metadata): []
+Notices: 275c491d6d1160553c32fd6127061d7f9606c3ea25abfad6ca3f6ed088785427, 6652c868f35dfe5e8ef636810a4e576b9d663f3a17fb0f5613ad73583e1b88fd
+cargo: hybrid-array 0.4.15
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/hybrid-array/0.4.15/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, 70c9d40f1f9545c3f133b8a67206e89da850f6468eed072281bb3701514114a9
+cargo: pastey 0.2.3
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/pastey/0.2.3/download
+Authors (upstream metadata): ['Aditya Kumar <git@adityais.dev>', 'David Tolnay <dtolnay@gmail.com>']
+Notices: 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a, 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+cargo: rmcp 3.11.0
+License expression: Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/rmcp/3.11.0/download
+Authors (upstream metadata): []
+Notices: 0382b0057770ca05e9c350a50aa3b1c1fea84da0bc81d723bf00b9aa841be58a
+cargo: schemars_derive 1.2.3
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/schemars_derive/1.2.3/download
+Authors (upstream metadata): ['Graham Esau <gesau@hotmail.co.uk>']
+Notices: 1954992a2b32e8a2af24a4c11b726902e344c1934b947a77f04d404908f8db30
+cargo: serde_derive_internals 0.30.0
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/serde_derive_internals/0.30.0/download
+Authors (upstream metadata): ['Erick Tryzelaar <erick.tryzelaar@gmail.com>', 'David Tolnay <dtolnay@gmail.com>']
+Notices: 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a, 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
+cargo: sha2 0.11.1
+License expression: MIT OR Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/sha2/0.11.1/download
+Authors (upstream metadata): ['RustCrypto Developers']
+Notices: a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5, 831e0f43ad0bf014c1c4fec5767aae470434c1d66d6e671be2d823e729063e25
+cargo: tokio-macros 2.7.2
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/tokio-macros/2.7.2/download
+Authors (upstream metadata): ['Tokio Contributors <team@tokio.rs>']
+Notices: 0b83dc40cba89b9922bb84b0a9c7d2768ce37c1d7e138b7424fd4549915778c9
+cargo: tokio-util 0.7.20
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/tokio-util/0.7.20/download
+Authors (upstream metadata): ['Tokio Contributors <team@tokio.rs>']
+Notices: 253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552
+cargo: tracing 0.1.44
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/tracing/0.1.44/download
+Authors (upstream metadata): ['Eliza Weisman <eliza@buoyant.io>', 'Tokio Contributors <team@tokio.rs>']
+Notices: 898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1
+cargo: tracing-attributes 0.1.31
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/tracing-attributes/0.1.31/download
+Authors (upstream metadata): ['Tokio Contributors <team@tokio.rs>', 'Eliza Weisman <eliza@buoyant.io>', 'David Barsky <dbarsky@amazon.com>']
+Notices: 898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1
+cargo: tracing-core 0.1.36
+License expression: MIT
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/tracing-core/0.1.36/download
+Authors (upstream metadata): ['Tokio Contributors <team@tokio.rs>']
+Notices: 898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1
+cargo: unicode-general-category 1.1.0
+License expression: Apache-2.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/unicode-general-category/1.1.0/download
+Authors (upstream metadata): ['YesLogic Pty. Ltd. <info@yeslogic.com>']
+Notices: b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1
+cargo: unicode-normalization 0.1.26
+License expression: (MIT OR Apache-2.0) AND Unicode-3.0
+Source: registry+https://github.com/rust-lang/crates.io-index
+Source archive: https://crates.io/api/v1/crates/unicode-normalization/0.1.26/download
+Authors (upstream metadata): ['kwantam <kwantam@gmail.com>', 'Manish Goregaokar <manishsmail@gmail.com>']
+Notices: 23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d, a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2, 7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0, f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1
 npm: @adobe/css-tools 4.5.0
 License expression: MIT
 Source: https://registry.npmjs.org/@adobe/css-tools/-/css-tools-4.5.0.tgz

@@ -27,10 +27,14 @@ tempfile = "=3.27.0"
 tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-dialog = "=2.8.3"
 rusqlite = { version = "=0.41.0", default-features = false, features = ["bundled", "backup", "limits", "hooks"] }
-rustix = { version = "=1.1.6", features = ["fs"] }
+rustix = { version = "=1.1.6", features = ["fs", "process"] }
 sha2 = "=0.10.9"
-tokio = { version = "=1.54.1", features = ["sync"] }
+tokio = { version = "=1.54.1", features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+
 uuid = { version = "=1.29.0", features = ["v4", "serde"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rmcp = { version = "=3.11.0", default-features = false, features = ["server", "transport-io"] }
 
 [dev-dependencies]
 tauri = { version = "=2.12.5", features = ["test"] }

@@ -16,7 +16,7 @@ use std::{
 };
 
 pub(super) const APPLICATION_ID: i32 = 0x4d514c4c;
-pub(super) const SCHEMA_VERSION: i64 = 10;
+pub(super) const SCHEMA_VERSION: i64 = 11;
 pub(super) const BUSY_MS: u64 = 2000;
 
 pub(super) struct Database {

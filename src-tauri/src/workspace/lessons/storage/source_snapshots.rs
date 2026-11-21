@@ -99,6 +99,14 @@ impl Database {
                 }
             }
         }
+        self.published_lesson_source(unit_id, revision)
+    }
+
+    pub(in crate::workspace) fn published_lesson_source(
+        &self,
+        unit_id: &str,
+        revision: &str,
+    ) -> Result<Option<SourceBindingRevision>> {
         let row: Option<(String, String)> = self
             .connection
             .query_row(

@@ -49,11 +49,22 @@ impl Database {
         revision: Option<Uuid>,
     ) -> Result<Option<SavedDocument>> {
         context.authorize()?;
-        ensure_resource(&self.connection, id, false)?;
-        read(&self.connection, id, revision)
+        ensure_resource(&self.connection, id, context.active_only())?;
+        let Some(mut document) = read(&self.connection, id, revision)? else {
+            return Ok(None);
+        };
+        let external: bool = self.connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM agent_authored_documents WHERE revision_id=?1)",
+            [document.id.to_string()],
+            |row| row.get(0),
+        )?;
+        if external {
+            document.authoring_origin = Some(DocumentOrigin::ExternalUnverified);
+        }
+        Ok(Some(document))
     }
 }
-pub(super) fn ensure_resource(
+pub(in crate::workspace) fn ensure_resource(
     connection: &Connection,
     id: ResourceId,
     writable: bool,
@@ -96,6 +107,7 @@ fn decode_revision(id: ResourceId, row: (String, i64, String, String)) -> Result
         resource_id: id,
         revision: integer(revision)?,
         document,
+        authoring_origin: None,
     })
 }
 
@@ -169,6 +181,7 @@ pub(in crate::workspace) fn save_revision(
         resource_id: request.resource_id,
         revision: current + 1,
         document: request.document.clone(),
+        authoring_origin: None,
     };
     insert(tx, &value)?;
     Ok(value)

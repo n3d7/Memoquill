@@ -8,6 +8,8 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use uuid::Uuid;
+#[cfg(target_os = "linux")]
+mod agent_drafts;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DraftState {
@@ -65,12 +67,16 @@ pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Res
         let revision: String = row.get(1)?;
         read(connection, &unit, Some(&revision))?.ok_or_else(corrupt)?;
     }
-    let mut query = connection.prepare("SELECT unit_id,id FROM lesson_drafts")?;
+    let mut query = connection.prepare("SELECT unit_id,id,actor FROM lesson_drafts")?;
     let mut rows = query.query([])?;
     while let Some(row) = rows.next()? {
         let unit: String = row.get(0)?;
         let id: String = row.get(1)?;
-        state(connection, &id, &unit)?;
+        let actor: String = row.get(2)?;
+        if !valid_draft_actor(&actor) {
+            return Err(corrupt());
+        }
+        state_for(connection, &id, &unit, &actor)?;
     }
     Ok(())
 }
@@ -176,14 +182,34 @@ fn read(c: &Connection, id: &str, revision: Option<&str>) -> Result<Option<Saved
     .transpose()
 }
 fn state(c: &Connection, id: &str, unit_id: &str) -> Result<DraftState> {
+    state_for(c, id, unit_id, "local-ui")
+}
+
+fn valid_draft_actor(actor: &str) -> bool {
+    actor == "local-ui"
+        || actor.strip_prefix("mcp:").is_some_and(|digest| {
+            digest.len() == 64
+                && digest
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        })
+}
+
+fn state_for(c: &Connection, id: &str, unit_id: &str, actor: &str) -> Result<DraftState> {
     let data: Option<String> = c
         .query_row(
-            "SELECT data FROM lesson_drafts WHERE id=?1 AND unit_id=?2 AND actor='local-ui'",
-            params![id, unit_id],
+            "SELECT data FROM lesson_drafts WHERE id=?1 AND unit_id=?2 AND actor=?3",
+            params![id, unit_id, actor],
             |r| r.get(0),
         )
         .optional()?;
-    let data = data.ok_or_else(invalid)?;
+    let data = data.ok_or_else(|| {
+        if actor == "local-ui" {
+            invalid()
+        } else {
+            AppError::new(ErrorCode::PermissionDenied)
+        }
+    })?;
     if data.len() > 2 * MAX_COMPOSITION {
         return Err(corrupt());
     }
@@ -229,7 +255,7 @@ fn expected(s: &DraftState, revision: u64) -> Result<()> {
     }
     Ok(())
 }
-fn save_draft(c: &Connection, s: &DraftState) -> Result<()> {
+fn save_draft(c: &Connection, s: &DraftState, actor: &str) -> Result<()> {
     let data = encode(s)?;
     if data.len() > 2 * MAX_COMPOSITION {
         return Err(super::diagnostics::envelope(
@@ -237,16 +263,30 @@ fn save_draft(c: &Connection, s: &DraftState) -> Result<()> {
             "request",
         ));
     }
-    let(count,total):(i64,i64)=c.query_row("SELECT count(*),coalesce(sum(length(CAST(data AS BLOB))),0) FROM lesson_drafts WHERE unit_id=?1 AND actor='local-ui' AND id!=?2",params![s.draft.unit_id,s.draft.id],|r|Ok((r.get(0)?,r.get(1)?)))?;
+    let(count,total):(i64,i64)=c.query_row("SELECT count(*),coalesce(sum(length(CAST(data AS BLOB))),0) FROM lesson_drafts WHERE unit_id=?1 AND id!=?2",params![s.draft.unit_id,s.draft.id],|r|Ok((r.get(0)?,r.get(1)?)))?;
     if count >= 20 || total + data.len() as i64 > 32 * 1024 * 1024 {
         return Err(super::diagnostics::envelope(
             ErrorCode::BudgetExceeded,
             "request",
         ));
     }
-    c.execute("INSERT INTO lesson_drafts VALUES(?1,?2,'local-ui',?3) ON CONFLICT(id) DO UPDATE SET data=excluded.data",params![s.draft.id,s.draft.unit_id,data])?;
+    let count = c.execute(
+        "INSERT INTO lesson_drafts VALUES(?1,?2,?3,?4) ON CONFLICT(id) DO UPDATE SET data=excluded.data WHERE lesson_drafts.actor=excluded.actor AND lesson_drafts.unit_id=excluded.unit_id",
+        params![s.draft.id, s.draft.unit_id, actor, data],
+    )?;
+    if count != 1 {
+        return Err(AppError::new(ErrorCode::PermissionDenied));
+    }
     Ok(())
 }
+fn draft_request_hash(domain: &str, actor: &str, request: &impl Serialize) -> Result<String> {
+    if actor == "local-ui" {
+        operations::request_hash(domain, request)
+    } else {
+        operations::request_hash(domain, &(actor, request))
+    }
+}
+
 fn finish(
     tx: rusqlite::Transaction<'_>,
     workspace: &crate::workspace::WorkspaceId,
@@ -312,7 +352,7 @@ impl Database {
         revision: Option<&str>,
     ) -> Result<Option<SavedComposition>> {
         context.authorize()?;
-        unit(&self.connection, id, false)?;
+        unit(&self.connection, id, context.active_only())?;
         if let Some(revision) = revision {
             uuid(revision)?;
         }
@@ -341,10 +381,19 @@ impl Database {
         context: RequestContext,
         r: &CreateLessonDraft,
     ) -> Result<LessonDraft> {
+        self.lesson_create_for(context, r, "local-ui")
+    }
+
+    fn lesson_create_for(
+        &mut self,
+        context: RequestContext,
+        r: &CreateLessonDraft,
+        actor: &str,
+    ) -> Result<LessonDraft> {
         self.authorize_workspace(context, &r.workspace_id)?;
         contract(r.contract_version)?;
         request_budget(r)?;
-        let h = operations::request_hash("lesson.create", r)?;
+        let h = draft_request_hash("lesson.create", actor, r)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -398,7 +447,13 @@ impl Database {
                 visible: None,
             });
         }
-        save_draft(&tx, &s)?;
+        if actor != "local-ui" {
+            s.draft.composition.authoring_provenance = Provenance {
+                kind: "assisted".into(),
+                note: Some("External MCP draft. Review before use.".into()),
+            };
+        }
+        save_draft(&tx, &s, actor)?;
         let d = s.draft;
         finish(
             tx,
@@ -414,6 +469,15 @@ impl Database {
         context: RequestContext,
         r: &EditLessonDraft,
     ) -> Result<LessonDraft> {
+        self.lesson_edit_for(context, r, "local-ui")
+    }
+
+    fn lesson_edit_for(
+        &mut self,
+        context: RequestContext,
+        r: &EditLessonDraft,
+        actor: &str,
+    ) -> Result<LessonDraft> {
         self.authorize_workspace(context, &r.workspace_id)?;
         contract(r.contract_version)?;
         request_budget(r)?;
@@ -426,7 +490,7 @@ impl Database {
                 "request",
             ));
         }
-        let h = operations::request_hash("lesson.edit", r)?;
+        let h = draft_request_hash("lesson.edit", actor, r)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -434,7 +498,7 @@ impl Database {
             return draft_outcome(receipt);
         }
         unit(&tx, &r.unit_id, true)?;
-        let mut s = state(&tx, &r.draft_id, &r.unit_id)?;
+        let mut s = state_for(&tx, &r.draft_id, &r.unit_id, actor)?;
         expected(&s, r.expected_draft_revision)?;
         for (index, op) in r.operations.iter().enumerate() {
             edit(&tx, &mut s, op)
@@ -450,7 +514,7 @@ impl Database {
             .checked_add(1)
             .filter(|n| *n <= crate::workspace::types::MAX_REVISION as u64)
             .ok_or_else(invalid)?;
-        save_draft(&tx, &s)?;
+        save_draft(&tx, &s, actor)?;
         let d = s.draft;
         finish(
             tx,
@@ -466,14 +530,23 @@ impl Database {
         context: RequestContext,
         r: &LessonDraftScope,
     ) -> Result<LessonPreview> {
+        self.lesson_preview_for(context, r, "local-ui")
+    }
+
+    fn lesson_preview_for(
+        &self,
+        context: RequestContext,
+        r: &LessonDraftScope,
+        actor: &str,
+    ) -> Result<LessonPreview> {
         context.authorize()?;
         contract(r.contract_version)?;
         request_budget(r)?;
         if self.id != r.workspace_id {
             return Err(AppError::new(ErrorCode::PermissionDenied));
         }
-        unit(&self.connection, &r.unit_id, false)?;
-        let s = state(&self.connection, &r.draft_id, &r.unit_id)?;
+        unit(&self.connection, &r.unit_id, context.active_only())?;
+        let s = state_for(&self.connection, &r.draft_id, &r.unit_id, actor)?;
         expected(&s, r.expected_draft_revision)?;
         references(&self.connection, &s.draft.composition, &s.dependencies)?;
         check_bases(&self.connection, &s)?;
@@ -484,10 +557,24 @@ impl Database {
         context: RequestContext,
         r: &ApplyLessonDraft,
     ) -> Result<LessonReceipt> {
+        self.lesson_apply_for(context, r, false)
+    }
+
+    fn lesson_apply_for(
+        &mut self,
+        context: RequestContext,
+        r: &ApplyLessonDraft,
+        reviewed_external: bool,
+    ) -> Result<LessonReceipt> {
         self.authorize_workspace(context, &r.workspace_id)?;
         contract(r.contract_version)?;
         request_budget(r)?;
-        let h = operations::request_hash("lesson.apply", r)?;
+        let domain = if reviewed_external {
+            "lesson.reviewedApply"
+        } else {
+            "lesson.apply"
+        };
+        let h = operations::request_hash(domain, r)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -495,7 +582,19 @@ impl Database {
             return receipt_outcome(receipt);
         }
         unit(&tx, &r.unit_id, true)?;
-        let s = state(&tx, &r.draft_id, &r.unit_id)?;
+        let actor = if reviewed_external {
+            #[cfg(target_os = "linux")]
+            {
+                agent_drafts::external_actor(&tx, &r.unit_id, &r.draft_id)?
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                return Err(AppError::new(ErrorCode::PermissionDenied));
+            }
+        } else {
+            "local-ui".into()
+        };
+        let s = state_for(&tx, &r.draft_id, &r.unit_id, &actor)?;
         expected(&s, r.expected_draft_revision)?;
         check_bases(&tx, &s)?;
         let p = preview(&s)?;
@@ -547,7 +646,11 @@ impl Database {
             old_head: r.expected_head_revision.clone(),
             new_head: saved.id.clone(),
             saved,
-            actor: "local-ui".into(),
+            actor: if reviewed_external {
+                "reviewed-mcp".into()
+            } else {
+                "local-ui".into()
+            },
             proposal_hash: p.hash,
             created_revision_ids: created,
             id_map: BTreeMap::new(),
@@ -568,10 +671,19 @@ impl Database {
         context: RequestContext,
         r: &DiscardLessonDraft,
     ) -> Result<()> {
+        self.lesson_discard_for(context, r, "local-ui")
+    }
+
+    fn lesson_discard_for(
+        &mut self,
+        context: RequestContext,
+        r: &DiscardLessonDraft,
+        actor: &str,
+    ) -> Result<()> {
         self.authorize_workspace(context, &r.workspace_id)?;
         contract(r.contract_version)?;
         request_budget(r)?;
-        let h = operations::request_hash("lesson.discard", r)?;
+        let h = draft_request_hash("lesson.discard", actor, r)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -585,9 +697,12 @@ impl Database {
                 _ => Err(corrupt()),
             };
         }
-        let s = state(&tx, &r.draft_id, &r.unit_id)?;
+        let s = state_for(&tx, &r.draft_id, &r.unit_id, actor)?;
         expected(&s, r.expected_draft_revision)?;
-        tx.execute("DELETE FROM lesson_drafts WHERE id=?1", [&r.draft_id])?;
+        tx.execute(
+            "DELETE FROM lesson_drafts WHERE id=?1 AND actor=?2",
+            params![r.draft_id, actor],
+        )?;
         finish(
             tx,
             &self.id,
@@ -657,6 +772,7 @@ impl Database {
                             .map_err(|_| corrupt())?,
                             revision: number as u64,
                             document,
+                            authoring_origin: None,
                         }));
                     }
                 }
@@ -765,14 +881,23 @@ impl Database {
         context: RequestContext,
         r: &LessonDraftScope,
     ) -> Result<LessonValidation> {
+        self.lesson_validate_for(context, r, "local-ui")
+    }
+
+    fn lesson_validate_for(
+        &self,
+        context: RequestContext,
+        r: &LessonDraftScope,
+        actor: &str,
+    ) -> Result<LessonValidation> {
         context.authorize()?;
         contract(r.contract_version)?;
         request_budget(r)?;
         if r.workspace_id != self.id {
             return Err(AppError::new(ErrorCode::PermissionDenied));
         }
-        unit(&self.connection, &r.unit_id, false)?;
-        let s = state(&self.connection, &r.draft_id, &r.unit_id)?;
+        unit(&self.connection, &r.unit_id, context.active_only())?;
+        let s = state_for(&self.connection, &r.draft_id, &r.unit_id, actor)?;
         expected(&s, r.expected_draft_revision)?;
         let mut diagnostics = super::validation::diagnose(&s.draft.composition, false);
         if diagnostics.len() < 16

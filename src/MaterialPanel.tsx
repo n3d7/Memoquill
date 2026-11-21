@@ -21,6 +21,7 @@ export function MaterialPanel(props: MaterialPanelProps) {
 export function MaterialView({ data, resourceId, perform, material, resume, contextPending, context, sources, setIngestionPending, onLibraryChanged }: MaterialViewProps) {
   const ingestion = useOptionalIngestionPort();
   return <section aria-label="Material authoring"><h2>{data.resources[resourceId].title}</h2>
+    {material.saved?.authoringOrigin === 'externalUnverified' && <p>Externally authored revision · Unverified</p>}
     <p>Shared material: changes apply to every placement. Content revisions and original sources are retained.</p>
     <NameForm label="New material title" action="Rename material" onSubmit={title => perform({ type: 'renameResource', id: resourceId, title })} />
     <NameForm label="Tag for this material" action="Add tag" onSubmit={title => { const existing = Object.values(data.tags).find(x => x.title === title); return perform({ type: 'setTag', id: existing?.id ?? crypto.randomUUID(), title, resourceIds: [...new Set([...(existing?.resourceIds ?? []), resourceId])] }); }} />

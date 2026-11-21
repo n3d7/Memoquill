@@ -5,6 +5,7 @@ import type { LessonPort } from './types';
 export function createNativeLessonPort(courseId: string): LessonPort {
   const body = (request: unknown) => new TextEncoder().encode(JSON.stringify({ courseId, request }));
   return {
+    reviewExternalDraft: (unitId, review) => invoke('lesson_review_external_draft', { courseId, unitId, review }),
     discover: () => invoke('lesson_discover', { courseId }),
     listDrafts: (unitId) => invoke('lesson_list_drafts', { courseId, unitId }),
     read: (unitId) => invoke('lesson_read', { courseId, unitId, revisionId: null }),

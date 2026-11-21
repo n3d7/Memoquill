@@ -32,7 +32,15 @@ pub struct SavedDocument {
     pub resource_id: ResourceId,
     pub revision: u64,
     pub document: Document,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authoring_origin: Option<DocumentOrigin>,
 }
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DocumentOrigin {
+    ExternalUnverified,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Annotation {

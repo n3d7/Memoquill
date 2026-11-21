@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { ExternalDraftReview } from './ExternalDraftReview';
 import type { Document } from '../documentModel';
 import type { Entity } from '../application/contentTypes';
 import type { SourcePort } from '../application/ports';
@@ -67,7 +68,8 @@ export function LessonComposer({ workspaceId, unitId, title, port, sourcePort, m
     finally { if (token === historyRequest.current) setHistoryBusy(false); }
   }
   return <section className="lesson-workspace" aria-label={title}>
-    <h2 ref={heading} tabIndex={-1}>{title}</h2><p>Independent offline lesson · Edits and preview responses belong to this lesson.</p>
+    <h2 ref={heading} tabIndex={-1}>{title}</h2>{port.reviewExternalDraft && <ExternalDraftReview
+    unitId={unitId} review={port.reviewExternalDraft} onApplied={() => void controller.refreshPublished()} />}<p>Independent offline lesson · Edits and preview responses belong to this lesson.</p>
     <div className="lesson-toolbar"><button disabled={state.busy || state.pending} onClick={() => void controller.load()}>Reopen lesson draft</button>{!state.draft && <button disabled={state.busy || state.pending} onClick={() => void controller.begin()}>Edit lesson</button>}<button disabled={state.busy || state.pending || !state.canUndo} onClick={() => void controller.undo()}>Undo lesson change</button><button disabled={state.busy || state.pending || !state.canRedo} onClick={() => void controller.redo()}>Redo lesson change</button><button disabled={disabled} onClick={() => void controller.preview()}>Preview draft</button><button disabled={disabled} onClick={() => void controller.save()}>Save lesson</button></div>
     {state.drafts.length > 1 && <label>Saved editing drafts<select value={state.draft?.id ?? ''} disabled={state.busy || state.pending} onChange={e => { void controller.chooseDraft(e.target.value); setSelected(''); }} >{state.drafts.map((draft, i) => <option key={draft.id} value={draft.id}>Editing draft {i + 1}{draft.baseHeadRevision === state.saved?.id ? ' — current base' : ' — earlier base'}</option>)}</select></label>}
     <p role="status">{state.busy ? 'Working locally…' : state.message}</p>{(state.error || readError) && <div role="alert"><p>{state.error || readError}</p>{state.pending && <button disabled={state.busy} onClick={() => void controller.retry()}>Retry exact pending change</button>}<button disabled={state.busy} onClick={() => void controller.refreshHead()}>Check latest saved lesson</button>{state.conflict && <button disabled={state.busy} onClick={() => { void controller.startLatestDraft(); setSelected(''); }}>Keep old draft and start from latest saved lesson</button>}<p>Refresh keeps your draft. If its base changed, keep it for comparison and explicitly start a draft from the latest saved lesson.</p></div>}

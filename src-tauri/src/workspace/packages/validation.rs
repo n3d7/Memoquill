@@ -178,6 +178,9 @@ fn validate_connection(
     }
     super::super::content::validate_native_data(connection, &manifest.workspace_id)?;
     super::super::lessons::validate_native_data(connection)?;
+    if version >= 11 {
+        super::super::agent_course::validate_native_data(connection)?;
+    }
     if version >= 9 {
         super::super::review::validate_native_data(connection)?;
         super::super::assessments::validate_native_data(connection)?;

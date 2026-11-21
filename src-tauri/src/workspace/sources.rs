@@ -76,6 +76,86 @@ impl Database {
         }
         Ok((source.filename, bytes))
     }
+    #[cfg(target_os = "linux")]
+    pub(super) fn mcp_lesson(
+        &self,
+        context: RequestContext,
+        unit: &str,
+        include_sources: bool,
+    ) -> Result<Option<super::mcp_reads::PublishedLesson>> {
+        let Some(saved) = self.lesson_read(context, unit, None)? else {
+            return Ok(None);
+        };
+        let mut source_revisions = std::collections::BTreeSet::new();
+        if include_sources {
+            for revision in published_source_revisions(&saved.composition) {
+                if self.mcp_active_source(unit, revision)?.is_some() {
+                    source_revisions.insert(revision.to_owned());
+                }
+            }
+        }
+        Ok(Some(super::mcp_reads::PublishedLesson {
+            saved,
+            source_revisions: source_revisions.into_iter().collect(),
+        }))
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn mcp_active_source(
+        &self,
+        unit: &str,
+        revision: &str,
+    ) -> Result<Option<(SourceBindingRevision, OriginalSource)>> {
+        let Some(binding) = self.published_lesson_source(unit, revision)? else {
+            return Ok(None);
+        };
+        let id = Uuid::parse_str(&binding.source_id).map_err(|_| corrupt())?;
+        let source = storage::find(&self.connection, id)?;
+        if source.digest.as_str() != binding.asset_digest {
+            return Err(corrupt());
+        }
+        match storage::resource(&self.connection, source.resource_id, true) {
+            Ok(()) => Ok(Some((binding, source))),
+            Err(error) if error.code == ErrorCode::InvalidRequest => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn mcp_bound_source(
+        &self,
+        context: RequestContext,
+        unit: &str,
+        revision: &str,
+        original_offset: Option<u64>,
+    ) -> Result<super::mcp_reads::BoundSource> {
+        use super::mcp_reads::BoundSource;
+        let denied = || AppError::new(ErrorCode::PermissionDenied);
+        let lesson = self.lesson_read(context, unit, None)?.ok_or_else(denied)?;
+        if !published_source_revisions(&lesson.composition).any(|id| id == revision) {
+            return Err(denied());
+        }
+        let (binding, source) = self.mcp_active_source(unit, revision)?.ok_or_else(denied)?;
+        if let Some(offset) = original_offset {
+            let root = self.owner.root();
+            let info = AssetInfo {
+                digest: source.digest,
+                byte_length: source.byte_length,
+            };
+            let bytes = preview::verified_range(root, &info, offset, 16 * 1024)?;
+            Ok(BoundSource::Original {
+                binding,
+                byte_length: info.byte_length,
+                bytes,
+            })
+        } else {
+            Ok(BoundSource::Extracted {
+                binding,
+                preview: Box::new(preview::read(self.owner.root(), source)?),
+            })
+        }
+    }
+
     pub(super) fn source_preview(
         &self,
         context: RequestContext,
@@ -88,6 +168,15 @@ impl Database {
         let source = storage::find(&self.connection, id)?;
         preview::read(self.owner.root(), source)
     }
+}
+
+#[cfg(target_os = "linux")]
+fn published_source_revisions(composition: &Composition) -> impl Iterator<Item = &str> {
+    composition
+        .bindings
+        .iter()
+        .filter(|binding| binding.target_kind == "source")
+        .map(|binding| binding.revision_id.as_str())
 }
 
 fn commit_source(

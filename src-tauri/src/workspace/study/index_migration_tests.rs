@@ -2,7 +2,10 @@ use super::*;
 use crate::workspace::{database, migrations};
 use rusqlite::Connection;
 
-const DOWNGRADE: &str = "DROP INDEX IF EXISTS study_judgments_attempt;
+const DOWNGRADE: &str = "DROP TABLE agent_authored_documents;
+DROP TABLE agent_course_drafts;
+DELETE FROM schema_migrations WHERE version=11;
+DROP INDEX IF EXISTS study_judgments_attempt;
     DROP INDEX IF EXISTS study_operations_session;
     DROP INDEX IF EXISTS study_sessions_unit;
     DELETE FROM schema_migrations WHERE version=10;

@@ -48,7 +48,7 @@ const V1_LIMITS: NativeLimits = NativeLimits {
     total_rows: 2_000_000,
 };
 
-const NATIVE_SCHEMA_VERSIONS: &[i64] = &[7, 8, 9, 10];
+const NATIVE_SCHEMA_VERSIONS: &[i64] = &[7, 8, 9, 10, 11];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
