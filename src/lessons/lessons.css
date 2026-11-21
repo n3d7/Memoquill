@@ -11,9 +11,7 @@
 .lesson-tree li { margin-block: .5rem; }
 .lesson-tree button { margin: .15rem; }
 .lesson-tree [aria-pressed="true"] { font-weight: 700; outline: 2px solid currentColor; outline-offset: 2px; }
-.lesson-surface { --lesson-gap: 1rem; color: #20232c; background: #fff; padding: 1rem; border: 1px solid #767680; border-radius: .5rem; margin-block: 1rem; overflow-wrap: anywhere; }
-.lesson-surface[data-theme="dark"] { color: #f4f4f6; background: #20232c; }
-@media (prefers-color-scheme: dark) { .lesson-surface[data-theme="system"] { color: #f4f4f6; background: #20232c; } }
+.lesson-surface { --lesson-gap: 1rem; color: var(--fg); background: var(--bg); padding: 1rem; border: 1px solid #767680; border-radius: .5rem; margin-block: 1rem; overflow-wrap: anywhere; }
 .lesson-surface[data-spacing="compact"] { --lesson-gap: .5rem; }
 .lesson-surface[data-spacing="wide"] { --lesson-gap: 1.75rem; }
 .lesson-surface[data-typography="serif"] .lesson-renderer { font-family: Georgia, serif; }

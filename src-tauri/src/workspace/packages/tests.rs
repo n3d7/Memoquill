@@ -1181,3 +1181,315 @@ fn schema_eight_native_package_is_immutable_during_admission_then_migrates_to_re
         original
     );
 }
+
+#[test]
+fn native_stream_roundtrips_original_bytes_into_an_isolated_course() {
+    let (temp, mut db, _) = capture();
+    let expected = b"verified native stream original";
+    let info = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut Cursor::new(expected),
+            64,
+        )
+        .unwrap();
+    let package = db
+        .capture_native(RequestContext::local_ui(), Uuid::new_v4())
+        .unwrap();
+    let mut bytes = Vec::new();
+    package.write_stream_to(&mut bytes).unwrap();
+    let verified = NativeCapture::read_from(Cursor::new(&bytes)).unwrap();
+    assert_eq!(package.manifest().format_version, 1);
+    assert_eq!(verified.manifest().format_version, 2);
+    assert_eq!(
+        package.manifest().table_counts,
+        verified.manifest().table_counts
+    );
+
+    let mut encoded = Cursor::new(Vec::new());
+    verified.write_to(&mut encoded).unwrap();
+    assert_eq!(encoded.into_inner(), bytes);
+
+    let root = temp.path().join("recovered");
+    let manager = CourseManager::open(root.clone()).unwrap();
+    let course = Uuid::new_v4();
+    let report = manager
+        .restore_native(course, "Stream recovery".into(), &verified, false)
+        .unwrap();
+    assert!(report.complete);
+    assert_eq!(report.workspace_id, db.id);
+    let restored = root.join("courses/data").join(course.to_string());
+    assert_eq!(
+        std::fs::read(assets::asset_path(&restored, &info.digest)).unwrap(),
+        expected
+    );
+}
+
+#[test]
+fn native_stream_rejects_invalid_framing_and_corrupt_payload() {
+    let (_temp, _db, capture) = capture();
+    let mut bytes = Vec::new();
+    capture.write_stream_to(&mut bytes).unwrap();
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    let mut altered = bytes.clone();
+    *altered.last_mut().unwrap() ^= 1;
+    let mut oversized = bytes.clone();
+    oversized[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+    for (label, malformed, code) in [
+        (
+            "truncated header",
+            &bytes[..11],
+            ErrorCode::RecoveryRequired,
+        ),
+        (
+            "truncated payload",
+            &bytes[..bytes.len() - 1],
+            ErrorCode::RecoveryRequired,
+        ),
+        (
+            "trailing bytes",
+            trailing.as_slice(),
+            ErrorCode::RecoveryRequired,
+        ),
+        (
+            "altered payload",
+            altered.as_slice(),
+            ErrorCode::RecoveryRequired,
+        ),
+        (
+            "oversized manifest",
+            oversized.as_slice(),
+            ErrorCode::BudgetExceeded,
+        ),
+    ] {
+        assert_eq!(
+            NativeCapture::read_from(Cursor::new(malformed))
+                .err()
+                .unwrap()
+                .code,
+            code,
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn native_stream_rejects_duplicate_and_mismatched_manifest_entries() {
+    let (_temp, _db, capture) = capture();
+    let mut bytes = Vec::new();
+    capture.write_stream_to(&mut bytes).unwrap();
+    let boundary = 16 + u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let mut manifest: NativeManifest = serde_json::from_slice(&bytes[16..boundary]).unwrap();
+    let database = manifest.payloads[0].clone();
+    for payloads in [
+        vec![database.clone(), database.clone()],
+        vec![NativePayload {
+            name: "assets/../database.sqlite3".into(),
+            ..database.clone()
+        }],
+        vec![NativePayload {
+            byte_length: database.byte_length + 1,
+            ..database
+        }],
+    ] {
+        manifest.payloads = payloads;
+        let manifest = serde_json::to_vec(&manifest).unwrap();
+        let mut malformed = bytes[..12].to_vec();
+        malformed.extend((manifest.len() as u32).to_le_bytes());
+        malformed.extend(manifest);
+        malformed.extend(&bytes[boundary..]);
+        assert_eq!(
+            NativeCapture::read_from(Cursor::new(malformed))
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::RecoveryRequired
+        );
+    }
+}
+
+#[test]
+#[ignore = "Explicit measurement on the existing synthetic schema 10 SSD snapshot"]
+fn measure_stream_admission_semantic_validators() {
+    use crate::workspace::{assessments, content, lessons, operations, review, sources, study};
+
+    fn measure(name: &str, check: impl FnOnce() -> Result<()>) {
+        let start = std::time::Instant::now();
+        let result = check();
+        eprintln!(
+            "native semantic validation: {name} = {:.3}s",
+            start.elapsed().as_secs_f64()
+        );
+        assert!(result.is_ok(), "{name}: {result:?}");
+    }
+
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let path = repository.join(
+        ".qualification/m5-optimized-scale/data/io.github.n3d7.memoquill/workspace/memoquill.sqlite3",
+    );
+    let wal = path.with_file_name("memoquill.sqlite3-wal");
+    match wal.metadata() {
+        Ok(metadata) => assert_eq!(metadata.len(), 0),
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound),
+    }
+    assert_eq!(path.metadata().unwrap().len(), 11_932_274_688);
+    let connection = database::open_connection(&path, database::Access::ReadOnly).unwrap();
+    connection.pragma_update(None, "query_only", true).unwrap();
+    let workspace: String = connection
+        .query_row(
+            "SELECT id FROM workspace_meta WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let workspace = WorkspaceId::try_from(workspace).unwrap();
+    measure("integrity and foreign keys", || {
+        database::integrity(&connection)
+    });
+    measure("canonical content", || {
+        content::validate_native_data(&connection, &workspace)
+    });
+    measure("lesson revisions", || {
+        lessons::validate_native_data(&connection)
+    });
+    measure("recall review", || {
+        review::validate_native_data(&connection)
+    });
+    measure("assessments", || {
+        assessments::validate_native_data(&connection)
+    });
+    measure("study history", || study::validate_native_data(&connection));
+    measure("source provenance", || {
+        sources::validate_native_data(&connection)
+    });
+    measure("operation receipts", || {
+        operations::validate_native_data(&connection, &workspace)
+    });
+}
+
+#[test]
+#[ignore = "Explicit one-time roundtrip of the retained 10 GB original set on SSD"]
+fn restore_full_scale_native_stream() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let fixture = repository.join(".qualification/m5-optimized-scale");
+    let database_path = fixture.join("data/io.github.n3d7.memoquill/workspace/memoquill.sqlite3");
+    let wal = database_path.with_file_name("memoquill.sqlite3-wal");
+    match wal.metadata() {
+        Ok(metadata) => assert_eq!(metadata.len(), 0),
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::NotFound),
+    }
+    let originals = repository.join(".qualification/m5-scale/full-v1/workspace");
+    let scratch =
+        tempfile::tempdir_in(repository.join(".qualification/m5-stream/scratch")).unwrap();
+    let staging = tempfile::tempdir_in(scratch.path()).unwrap();
+    let footprint: serde_json::Value =
+        serde_json::from_reader(File::open(fixture.join("recovery-footprint.json")).unwrap())
+            .unwrap();
+    let connection = database::open_connection(&database_path, database::Access::ReadOnly).unwrap();
+    let workspace: String = connection
+        .query_row(
+            "SELECT id FROM workspace_meta WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let workspace = WorkspaceId::try_from(workspace).unwrap();
+    let began = std::time::Instant::now();
+    let (sha256, byte_length) = hash_file(&database_path, stream::LIMITS.database_bytes).unwrap();
+    assert_eq!(byte_length, 11_932_274_688);
+    let database_name = "database.sqlite3";
+    std::fs::hard_link(&database_path, staging.path().join(database_name)).unwrap();
+    owner::create_private_tree(&staging.path().join("assets")).unwrap();
+    let mut payloads = vec![NativePayload {
+        name: database_name.into(),
+        sha256,
+        byte_length,
+    }];
+    for (digest, byte_length) in
+        validation::asset_rows_with_limit(&connection, stream::LIMITS.entries - 2).unwrap()
+    {
+        let sha256 = digest.as_str().to_owned();
+        let name = format!("assets/{sha256}");
+        std::fs::hard_link(
+            assets::asset_path(&originals, &digest),
+            staging.path().join(&name),
+        )
+        .unwrap();
+        payloads.push(NativePayload {
+            name,
+            sha256,
+            byte_length,
+        });
+    }
+    assert_eq!(payloads.len(), 10001);
+    assert_eq!(
+        payloads.iter().map(|entry| entry.byte_length).sum::<u64>(),
+        21_932_274_688
+    );
+    let captured = NativeCapture {
+        manifest: NativeManifest {
+            format_version: stream::VERSION,
+            kind: "nativeFull".into(),
+            scope: "selectedCourse".into(),
+            schema_version: SCHEMA_VERSION,
+            database_section_version: 1,
+            assets_section_version: 1,
+            source_course_id: Uuid::new_v4(),
+            workspace_id: workspace,
+            complete: true,
+            missing_assets: Vec::new(),
+            omissions: vec![
+                "Other courses, catalogue, credentials and runtime files are outside selected-course scope.".into()
+            ],
+            payloads,
+            table_counts: serde_json::from_value(footprint["tableCounts"].clone()).unwrap(),
+        },
+        staging,
+    };
+    let package_path = scratch.path().join("recovery.memoquill");
+    let mut package_file = owner::create_private_file(&package_path).unwrap();
+    captured.write_stream_to(&mut package_file).unwrap();
+    package_file.sync_all().unwrap();
+    eprintln!("stream encoded in {:.3}s", began.elapsed().as_secs_f64());
+
+    let target = scratch.path().join("restored");
+    let manager = CourseManager::open(target.clone()).unwrap();
+    let started = std::time::Instant::now();
+    let verified = NativeCapture::read_stream_in(
+        open_regular(&package_path).unwrap(),
+        &CourseManager::package_staging_root(&target),
+        NativeCapture::MAX_STREAM_FILE_BYTES,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(verified.manifest(), captured.manifest());
+    eprintln!("stream verified in {:.3}s", started.elapsed().as_secs_f64());
+
+    let started = std::time::Instant::now();
+    let operation = Uuid::new_v4();
+    let title = "Restored full synthetic course".to_owned();
+    let report = manager
+        .restore_native(operation, title.clone(), &verified, false)
+        .unwrap();
+    let root = target.join("courses/data").join(operation.to_string());
+    assert!(report.complete);
+    assert_eq!(report.workspace_id, captured.manifest().workspace_id);
+    assert_eq!(manager.list().unwrap().selected_course_id, operation);
+    verified.matches_root(&root).unwrap();
+    assert_eq!(
+        manager
+            .restore_native(operation, title, &verified, false)
+            .unwrap(),
+        report
+    );
+    eprintln!(
+        "stream restored and rechecked in {:.3}s",
+        started.elapsed().as_secs_f64()
+    );
+}

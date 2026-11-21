@@ -1,7 +1,7 @@
 //! Preserve evidence after a crash. Never delete, replay, or repair source bytes.
 use super::{assets, error::Result, owner, *};
 use rusqlite::{Connection, TransactionBehavior};
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{collections::BTreeSet, fs, path::Path, thread};
 
 pub(super) fn reconcile(connection: &mut Connection, root: &Path) -> Result<RecoveryReport> {
     let interrupted_operations = interrupt_prepared(connection)?;
@@ -10,9 +10,14 @@ pub(super) fn reconcile(connection: &mut Connection, root: &Path) -> Result<Reco
         ..RecoveryReport::default()
     };
     let registered = registered_assets(connection)?;
-    for info in &registered {
-        inspect_registered(root, info, &mut report)?;
-    }
+    let workers = thread::available_parallelism()
+        .map_or(1, |count| count.get())
+        .min(4)
+        .min(registered.len() / 64)
+        .max(1);
+    let (missing, corrupt) = inspect_registered_assets(root, &registered, workers)?;
+    report.missing_assets = missing;
+    report.corrupt_assets = corrupt;
     let known = registered
         .iter()
         .map(|info| info.digest.as_str().to_owned())
@@ -20,6 +25,39 @@ pub(super) fn reconcile(connection: &mut Connection, root: &Path) -> Result<Reco
     inspect_asset_tree(root, &known, &mut report)?;
     inspect_staging(root, &mut report)?;
     Ok(report)
+}
+
+fn inspect_registered_assets(
+    root: &Path,
+    assets: &[AssetInfo],
+    workers: usize,
+) -> Result<(u64, u64)> {
+    fn inspect(root: &Path, assets: &[AssetInfo]) -> Result<(u64, u64)> {
+        let mut report = RecoveryReport::default();
+        for info in assets {
+            inspect_registered(root, info, &mut report)?;
+        }
+        Ok((report.missing_assets, report.corrupt_assets))
+    }
+    if workers == 1 || assets.is_empty() {
+        return inspect(root, assets);
+    }
+    // Workers verify immutable files only. The workspace owner keeps the lock,
+    // and no database access or decision to enable writes leaves this thread.
+    thread::scope(|scope| {
+        let checks = assets
+            .chunks(assets.len().div_ceil(workers))
+            .map(|chunk| thread::Builder::new().spawn_scoped(scope, move || inspect(root, chunk)))
+            .collect::<std::io::Result<Vec<_>>>()?;
+        checks
+            .into_iter()
+            .try_fold((0, 0), |(missing, corrupt), check| {
+                let (chunk_missing, chunk_corrupt) = check
+                    .join()
+                    .map_err(|_| AppError::new(ErrorCode::StorageFailure))??;
+                Ok((missing + chunk_missing, corrupt + chunk_corrupt))
+            })
+    })
 }
 fn inspect_staging(root: &Path, report: &mut RecoveryReport) -> Result<()> {
     for entry in fs::read_dir(root.join("staging"))? {
@@ -145,6 +183,73 @@ mod tests {
     use super::super::database::Database;
     use super::*;
     use std::{io::Cursor, os::unix::fs::symlink};
+
+    #[test]
+    fn parallel_recovery_reports_corruption_and_missing_assets() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("workspace");
+        let mut db = Database::open(&root).unwrap();
+        let mut registered = Vec::new();
+        for original in [b"valid", b"alter", b"absent".as_slice()] {
+            let request = RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            };
+            registered.push(
+                db.register_asset(
+                    RequestContext::local_ui(),
+                    &request,
+                    &mut Cursor::new(original),
+                    1024,
+                )
+                .unwrap(),
+            );
+        }
+        fs::write(assets::asset_path(&root, &registered[1].digest), b"other").unwrap();
+        fs::remove_file(assets::asset_path(&root, &registered[2].digest)).unwrap();
+        assert_eq!(
+            inspect_registered_assets(&root, &registered, 2).unwrap(),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    #[ignore = "Explicit paired release measurement on the existing synthetic SSD fixture"]
+    fn compare_scale_recovery_hashing() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let source = repository.join(".qualification/m5-scale/full-v1/workspace");
+        let database = source.join("memoquill.sqlite3");
+        assert!(database.is_file());
+        let connection =
+            Connection::open_with_flags(database, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .unwrap();
+        let registered = registered_assets(&connection).unwrap();
+        assert_eq!(registered.len(), 10_000);
+        assert_eq!(
+            registered
+                .iter()
+                .map(|asset| asset.byte_length)
+                .sum::<u64>(),
+            10_000_000_000
+        );
+        let mut samples = Vec::new();
+        let parallel = thread::available_parallelism().unwrap().get().min(4);
+        assert!(parallel > 1);
+        for workers in [1, parallel, parallel, 1] {
+            let start = std::time::Instant::now();
+            assert_eq!(
+                inspect_registered_assets(&source, &registered, workers).unwrap(),
+                (0, 0)
+            );
+            samples.push(serde_json::json!({
+                "workers": workers,
+                "seconds": start.elapsed().as_secs_f64(),
+            }));
+        }
+        let output = repository.join(".qualification/m5-optimized-scale/recovery-hashing.json");
+        fs::write(output, serde_json::to_vec_pretty(&samples).unwrap()).unwrap();
+    }
     #[test]
     fn audit_reports_missing_shards_staging_orphans_and_unsafe_entries_without_removing_them() {
         let temp = tempfile::tempdir().unwrap();

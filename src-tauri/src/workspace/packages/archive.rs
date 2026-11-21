@@ -89,7 +89,7 @@ pub(super) fn read<R: Read + Seek>(mut reader: R) -> Result<NativeCapture> {
     };
     let manifest: NativeManifest =
         serde_json::from_slice(&manifest_bytes).map_err(|_| invalid())?;
-    validate_manifest(&manifest)?;
+    validate_manifest(&manifest, 1, V1_LIMITS)?;
     let expected: HashSet<_> = manifest
         .payloads
         .iter()
@@ -133,8 +133,12 @@ fn entry_limit(name: &str) -> u64 {
         _ => MAX_ASSET,
     }
 }
-fn validate_manifest(manifest: &NativeManifest) -> Result<()> {
-    if manifest.format_version != 1
+pub(super) fn validate_manifest(
+    manifest: &NativeManifest,
+    format_version: u32,
+    limits: NativeLimits,
+) -> Result<()> {
+    if manifest.format_version != format_version
         || manifest.kind != "nativeFull"
         || manifest.scope != "selectedCourse"
         || manifest.database_section_version != 1
@@ -150,8 +154,8 @@ fn validate_manifest(manifest: &NativeManifest) -> Result<()> {
     if manifest.source_course_id.get_version_num() != 4
         || manifest.complete != manifest.missing_assets.is_empty()
         || manifest.payloads.is_empty()
-        || manifest.payloads.len() >= MAX_ENTRIES
-        || manifest.missing_assets.len() > MAX_ENTRIES - 2
+        || manifest.payloads.len() >= limits.entries
+        || manifest.missing_assets.len() > limits.entries - 2
         || manifest.omissions
             != [
                 "Other courses, catalogue, credentials and runtime files are outside selected-course scope.",
@@ -164,7 +168,12 @@ fn validate_manifest(manifest: &NativeManifest) -> Result<()> {
         if !valid_name(&payload.name)
             || payload.name == "manifest.json"
             || !names.insert(&payload.name)
-            || payload.byte_length > entry_limit(&payload.name)
+            || payload.byte_length
+                > if payload.name == "database.sqlite3" {
+                    limits.database_bytes
+                } else {
+                    MAX_ASSET
+                }
             || AssetDigest::try_from(payload.sha256.clone()).is_err()
             || (payload.name.starts_with("assets/")
                 && payload.name != format!("assets/{}", payload.sha256))

@@ -41,6 +41,12 @@ enum Request {
         Reply<AssetInfo>,
     ),
     CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
+    CaptureNativeStream(
+        RequestContext,
+        uuid::Uuid,
+        std::path::PathBuf,
+        Reply<NativeCapture>,
+    ),
     CapturePortable(
         RequestContext,
         uuid::Uuid,
@@ -886,6 +892,19 @@ impl ApplicationService {
         )
         .await
     }
+    pub(crate) async fn capture_native_stream(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+        staging_parent: std::path::PathBuf,
+    ) -> Result<NativeCapture> {
+        self.request(
+            context,
+            |reply| Request::CaptureNativeStream(context, source_course_id, staging_parent, reply),
+            false,
+        )
+        .await
+    }
     /// Course-scoped serialized capture; originals require an explicit native caller choice.
     pub async fn capture_portable(
         &self,
@@ -1036,6 +1055,10 @@ impl Store {
             }
             Request::CaptureNative(context, course_id, reply) => {
                 let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
+            }
+            Request::CaptureNativeStream(context, course_id, parent, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.capture_native_stream(context, course_id, &parent)));
             }
             Request::CapturePortable(context, course_id, originals, history, reply) => {
                 let _ = reply.send(self.access(|db| {

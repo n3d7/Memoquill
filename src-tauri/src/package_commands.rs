@@ -9,9 +9,12 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     io::Seek,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
-use tauri::State;
+use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
 type Result<T> = std::result::Result<T, AppError>;
@@ -58,14 +61,41 @@ pub struct ImportResult {
     kind: PackageKind,
     report: serde_json::Value,
 }
+struct LargePackagePermit(Arc<AtomicBool>);
+
+impl LargePackagePermit {
+    fn acquire(reservation: &Arc<AtomicBool>) -> Result<Self> {
+        reservation
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| AppError::new(ErrorCode::Busy))?;
+        Ok(Self(reservation.clone()))
+    }
+}
+
+impl Drop for LargePackagePermit {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
 enum Capture {
-    Native(Box<NativeCapture>),
+    Native {
+        capture: Box<NativeCapture>,
+        _permit: Option<LargePackagePermit>,
+    },
     Portable(Box<PortableCapture>),
 }
 impl Capture {
+    fn native(capture: NativeCapture, permit: Option<LargePackagePermit>) -> Self {
+        Self::Native {
+            capture: Box::new(capture),
+            _permit: permit,
+        }
+    }
+
     fn summary(&self) -> Result<PackageSummary> {
         match self {
-            Self::Native(c) => Ok(PackageSummary {
+            Self::Native { capture: c, .. } => Ok(PackageSummary {
                 kind: PackageKind::NativeFull,
                 manifest: serde_json::to_value(c.manifest()).map_err(|_| invalid())?,
             }),
@@ -77,7 +107,7 @@ impl Capture {
     }
     fn write(&self, file: &mut std::fs::File) -> Result<()> {
         match self {
-            Self::Native(c) => c.write_to(file),
+            Self::Native { capture: c, .. } => c.write_selected_file(file),
             Self::Portable(c) => c.write_to(file),
         }
     }
@@ -87,7 +117,7 @@ struct Review {
     capture: Arc<Capture>,
 }
 #[derive(Default)]
-pub struct PackageReviews(Mutex<HashMap<Uuid, Review>>);
+pub struct PackageReviews(Mutex<HashMap<Uuid, Review>>, Arc<AtomicBool>);
 #[tauri::command]
 pub async fn save_original<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -124,6 +154,7 @@ pub async fn save_original<R: tauri::Runtime>(
 pub async fn package_export<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     manager: State<'_, CourseManager>,
+    reviews: State<'_, PackageReviews>,
     course_id: Uuid,
     request: ExportRequest,
 ) -> Result<Option<PackageSummary>> {
@@ -131,11 +162,25 @@ pub async fn package_export<R: tauri::Runtime>(
     let managed = manager.managed_root().to_owned();
     let operation = Uuid::new_v4();
     let capture = match request.kind {
-        PackageKind::NativeFull => Capture::Native(Box::new(
-            service
-                .capture_native(RequestContext::local_ui(), course_id)
-                .await?,
-        )),
+        PackageKind::NativeFull => {
+            let context = RequestContext::local_ui();
+            let (capture, permit) = match service.capture_native(context, course_id).await {
+                Ok(capture) => (capture, None),
+                Err(error) if error.code == ErrorCode::BudgetExceeded => {
+                    let permit = LargePackagePermit::acquire(&reviews.1)?;
+                    let capture = service
+                        .capture_native_stream(
+                            context,
+                            course_id,
+                            CourseManager::package_staging_root(&managed),
+                        )
+                        .await?;
+                    (capture, Some(permit))
+                }
+                Err(error) => return Err(error),
+            };
+            Capture::native(capture, permit)
+        }
         PackageKind::PortableContent => Capture::Portable(Box::new(
             service
                 .capture_portable_with_history(
@@ -150,6 +195,9 @@ pub async fn package_export<R: tauri::Runtime>(
     let summary = capture.summary()?;
     tauri::async_runtime::spawn_blocking(move || {
         let name = match request.kind {
+            PackageKind::NativeFull if summary.manifest["formatVersion"] == 2 => {
+                "course-recovery-v2.memoquill"
+            }
             PackageKind::NativeFull => "course-recovery.memoquill",
             PackageKind::PortableContent => "course-content.memoquill",
         };
@@ -160,9 +208,20 @@ pub async fn package_export<R: tauri::Runtime>(
             .blocking_save_file()
             .map(|v| v.into_path().map_err(|_| invalid()))
             .transpose()?;
-        match native_files::publish_selection(&managed, path, operation, |file| {
-            capture.write(file)
-        })? {
+        let max_bytes = if summary.manifest["formatVersion"] == 2
+            && matches!(request.kind, PackageKind::NativeFull)
+        {
+            NativeCapture::MAX_STREAM_FILE_BYTES
+        } else {
+            NativeCapture::MAX_LEGACY_FILE_BYTES
+        };
+        match native_files::publish_selection_with_limit(
+            &managed,
+            path,
+            operation,
+            max_bytes,
+            |file| capture.write(file),
+        )? {
             Some(_) => Ok(Some(summary)),
             None => Ok(None),
         }
@@ -170,12 +229,35 @@ pub async fn package_export<R: tauri::Runtime>(
     .await
     .map_err(|_| AppError::new(ErrorCode::OwnerUnavailable))?
 }
-fn read_capture(path: &std::path::Path) -> Result<Capture> {
+fn read_capture(
+    path: &std::path::Path,
+    managed: &std::path::Path,
+    reservation: &Arc<AtomicBool>,
+) -> Result<Capture> {
     let mut file = native_files::open_package(path)?;
+    let large = file.metadata()?.len() > NativeCapture::MAX_LEGACY_FILE_BYTES;
+    let (permit, wire_limit) = if large {
+        (
+            Some(LargePackagePermit::acquire(reservation)?),
+            NativeCapture::MAX_STREAM_FILE_BYTES,
+        )
+    } else {
+        (None, NativeCapture::MAX_LEGACY_FILE_BYTES)
+    };
+    if let Some(capture) = NativeCapture::read_stream_in(
+        &mut file,
+        &CourseManager::package_staging_root(managed),
+        wire_limit,
+    )? {
+        return Ok(Capture::native(capture, permit));
+    }
+    if large {
+        return Err(invalid());
+    }
     // Dispatch only through the bounded backend readers. Do not let ZipArchive
     // allocate an unbounded central directory merely to probe the manifest kind.
-    if let Ok(capture) = NativeCapture::read_from(&mut file) {
-        return Ok(Capture::Native(Box::new(capture)));
+    if let Ok(capture) = NativeCapture::read_zip_from(&mut file) {
+        return Ok(Capture::native(capture, None));
     }
     file.rewind()?;
     PortableCapture::read_from(file).map(|capture| Capture::Portable(Box::new(capture)))
@@ -188,12 +270,14 @@ pub async fn package_inspect<R: tauri::Runtime>(
     course_id: Uuid,
 ) -> Result<Option<PackageReview>> {
     let _captured = manager.service(course_id)?;
+    let managed = manager.managed_root().to_owned();
+    let reservation = reviews.1.clone();
     let capture = tauri::async_runtime::spawn_blocking(move || {
         let Some(selected) = app.dialog().file().blocking_pick_file() else {
             return Ok(None);
         };
         let path = selected.into_path().map_err(|_| invalid())?;
-        read_capture(&path).map(Some)
+        read_capture(&path, &managed, &reservation).map(Some)
     })
     .await
     .map_err(|_| AppError::new(ErrorCode::OwnerUnavailable))??;
@@ -224,7 +308,8 @@ fn reviewed(reviews: &PackageReviews, course: Uuid, id: Uuid) -> Result<Arc<Capt
     Ok(review.capture.clone())
 }
 #[tauri::command]
-pub async fn package_confirm(
+pub async fn package_confirm<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     manager: State<'_, CourseManager>,
     reviews: State<'_, PackageReviews>,
     course_id: Uuid,
@@ -233,27 +318,32 @@ pub async fn package_confirm(
     let _captured = manager.service(course_id)?;
     let capture = reviewed(&reviews, course_id, request.review_id)?;
     // Keep review for exact retries after an uncertain response. Durable backend binds UUID/title/hash.
-    match capture.as_ref() {
-        Capture::Native(c) => Ok(ImportResult {
-            kind: PackageKind::NativeFull,
-            report: serde_json::to_value(manager.restore_native(
-                request.operation_id,
-                request.title,
-                c,
-                request.allow_incomplete,
-            )?)
-            .map_err(|_| invalid())?,
-        }),
-        Capture::Portable(c) => Ok(ImportResult {
-            kind: PackageKind::PortableContent,
-            report: serde_json::to_value(manager.import_portable(
-                request.operation_id,
-                request.title,
-                c,
-            )?)
-            .map_err(|_| invalid())?,
-        }),
-    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let manager = app.state::<CourseManager>();
+        match capture.as_ref() {
+            Capture::Native { capture: c, .. } => Ok(ImportResult {
+                kind: PackageKind::NativeFull,
+                report: serde_json::to_value(manager.restore_native(
+                    request.operation_id,
+                    request.title,
+                    c,
+                    request.allow_incomplete,
+                )?)
+                .map_err(|_| invalid())?,
+            }),
+            Capture::Portable(c) => Ok(ImportResult {
+                kind: PackageKind::PortableContent,
+                report: serde_json::to_value(manager.import_portable(
+                    request.operation_id,
+                    request.title,
+                    c,
+                )?)
+                .map_err(|_| invalid())?,
+            }),
+        }
+    })
+    .await
+    .map_err(|_| AppError::new(ErrorCode::OwnerUnavailable))?
 }
 #[tauri::command]
 pub fn package_discard(
@@ -297,7 +387,7 @@ mod tests {
             review_id,
             Review {
                 course,
-                capture: Arc::new(Capture::Native(Box::new(capture))),
+                capture: Arc::new(Capture::native(capture, None)),
             },
         );
         let other_course = Uuid::new_v4();
@@ -406,12 +496,13 @@ mod tests {
         let course = manager.list().unwrap().selected_course_id;
         let service = manager.service(course).unwrap();
         for capture in [
-            Capture::Native(Box::new(
+            Capture::native(
                 tauri::async_runtime::block_on(
                     service.capture_native(RequestContext::local_ui(), course),
                 )
                 .unwrap(),
-            )),
+                None,
+            ),
             Capture::Portable(Box::new(
                 tauri::async_runtime::block_on(service.capture_portable(
                     RequestContext::local_ui(),
@@ -428,7 +519,11 @@ mod tests {
             let out = temp.path().join("selected.memoquill");
             native_files::publish(&managed, &out, |f| capture.write(f)).unwrap();
             assert_eq!(
-                read_capture(&out).unwrap().summary().unwrap().manifest,
+                read_capture(&out, &managed, &Arc::default())
+                    .unwrap()
+                    .summary()
+                    .unwrap()
+                    .manifest,
                 capture.summary().unwrap().manifest
             );
             assert!(
@@ -439,5 +534,80 @@ mod tests {
             );
         }
         tauri::async_runtime::block_on(manager.shutdown()).unwrap();
+    }
+
+    #[test]
+    fn streaming_package_inspection_uses_managed_staging_and_preserves_version_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        let managed = temp.path().join("managed");
+        let manager = CourseManager::open(managed.clone()).unwrap();
+        let course = manager.list().unwrap().selected_course_id;
+        let service = manager.service(course).unwrap();
+        let snapshot = tauri::async_runtime::block_on(
+            service.capture_native(RequestContext::local_ui(), course),
+        )
+        .unwrap();
+        let out = temp.path().join("selected-stream.memoquill");
+        native_files::publish(&managed, &out, |file| snapshot.write_stream_to(file)).unwrap();
+        let staged_count = || {
+            std::fs::read_dir(CourseManager::package_staging_root(&managed))
+                .unwrap()
+                .filter(|entry| {
+                    entry
+                        .as_ref()
+                        .unwrap()
+                        .file_name()
+                        .as_encoded_bytes()
+                        .starts_with(b"memoquill-stream-")
+                })
+                .count()
+        };
+        let inspected = read_capture(&out, &managed, &Arc::default()).unwrap();
+        assert_eq!(inspected.summary().unwrap().manifest["formatVersion"], 2);
+        assert_eq!(staged_count(), 1);
+        drop(inspected);
+        assert_eq!(staged_count(), 0);
+
+        let mut corrupt = std::fs::read(&out).unwrap();
+        corrupt[8..12].copy_from_slice(&3u32.to_le_bytes());
+        std::fs::write(&out, corrupt).unwrap();
+        assert_eq!(
+            read_capture(&out, &managed, &Arc::default())
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::UnsupportedVersion
+        );
+        assert_eq!(staged_count(), 0);
+    }
+
+    #[test]
+    fn large_package_selection_reserves_staging_and_rejects_non_streams() {
+        let temp = tempfile::tempdir().unwrap();
+        let managed = temp.path().join("managed");
+        let _manager = CourseManager::open(managed.clone()).unwrap();
+        let path = temp.path().join("oversized-zip.memoquill");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(NativeCapture::MAX_LEGACY_FILE_BYTES + 1)
+            .unwrap();
+        drop(file);
+        let reservation = Arc::default();
+        let permit = LargePackagePermit::acquire(&reservation).unwrap();
+        assert_eq!(
+            read_capture(&path, &managed, &reservation)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::Busy
+        );
+        drop(permit);
+        assert_eq!(
+            read_capture(&path, &managed, &reservation)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::InvalidRequest
+        );
+        assert!(LargePackagePermit::acquire(&reservation).is_ok());
     }
 }

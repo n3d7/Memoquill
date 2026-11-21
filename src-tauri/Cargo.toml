@@ -26,7 +26,7 @@ zip = { version = "=9.5.0", default-features = false, features = ["deflate"] }
 tempfile = "=3.27.0"
 tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-dialog = "=2.8.3"
-rusqlite = { version = "=0.41.0", default-features = false, features = ["bundled", "backup", "limits"] }
+rusqlite = { version = "=0.41.0", default-features = false, features = ["bundled", "backup", "limits", "hooks"] }
 rustix = { version = "=1.1.6", features = ["fs"] }
 sha2 = "=0.10.9"
 tokio = { version = "=1.54.1", features = ["sync"] }

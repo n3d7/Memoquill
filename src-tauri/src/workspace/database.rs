@@ -230,10 +230,17 @@ pub(super) fn snapshot(source: &Connection, root: &Path, from: i64) -> Result<Pa
     Ok(path)
 }
 pub(super) fn bounded_backup(source: &Connection, destination: &mut Connection) -> Result<()> {
+    backup_with_timeout(source, destination, Duration::from_secs(30))
+}
+pub(super) fn backup_with_timeout(
+    source: &Connection,
+    destination: &mut Connection,
+    timeout: Duration,
+) -> Result<()> {
     let backup = Backup::new(source, destination)?;
     let start = Instant::now();
     loop {
-        if backup_expired(start.elapsed()) {
+        if start.elapsed() >= timeout {
             return Err(AppError::new(ErrorCode::Busy));
         }
         match backup.step(128)? {
@@ -243,6 +250,7 @@ pub(super) fn bounded_backup(source: &Connection, destination: &mut Connection) 
         }
     }
 }
+#[cfg(test)]
 fn backup_expired(elapsed: Duration) -> bool {
     elapsed >= Duration::from_secs(30)
 }

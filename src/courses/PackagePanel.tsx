@@ -19,16 +19,50 @@ export function PackagePanel({ port, onImported }: { port: PackagePort; onImport
  const [title,setTitle]=useState('');const [allow,setAllow]=useState(false);
  const [pending,setPending]=useState<ConfirmPackage|null>(null);const [result,setResult]=useState<ImportResult|null>(null);
  const [error,setError]=useState('');const [status,setStatus]=useState('');
- async function run(action:()=>Promise<void>) {setBusy(true);setError('');setStatus('');try{await action();}catch(e){setError(failureMessage(e));}finally{setBusy(false);}}
- async function exportPackage(kind:PackageKind) {await run(async()=>{const value=await port.exportPackage(kind,originals,kind==='portableContent'&&history);setExported(value);setStatus(value?'Exported selected-course package.':'Package export cancelled.');});}
+ async function run(action:()=>Promise<void>, describeError = failureMessage) {setBusy(true);setError('');setStatus('');try{await action();}catch(e){setError(describeError(e));}finally{setBusy(false);}}
+ async function exportPackage(kind:PackageKind) {
+  setExported(null);
+  await run(async()=>{
+   const value=await port.exportPackage(kind,originals,kind==='portableContent'&&history);
+   setExported(value);
+   setStatus(value?'Exported selected-course package.':'Package export cancelled.');
+  }, error => {
+   const overBudget = typeof error === 'object' && error !== null &&
+    'code' in error && error.code === 'budget_exceeded';
+   return kind === 'nativeFull' && overBudget
+    ? 'This course exceeds the limits of the full recovery package. No backup was created. Keep your original workspace.'
+    : failureMessage(error);
+  });
+ }
  async function inspect() {await run(async()=>{const value=await port.inspect();setReview(value);setAllow(false);setResult(null);if(!value)setStatus('Package inspection cancelled.');});}
  async function confirm() {
-  if(!review)return;
-  const request=pending??{reviewId:review.reviewId,operationId:crypto.randomUUID(),title,allowIncomplete:allow};
+  if (!review) return;
+  const request = pending ?? {reviewId: review.reviewId, operationId: crypto.randomUUID(), title, allowIncomplete: allow};
   setPending(request);
-  await run(async()=>{try{const value=await port.confirm(request);setResult(value);setPending(null);setStatus(`Created new course ${value.report.courseId}. Existing courses were preserved.`);await onImported?.(value);}catch(e){if(isConfirmedRejection(e))setPending(null);throw e;}});
- }
- async function discard() {if(!review)return;await run(async()=>{await port.discard(review.reviewId);setReview(null);setPending(null);setResult(null);});}
+  await run(async () => {
+    let value: ImportResult;
+    try {
+      value = await port.confirm(request);
+    } catch (error) {
+      if (isConfirmedRejection(error)) setPending(null);
+      throw error;
+    }
+    setResult(value);
+    setPending(null);
+    setStatus(`Created new course ${value.report.courseId}. Existing courses were preserved.`);
+    if (review.kind === 'nativeFull' && review.manifest.formatVersion === 2) {
+      try {
+        await port.discard(review.reviewId);
+      } catch {
+        setError('The course was restored. Use Discard package review to release its temporary files.');
+        return;
+      }
+      setReview(null);
+    }
+    await onImported?.(value);
+  });
+}
+async function discard() {if(!review)return;await run(async()=>{await port.discard(review.reviewId);setReview(null);setPending(null);setResult(null);});}
  const locked=busy||pending!==null;
  return <section aria-label="Course packages"><h2>Course packages</h2>
   <p>Exports capture this course before opening the native file chooser. Imports always create a new course. Files remain passive; Memoquill never opens or executes their contents.</p>

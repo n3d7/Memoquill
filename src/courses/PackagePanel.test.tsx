@@ -2,6 +2,20 @@ import { fireEvent,render,screen,waitFor } from '@testing-library/react';
 import { expect,it,vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { PackagePanel } from './PackagePanel';
+it('reports an oversized recovery export without presenting a previous export as its result', async () => {
+ const port = { exportPackage: vi.fn()
+  .mockResolvedValueOnce({ kind: 'nativeFull', manifest: { scope: 'selectedCourse', omissions: [] } })
+  .mockRejectedValueOnce({ code: 'budget_exceeded' }), inspect: vi.fn(), confirm: vi.fn(), discard: vi.fn() };
+ render(<PackagePanel port={port} />);
+ const user = userEvent.setup();
+ const exportButton = screen.getByRole('button', { name: 'Export full recovery package' });
+ await user.click(exportButton);
+ expect(await screen.findByText('Exported selected-course package.')).toBeVisible();
+ await user.click(exportButton);
+ expect(await screen.findByRole('alert')).toHaveTextContent('No backup was created. Keep your original workspace.');
+ expect(screen.queryByText(/Full native recovery for the selected course/)).not.toBeInTheDocument();
+});
+
 const review={reviewId:'opaque',kind:'nativeFull' as const,manifest:{kind:'nativeFull',scope:'selectedCourse',sourceCourseId:'a',complete:false,missingAssets:['digest'],omissions:['other courses'],tableCounts:{resource_revisions:2}}};
 it('requires explicit incomplete confirmation and preserves exact retry identity/title',async()=>{
  const port={exportPackage:vi.fn(),inspect:vi.fn().mockResolvedValue(review),confirm:vi.fn().mockRejectedValueOnce({code:'outcome_unconfirmed'}).mockResolvedValueOnce({kind:'nativeFull',report:{sourceCourseId:'a',courseId:'new',complete:false,missingAssets:['digest'],omissions:['other courses']}}),discard:vi.fn()};
@@ -46,4 +60,35 @@ it('requires explicit opt-in to export private study history', async () => {
  expect(screen.getByText(/saved study drafts, earlier draft snapshots/)).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Export shareable content package'}));
  await waitFor(()=>expect(port.exportPackage).toHaveBeenCalledWith('portableContent',false,true));
+});
+
+it('releases verified streaming staging only after an acknowledged restore', async () => {
+  const streamReview = {
+    ...review,
+    manifest: { ...review.manifest, complete: true, missingAssets: [], formatVersion: 2 },
+  };
+  const result = {
+    kind: 'nativeFull',
+    report: { sourceCourseId: 'a', courseId: 'restored', complete: true, missingAssets: [], omissions: [] },
+  };
+  const port = {
+    exportPackage: vi.fn(),
+    inspect: vi.fn().mockResolvedValue(streamReview),
+    confirm: vi.fn()
+      .mockRejectedValueOnce({ code: 'outcome_unconfirmed' })
+      .mockResolvedValueOnce(result),
+    discard: vi.fn().mockResolvedValue(undefined),
+  };
+  const onImported = vi.fn(() => expect(port.discard).toHaveBeenCalledWith(streamReview.reviewId));
+  render(<PackagePanel port={port} onImported={onImported} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Choose package to inspect' }));
+  await user.type(await screen.findByLabelText('New course title'), 'Recovered stream');
+  await user.click(screen.getByRole('button', { name: 'Confirm import into new course' }));
+  const retry = await screen.findByRole('button', { name: 'Retry same package import' });
+  expect(port.discard).not.toHaveBeenCalled();
+  await user.click(retry);
+  await waitFor(() => expect(onImported).toHaveBeenCalledWith(result));
+  expect(port.confirm.mock.calls[1]).toEqual(port.confirm.mock.calls[0]);
+  expect(screen.queryByRole('region', { name: 'Package review' })).not.toBeInTheDocument();
 });

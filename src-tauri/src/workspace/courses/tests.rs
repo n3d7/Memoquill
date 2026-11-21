@@ -531,3 +531,51 @@ fn valid_catalogue_preserves_unrelated_abandoned_roots_and_remains_readable() {
     assert_eq!(reopened.list().unwrap(), expected);
     assert_eq!(file_snapshot(temp.path()), before);
 }
+
+#[test]
+fn package_staging_recovery_reclaims_interrupted_copies_under_catalogue_lock() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().to_owned();
+    let manager = CourseManager::open(root.clone()).unwrap();
+    let original = manager.list().unwrap();
+    let pending = CourseManager::package_staging_root(&root).join("memoquill-stream-Abc123");
+    let legacy = root.join("courses/memoquill-native-Zxy789");
+    let unpublished = root.join("courses/data/.restore-Qrs456");
+    for path in [&pending, &legacy, &unpublished] {
+        owner::create_private_tree(path).unwrap();
+        fs::write(
+            path.join("interrupted-payload"),
+            b"synthetic temporary data",
+        )
+        .unwrap();
+    }
+    let published = root.join("courses/data").join(Uuid::new_v4().to_string());
+    owner::create_private_tree(&published).unwrap();
+    fs::write(
+        published.join("restore-intent.json"),
+        b"published retry marker",
+    )
+    .unwrap();
+    let linked = CourseManager::package_staging_root(&root).join("memoquill-stream-Lnk123");
+    symlink(&published, &linked).unwrap();
+
+    assert!(CourseManager::open(root.clone()).is_err());
+    assert!(
+        pending.is_dir(),
+        "a live catalogue owner's staging is retained"
+    );
+    drop(manager);
+
+    let reopened = CourseManager::open(root).unwrap();
+    assert_eq!(reopened.list().unwrap(), original);
+    for path in [&pending, &legacy, &unpublished] {
+        assert!(!path.exists());
+    }
+    assert!(linked.is_symlink());
+    assert_eq!(
+        fs::read(published.join("restore-intent.json")).unwrap(),
+        b"published retry marker"
+    );
+}
