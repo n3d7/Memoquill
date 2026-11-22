@@ -1,3 +1,20 @@
+# KER-108 readiness and scope review
+
+2026-11-22. Continue M7 in an isolated checkout on dev. The base reviewed
+for this plan is GitHub main at `77d068e6dd4e7d5156fb80e257ceeda67a825c98`.
+The original dirty dev, separate M5 planning files and local backup are
+preserved. The user authorized publishing the documentation commit to dev.
+Implementation awaits scope agreement. PR, merge, tracker writes and a GUI
+session have separate authorization.
+
+Read [the readiness and vertical-slice plan](planning/m7-ker-108-readiness.md).
+KER-108 is in Backlog and its blocking issues are Done. The first candidate
+uses a native provider connection, course-local streaming chat and a single
+M6-reviewed lesson proposal. OpenAI documents the SIWC integration route.
+Account and model eligibility, secure storage and the live tool path are
+pending. Next decision: agree the provider fallback, disclosure and chat
+recovery scope before implementation. Historic handoffs follow.
+
 # Current objective — M4 merge candidate and tracker/protection follow-up
 
 2026-11-14. User now authorizes PR #7 review/merge into main if ready, Linear
