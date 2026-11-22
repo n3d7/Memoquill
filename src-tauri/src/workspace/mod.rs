@@ -8,6 +8,8 @@ mod database;
 mod error;
 mod faults;
 mod lessons;
+#[cfg(all(test, target_os = "linux"))]
+mod m6_source_fixture;
 #[cfg(target_os = "linux")]
 pub(crate) mod mcp_drafts;
 #[cfg(target_os = "linux")]

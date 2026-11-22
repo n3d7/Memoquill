@@ -17,6 +17,11 @@ export XDG_CACHE_HOME=/tmp/memoquill-m3-cache
 mkdir -p "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 chmod 700 "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 export DISPLAY=:99 GDK_BACKEND=x11 GTK_MODULES=atk-bridge GTK_IM_MODULE=ibus NO_AT_BRIDGE=0 LANG=C.UTF-8
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == mcp ]]; then
+  # This synthetic profile was created through the trusted workspace services.
+  (umask 077; python3 -m tarfile --extract /input/m6-source-profile.tar.gz "$XDG_DATA_HOME" --filter=data)
+  export GTK_IM_MODULE=simple
+fi
 Xvfb :99 -screen 0 1440x1100x24 -nolisten tcp >/evidence/xvfb-x11.log 2>&1 &
 trap 'kill $(jobs -pr) 2>/dev/null || true' EXIT
 ready=0
@@ -28,6 +33,10 @@ if [[ "$ready" != 1 ]]; then echo 'Private X11 display did not become ready' >&2
 openbox --sm-disable >/evidence/openbox.log 2>&1 &
 dbus-update-activation-environment DISPLAY XDG_RUNTIME_DIR XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME GDK_BACKEND GTK_IM_MODULE NO_AT_BRIDGE LANG
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
+if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == mcp ]]; then
+  timeout 180 python3 /input/m6-connections-journey.py x11
+  exit 0
+fi
 export IBUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/ibus.sock"
 dbus-update-activation-environment IBUS_ADDRESS
 ibus-daemon --xim --replace --desktop=other --address="$IBUS_ADDRESS" >/evidence/ibus-x11.log 2>&1 &
@@ -37,10 +46,6 @@ for attempt in {1..100}; do
   sleep .1
 done
 if [[ "$ready" != 1 ]]; then echo 'Private IME did not become ready' >&2; exit 1; fi
-if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == mcp ]]; then
-  timeout 180 python3 /input/m6-connections-journey.py x11
-  exit 0
-fi
 if [[ "${MEMOQUILL_M3_SCENARIO:-full}" == customization ]]; then
   timeout 300 python3 /input/m5-customization-journey.py x11
   exit 0
