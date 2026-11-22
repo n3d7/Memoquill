@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { failureMessage } from '../application/errors';
 
-interface Permissions { content: boolean; progress: boolean; responses: boolean; sources: boolean; originals: boolean; drafts: boolean; delegateAdditions: boolean }
+interface Permissions { content: boolean; progress: boolean; responses: boolean; sources: boolean; originals: boolean; drafts: boolean; delegateAdditions: boolean; delegateDocumentEdits: boolean }
 interface Peer {
   challenge: string;
   pid: number | null;
@@ -43,6 +43,7 @@ export function ConnectionsPanel({ course, port }: {
   const [originals, setOriginals] = useState(false);
   const [drafts, setDrafts] = useState(false);
   const [delegateAdditions, setDelegateAdditions] = useState(false);
+  const [delegateDocumentEdits, setDelegateDocumentEdits] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pending = status?.peers.find(peer => peer.courseId === null && peer.challenge === challenge.trim());
@@ -77,6 +78,7 @@ export function ConnectionsPanel({ course, port }: {
           const updated = await port.approve(pending.challenge, course.id, {
             content, progress, responses: progress && responses,
             sources: content && sources, originals: content && sources && originals, drafts: content && drafts, delegateAdditions: content && drafts && delegateAdditions,
+            delegateDocumentEdits: content && drafts && delegateAdditions && delegateDocumentEdits,
           });
           setChallenge('');
           setContent(false);
@@ -86,6 +88,7 @@ export function ConnectionsPanel({ course, port }: {
           setOriginals(false);
           setDrafts(false);
           setDelegateAdditions(false);
+          setDelegateDocumentEdits(false);
           return updated;
         });
       }}>
@@ -109,6 +112,10 @@ export function ConnectionsPanel({ course, port }: {
           <label><input type="checkbox" disabled={!content || !drafts} checked={content && drafts && delegateAdditions}
             onChange={event => setDelegateAdditions(event.target.checked)} />
             Delegate safe course additions (32 operations)</label>
+          <label><input type="checkbox" disabled={!content || !drafts || !delegateAdditions}
+            checked={content && drafts && delegateAdditions && delegateDocumentEdits}
+            onChange={event => setDelegateDocumentEdits(event.target.checked)} />
+            Delegate edits to the agent's unlinked documents</label>
           <button type="submit" disabled={!pending || (!content && !progress)}>Approve for {course.title}</button>
         </fieldset>
       </form>
@@ -122,6 +129,7 @@ export function ConnectionsPanel({ course, port }: {
           {peer.permissions?.responses && ' · Raw responses'}
           {peer.permissions?.drafts && ' · Unpublished drafts'}
           {peer.permissions?.delegateAdditions && ' · Delegated additions'}
+          {peer.permissions?.delegateDocumentEdits && ' · Delegated document edits'}
           {' '}<button type="button" aria-label={`Revoke bridge ${peer.pid ?? 'unknown'}`} disabled={busy} onClick={() => void update(() => port.revoke(peer.challenge))}>
             Revoke
           </button>

@@ -542,6 +542,7 @@ mod tests {
             originals: false,
             drafts: false,
             delegate_additions: false,
+            delegate_document_edits: false,
             responses: false,
         };
 
@@ -614,6 +615,7 @@ mod tests {
                         originals: false,
                         drafts: false,
                         delegate_additions: false,
+                        delegate_document_edits: false,
                         responses: false,
                     }
                 )

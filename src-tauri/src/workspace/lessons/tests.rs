@@ -599,33 +599,59 @@ fn invalid_event_action_pair_and_source_locator_do_not_gain_authority() {
 #[test]
 fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
     let (_temp, mut db, u) = setup();
-    let source = Uuid::new_v4().to_string();
-    let resource = Uuid::new_v4().to_string();
-    let operation = OperationId::generate();
-    let digest = "a".repeat(64);
-    db.connection
-        .execute(
-            "INSERT INTO operations VALUES(?1,?2,'local-ui','hash','asset','applied','{}',NULL)",
-            rusqlite::params![operation.as_str(), db.id.as_str()],
+    use crate::{
+        organization::ResourceId,
+        workspace::{NewSource, RegisterAsset, SaveSource},
+    };
+    let source = Uuid::new_v4();
+    let resource = ResourceId::generate();
+    let pdf = include_bytes!("../../../../tests/fixtures/m3/original.pdf");
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut std::io::Cursor::new(pdf),
+            4096,
         )
         .unwrap();
+    let digest = asset.digest.as_str().to_owned();
     db.connection
         .execute(
-            "INSERT INTO assets VALUES(?1,4,?2)",
-            rusqlite::params![digest, operation.as_str()],
+            "INSERT INTO resources VALUES(?1,'Original',0)",
+            [resource.to_string()],
         )
         .unwrap();
-    db.connection
-        .execute("INSERT INTO resources VALUES(?1,'Original',0)", [&resource])
-        .unwrap();
-    db.connection.execute("INSERT INTO original_sources VALUES(?1,?2,?3,'source.pdf','application/pdf','Author','CC0',NULL,1,4)",rusqlite::params![source,resource,digest]).unwrap();
+    db.save_source(
+        RequestContext::local_ui(),
+        &SaveSource {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: 0,
+            source: NewSource {
+                id: source,
+                resource_id: resource,
+                digest: asset.digest,
+                filename: "source.pdf".into(),
+                media_type: "application/pdf".into(),
+                attribution: Some("Synthetic fixture".into()),
+                license: Some("CC0".into()),
+                origin_url: None,
+            },
+        },
+    )
+    .unwrap();
     let d = create(&mut db, &u);
     let op:LessonOperation=serde_json::from_value(json!({"kind":"createSourceBindingRevision","sourceId":source,"bindingId":"source","locator":"page:2","declaredUsedRanges":["page:2"]})).unwrap();
     let d = db
         .lesson_edit(RequestContext::local_ui(), &edit(&db, &d, vec![op]))
         .unwrap();
     let revision = d.composition.bindings[0].revision_id.clone();
-    assert_ne!(revision, source);
+    assert_ne!(revision, source.to_string());
     let p = db
         .lesson_preview(RequestContext::local_ui(), &scope(&db, &d))
         .unwrap();
@@ -650,6 +676,32 @@ fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
         };
         assert_eq!(discover(&db, true), vec![revision.clone()]);
         assert!(discover(&db, false).is_empty());
+        use crate::workspace::mcp_reads::BoundSource;
+        let BoundSource::Extracted { binding, preview } =
+            db.mcp_bound_source(context, &u, &revision, None).unwrap()
+        else {
+            panic!("Expected the PDF fallback preview")
+        };
+        let extraction = preview.extraction.unwrap();
+        assert_eq!(
+            extraction.status,
+            crate::workspace::ExtractionStatus::AttachmentOnly
+        );
+        assert!(extraction.records.is_empty());
+        assert_eq!(binding.extraction_coverage, "notExtracted");
+        let BoundSource::Original {
+            binding,
+            byte_length,
+            bytes,
+        } = db
+            .mcp_bound_source(context, &u, &revision, Some(0))
+            .unwrap()
+        else {
+            panic!("Expected a verified original range")
+        };
+        assert_eq!(bytes, pdf);
+        assert_eq!(byte_length, pdf.len() as u64);
+        assert_eq!(binding.asset_digest, digest);
         use crate::workspace::mcp_drafts::{
             DraftRequest, DraftResult, DraftReview, DraftReviewResult,
         };
@@ -694,7 +746,10 @@ fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
             ErrorCode::PermissionDenied
         );
         db.connection
-            .execute("UPDATE resources SET archived=1 WHERE id=?1", [&resource])
+            .execute(
+                "UPDATE resources SET archived=1 WHERE id=?1",
+                [resource.to_string()],
+            )
             .unwrap();
         assert!(discover(&db, true).is_empty());
         assert_eq!(
@@ -705,7 +760,10 @@ fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
             ErrorCode::PermissionDenied
         );
         db.connection
-            .execute("UPDATE resources SET archived=0 WHERE id=?1", [&resource])
+            .execute(
+                "UPDATE resources SET archived=0 WHERE id=?1",
+                [resource.to_string()],
+            )
             .unwrap();
     }
     let other = Uuid::new_v4().to_string();

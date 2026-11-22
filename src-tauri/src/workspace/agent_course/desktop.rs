@@ -341,7 +341,12 @@ impl Database {
                 let mut policy = lease.lock()?;
                 policy.authorize()?;
                 verify_submission(&record, revision, &hash, operation_id)?;
-                if !super::delegation::allows(&record) {
+                if !super::delegation::allows(
+                    &tx,
+                    &record,
+                    actor,
+                    policy.can_revise_owned_documents(),
+                )? {
                     return Err(approval_required());
                 }
                 // Reserve only after all storage validation and before the
@@ -914,6 +919,18 @@ mod tests {
         json!({"type":"organization","command":{"type":"createSubject","id":id,"title":title}})
     }
 
+    fn document(resource: Uuid, revision: u64, text: &str) -> Value {
+        json!({"type":"document","resourceId":resource,"expectedRevision":revision,"document":{
+            "schemaVersion":1,"blocks":[{"id":Uuid::new_v4(),"content":{"type":"code","text":text}}]
+        }})
+    }
+
+    fn delegated_apply(draft: Uuid, validation: Value) -> Value {
+        assert_eq!(validation["valid"], true, "{validation}");
+        json!({"kind":"apply_delegated","draftId":draft,"revision":3,
+            "hash":validation["hash"],"operationId":Uuid::new_v4()})
+    }
+
     #[test]
     fn mcp_course_batches_resume_and_commit_only_exact_reviewed_changes() {
         let mut f = Fixture::new();
@@ -1011,7 +1028,7 @@ mod tests {
     #[test]
     fn mcp_course_delegation_spends_budget_once_and_failed_group_rolls_back() {
         let mut f = Fixture::new();
-        let lease = Delegation::new(std::time::Duration::from_secs(30));
+        let lease = Delegation::new(std::time::Duration::from_secs(30), false);
         let group = f.create("Course writing scope");
         let changes = (0..25)
             .map(|n| subject(Uuid::new_v4(), &format!("Subject {n}")))
@@ -1040,6 +1057,251 @@ mod tests {
     }
 
     #[test]
+    fn mcp_course_document_delegation_requires_opt_in_and_an_unmodified_owner_head() {
+        let mut f = Fixture::new();
+        let resource = Uuid::new_v4();
+        let resource_id = ResourceId::try_from(resource).unwrap();
+        let additions = Delegation::new(std::time::Duration::from_secs(30), false);
+        let revisions = Delegation::new(std::time::Duration::from_secs(30), true);
+        let first = f.create("New drafting material");
+        let validation = f.submit(first, vec![
+            json!({"type":"organization","command":{"type":"createResource","id":resource,"title":"Draft text"}}),
+            document(resource, 0, "First draft"),
+        ]);
+        f.draft(delegated_apply(first, validation), Some(&additions))
+            .unwrap();
+
+        let second = f.create("Revise drafting material");
+        let validation = f.submit(second, vec![document(resource, 1, "Agent revision")]);
+        let apply = delegated_apply(second, validation);
+        assert_eq!(
+            f.draft(apply.clone(), Some(&additions)).unwrap_err().code,
+            ErrorCode::ApprovalRequired
+        );
+        let expired = Delegation::new(std::time::Duration::ZERO, true);
+        assert_eq!(
+            f.draft(apply.clone(), Some(&expired)).unwrap_err().code,
+            ErrorCode::PermissionDenied
+        );
+        f.draft(apply, Some(&revisions)).unwrap();
+        assert_eq!(
+            f.review(json!({"kind":"undo","draftId":first,"revision":4,
+                "operationId":Uuid::new_v4()}))
+                .unwrap_err()
+                .code,
+            ErrorCode::RevisionConflict
+        );
+
+        let owner = f.key;
+        f.key = Uuid::new_v4();
+        let foreign = f.create("Other owner revision");
+        let validation = f.submit(foreign, vec![document(resource, 2, "Foreign revision")]);
+        assert_eq!(
+            f.draft(delegated_apply(foreign, validation), Some(&revisions))
+                .unwrap_err()
+                .code,
+            ErrorCode::ApprovalRequired
+        );
+        f.key = owner;
+
+        let human = document(resource, 2, "Manual revision");
+        f.database
+            .save_document(
+                RequestContext::local_ui(),
+                &serde_json::from_value(json!({
+                    "contractVersion":1,"workspaceId":f.database.id,"operationId":Uuid::new_v4(),
+                    "resourceId":resource,"expectedRevision":2,"document":human["document"]
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+        let third = f.create("Protected manual revision");
+        let validation = f.submit(third, vec![document(resource, 3, "Overwriting edit")]);
+        assert_eq!(
+            f.draft(delegated_apply(third, validation), Some(&revisions))
+                .unwrap_err()
+                .code,
+            ErrorCode::ApprovalRequired
+        );
+        let head = f
+            .database
+            .read_document(RequestContext::local_ui(), resource_id, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(head.document.text(), "Manual revision");
+        assert_eq!(head.authoring_origin, None);
+    }
+
+    #[test]
+    fn mcp_course_undo_archives_new_unlinked_documents_and_keeps_their_revisions() {
+        let mut f = Fixture::new();
+        let resource = Uuid::new_v4();
+        let resource_id = ResourceId::try_from(resource).unwrap();
+        let lease = Delegation::new(std::time::Duration::from_secs(30), false);
+        let group = f.create("New resource for compensation");
+        let validation = f.submit(group, vec![
+            json!({"type":"organization","command":{"type":"createResource","id":resource,"title":"Original draft"}}),
+            document(resource, 0, "Retained original"),
+            document(resource, 1, "Retained revision"),
+        ]);
+        f.draft(delegated_apply(group, validation), Some(&lease))
+            .unwrap();
+        let head = f
+            .database
+            .read_document(RequestContext::local_ui(), resource_id, None)
+            .unwrap()
+            .unwrap();
+        let undo = json!({"kind":"undo","draftId":group,"revision":4,"operationId":Uuid::new_v4()});
+        let result = f.review(undo.clone()).unwrap();
+        assert_eq!(result["status"], "undone");
+        assert_eq!(f.review(undo).unwrap(), result);
+        assert!(f.summary().resources[&resource_id].archived);
+        let retained = f
+            .database
+            .read_document(RequestContext::local_ui(), resource_id, Some(head.id))
+            .unwrap()
+            .unwrap();
+        assert_eq!(retained, head);
+        assert_eq!(
+            retained.authoring_origin,
+            Some(crate::workspace::DocumentOrigin::ExternalUnverified)
+        );
+        super::super::validate_native_data(&f.database.connection).unwrap();
+    }
+
+    #[test]
+    fn mcp_course_four_subject_workflows_share_materials_and_use_typed_activities() {
+        use crate::workspace::mcp_drafts::{DraftRequest, DraftResult};
+
+        let mut f = Fixture::new();
+        let cases = [
+            (
+                "Astronomy",
+                "Record a repeatable observation",
+                json!({
+                    "family":"recall","version":1,"prompt":"Name the object recorded in the log.",
+                    "answer":"Moon","hints":[],"evaluation":"exact"
+                }),
+            ),
+            (
+                "Linguistics",
+                "Identify a word boundary",
+                json!({
+                    "family":"singleChoice","version":1,"prompt":"Which option gives the stem of 'walked'?",
+                    "options":[{"id":"walk","text":"walk"},{"id":"ed","text":"ed"}],
+                    "correctOptionId":"walk","hints":[],"evaluation":"exact"
+                }),
+            ),
+            (
+                "Geometry",
+                "Explain a construction",
+                json!({
+                    "family":"constructed","version":1,"prompt":"Explain why the two radii have equal length.",
+                    "rubric":"Identify the common center and justify equality by the definition.",
+                    "hints":[],"evaluation":"self"
+                }),
+            ),
+            (
+                "Cooking",
+                "Carry out a preparation procedure",
+                json!({
+                    "family":"procedure","version":1,"prompt":"Prepare and review the ingredients.",
+                    "steps":[{"id":"list","text":"List the ingredients"},{"id":"measure","text":"Measure them"}],
+                    "reflection":"Which measurement could you check again?","hints":[],"evaluation":"self"
+                }),
+            ),
+        ];
+        let policy = Delegation::new(std::time::Duration::from_secs(30), true);
+        let operation = |command| json!({"type":"organization","command":command});
+        for (title, objective, definition) in cases {
+            let topic = Uuid::new_v4();
+            let goal = Uuid::new_v4();
+            let collection = Uuid::new_v4();
+            let resource = Uuid::new_v4();
+            let first = Uuid::new_v4();
+            let second = Uuid::new_v4();
+            let group = f.create(title);
+            let validation = f.submit(group, vec![
+                subject(topic, title),
+                operation(json!({"type":"createGoal","id":goal,"subjectId":topic,"title":objective,
+                    "criteria":"Use the shared reference and explain your reasoning."})),
+                operation(json!({"type":"createCollection","id":collection,"subjectId":topic,"title":"Modules"})),
+                operation(json!({"type":"createResource","id":resource,"title":"Shared reference"})),
+                document(resource, 0, objective),
+                operation(json!({"type":"createUnit","id":first,"title":"Introduction","objective":objective,
+                    "goalIds":[goal],"resourceIds":[resource]})),
+                operation(json!({"type":"createUnit","id":second,"title":"Application","objective":objective,
+                    "goalIds":[goal],"resourceIds":[resource]})),
+                operation(json!({"type":"place","id":Uuid::new_v4(),"collectionId":collection,
+                    "target":{"kind":"unit","id":first}})),
+                operation(json!({"type":"relate","id":Uuid::new_v4(),"kind":"prerequisite",
+                    "from":first,"to":second})),
+            ]);
+            f.review(
+                json!({"kind":"apply","draftId":group,"revision":3,"hash":validation["hash"],
+                "operationId":Uuid::new_v4()}),
+            )
+            .unwrap();
+
+            let protected = f.create("Detached grant cannot change a shared reference");
+            let validation = f.submit(
+                protected,
+                vec![document(resource, 1, "Protected reference")],
+            );
+            assert_eq!(
+                f.draft(delegated_apply(protected, validation), Some(&policy))
+                    .unwrap_err()
+                    .code,
+                ErrorCode::ApprovalRequired
+            );
+
+            let request = |action| -> DraftRequest {
+                serde_json::from_value(json!({"ownerKey":f.key,"unitId":second,"action":action}))
+                    .unwrap()
+            };
+            let DraftResult::Draft(lesson) = f
+                .database
+                .mcp_draft(
+                    request(json!({"kind":"create","operationId":Uuid::new_v4()})),
+                    false,
+                )
+                .unwrap()
+            else {
+                panic!("Expected a draft for {title}")
+            };
+            let binding = Uuid::new_v4();
+            let DraftResult::Draft(edited) = f.database.mcp_draft(request(json!({
+                "kind":"edit","draftId":lesson.id,"revision":lesson.revision,"operationId":Uuid::new_v4(),
+                "operations":[
+                    {"kind":"createActivityRevision","activityId":Uuid::new_v4(),"expectedRevisionId":null,
+                        "bindingId":binding,"definition":definition},
+                    {"kind":"insertNode","parent":lesson.composition.root_node_id,"slot":"body","index":0,
+                        "node":{"nodeId":Uuid::new_v4(),"typeId":"activity","typeVersion":1,
+                            "props":{"bindingId":binding,"presentation":"default"},"slots":{},"on":{}}}
+                ]})), false).unwrap() else { panic!("Expected edited draft for {title}") };
+            let preview = f
+                .database
+                .mcp_draft(
+                    request(json!({
+                        "kind":"preview","draftId":edited.id,"revision":edited.revision
+                    })),
+                    false,
+                )
+                .unwrap();
+            assert!(matches!(preview, DraftResult::Preview(_)), "{title}");
+            assert!(
+                f.database
+                    .lesson_read(RequestContext::local_ui(), &second.to_string(), None)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert_eq!(f.summary().subjects.len(), 4);
+        assert_eq!(f.summary().units.len(), 8);
+        super::super::validate_native_data(&f.database.connection).unwrap();
+    }
+
+    #[test]
     fn mcp_course_delegation_blocks_protected_writes_checks_revocation_and_undoes_additions() {
         let mut f = Fixture::new();
         let first = f.create("Delegated additions");
@@ -1051,13 +1313,13 @@ mod tests {
             f.draft(apply.clone(), None).unwrap_err().code,
             ErrorCode::ApprovalRequired
         );
-        let revoked = Delegation::new(std::time::Duration::from_secs(30));
+        let revoked = Delegation::new(std::time::Duration::from_secs(30), false);
         revoked.revoke();
         assert_eq!(
             f.draft(apply.clone(), Some(&revoked)).unwrap_err().code,
             ErrorCode::PermissionDenied
         );
-        let valid = Delegation::new(std::time::Duration::from_secs(30));
+        let valid = Delegation::new(std::time::Duration::from_secs(30), false);
         let applied = f.draft(apply.clone(), Some(&valid)).unwrap();
         assert_eq!(applied["status"], "applied");
         assert_eq!(f.draft(apply, Some(&valid)).unwrap(), applied);

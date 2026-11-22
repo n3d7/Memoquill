@@ -123,12 +123,21 @@ impl Record {
         {
             return Err(corrupt());
         }
+        let pending_documents = self
+            .chunks
+            .iter()
+            .flat_map(|chunk| &chunk.operations)
+            .filter_map(|operation| match operation {
+                CourseOperation::Document { resource_id, .. } => Some(*resource_id),
+                _ => None,
+            });
         if let Some(commit) = &self.commit
             && (commit.operation_id.get_version_num() != 4
                 || commit.result_revision < self.base_revision
                 || commit.result_revision > super::types::MAX_REVISION as u64
                 || commit.hash != proposal_hash(self)?
-                || commit.documents.len() > MAX_GROUP_OPERATIONS
+                || !pending_documents
+                    .eq(commit.documents.iter().map(|document| document.resource_id))
                 || Some(commit.operation_id) == self.transition_id
                 || Some(commit.operation_id) == self.undo_id
                 || commit

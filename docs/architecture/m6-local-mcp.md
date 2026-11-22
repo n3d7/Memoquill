@@ -135,14 +135,19 @@ lost acknowledgement can be recovered with the same operation ID.
 
 The separate **Delegate safe course additions** grant permits a submitted
 group to call `apply_delegated` with its exact revision and hash. It admits
-only safe additions and revisions or organization of items created within
-that group. Changes to existing items require desktop review. It provides
-32 operations per connection grant, expires with the connection, and shares
-a transaction boundary with the writer for budget and revocation checks.
+safe additions and organization of items created within that group. The
+optional **Delegate edits to the agent's unlinked documents** permission
+allows revisions in later groups. The current head and original creation
+must belong to the same draft owner. The resource must still have its
+original title and no placements, lesson links or pins, or original
+sources. Other revisions to existing items require desktop review. Both
+permissions share the same 32-operation budget per connection, expiry,
+and transaction-bound budget and revocation checks.
 Lifecycle events are in the local Connections panel and receipts are durable.
-Undo is explicit desktop compensation for unmodified structural additions.
-It archives or unlinks those additions and declines if later changes made
-the group unsafe to reverse.
+Undo is explicit desktop compensation. It archives or unlinks eligible
+additions and retains immutable document revisions and their provenance.
+Undo declines if the course revision or an affected document head changed,
+or if a lesson, original source, or learning record depends on the additions.
 
 Schema 11 carries local drafts, receipts and external document origin fields
 in native full backups. Content-only portable exports exclude the authoring

@@ -5,7 +5,7 @@ import { ConnectionsPanel, type ConnectionsPort } from './ConnectionsPanel';
 
 test('requires a matching pairing challenge and a deliberate per-course permission', async () => {
   const pending = { challenge: 'test-challenge', pid: 42, courseId: null, permissions: null };
-  const granted = { ...pending, courseId: 'course-id', permissions: { content: true, progress: false, responses: false, sources: false, originals: false, drafts: false, delegateAdditions: false } };
+  const granted = { ...pending, courseId: 'course-id', permissions: { content: true, progress: false, responses: false, sources: false, originals: false, drafts: false, delegateAdditions: false, delegateDocumentEdits: false } };
   const port: ConnectionsPort = {
     status: vi.fn(async () => ({ enabled: false, peers: [] })),
     setEnabled: vi.fn(async () => ({ enabled: true, peers: [pending] })),
@@ -21,7 +21,7 @@ test('requires a matching pairing challenge and a deliberate per-course permissi
   expect(approve).toBeDisabled();
   await user.click(screen.getByRole('checkbox', { name: 'Published course structure and normalized document text' }));
   await user.click(approve);
-  expect(port.approve).toHaveBeenCalledWith(pending.challenge, 'course-id', { content: true, progress: false, responses: false, sources: false, originals: false, drafts: false, delegateAdditions: false });
+  expect(port.approve).toHaveBeenCalledWith(pending.challenge, 'course-id', { content: true, progress: false, responses: false, sources: false, originals: false, drafts: false, delegateAdditions: false, delegateDocumentEdits: false });
   await user.click(await screen.findByRole('button', { name: 'Revoke bridge 42' }));
   expect(port.revoke).toHaveBeenCalledWith(pending.challenge);
 });

@@ -26,6 +26,8 @@ pub(crate) struct ReadPermissions {
     pub drafts: bool,
     #[serde(default)]
     pub delegate_additions: bool,
+    #[serde(default)]
+    pub delegate_document_edits: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -134,6 +136,7 @@ impl CourseReads {
             || (permissions.responses && !permissions.progress)
             || (permissions.drafts && !permissions.content)
             || (permissions.delegate_additions && !permissions.drafts)
+            || (permissions.delegate_document_edits && !permissions.delegate_additions)
         {
             return Err(AppError::new(ErrorCode::InvalidRequest));
         }
@@ -147,6 +150,7 @@ impl CourseReads {
             delegation: permissions.delegate_additions.then(|| {
                 Arc::new(super::agent_course::Delegation::new(
                     std::time::Duration::from_secs(3600),
+                    permissions.delegate_document_edits,
                 ))
             }),
         })
@@ -650,6 +654,7 @@ mod tests {
                 originals: false,
                 drafts: false,
                 delegate_additions: false,
+                delegate_document_edits: false,
             },
         )
         .unwrap();
@@ -705,6 +710,7 @@ mod tests {
             originals: false,
             drafts: false,
             delegate_additions: false,
+            delegate_document_edits: false,
         };
         let owner = CourseReads::approve(&manager, course, permissions).unwrap();
         let other = CourseReads::approve(&manager, course, permissions).unwrap();

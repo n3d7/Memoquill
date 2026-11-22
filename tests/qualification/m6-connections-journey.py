@@ -105,7 +105,7 @@ try:
     capabilities = tool(bridge, 'memoquill_capabilities')['structuredContent']
     course_id = capabilities['courseId']
     check(capabilities['permissions'] == {'content': True, 'progress': False, 'sources': False,
-                                          'responses': False, 'originals': False, 'drafts': False, 'delegateAdditions': False}, 'Sensitive reads are separate opt-ins')
+                                          'responses': False, 'originals': False, 'drafts': False, 'delegateAdditions': False, 'delegateDocumentEdits': False}, 'Sensitive reads are separate opt-ins')
     data = tool(bridge, 'memoquill_structure_get', {'kind': 'units'})
     check(isinstance(data['structuredContent']['items'], list), 'Approved client reads a typed course page')
     hidden = tool(bridge, 'memoquill_progress_get', {'id': '863b57be-7248-4cdf-8eb7-97a5bfaf4765'})
@@ -166,6 +166,19 @@ try:
     discard = draft({'kind': 'discard', 'draftId': draft_id, 'revision': 1, 'operationId': str(uuid.uuid4())})
     check(discard['structuredContent']['kind'] == 'discarded', 'The owner discards its unpublished draft')
     next_draft = draft({'kind': 'create', 'operationId': str(uuid.uuid4())})['structuredContent']['value']
+    binding = str(uuid.uuid4())
+    draft_content = next_draft['composition']
+    edit = draft({'kind': 'edit', 'draftId': next_draft['id'], 'revision': next_draft['revision'],
+                  'operationId': str(uuid.uuid4()), 'operations': [
+        {'kind': 'createActivityRevision', 'activityId': str(uuid.uuid4()),
+         'expectedRevisionId': None, 'bindingId': binding,
+         'definition': {'family': 'recall', 'version': 1, 'prompt': 'Which synthetic word was shown?',
+                        'answer': 'orbit', 'hints': [], 'evaluation': 'exact'}},
+        {'kind': 'insertNode', 'parent': draft_content['rootNodeId'], 'slot': 'body', 'index': 0,
+         'node': {'nodeId': str(uuid.uuid4()), 'typeId': 'activity', 'typeVersion': 1,
+                  'props': {'bindingId': binding, 'presentation': 'default'}, 'slots': {}, 'on': {}}},
+    ]})
+    check(not edit['isError'], f'Typed external authoring adds a recall exercise: {edit}')
     activate('External lesson drafts')
     activate('Refresh external drafts')
     activate('Inspect draft ' + next_draft['id'])
@@ -238,22 +251,45 @@ try:
     check({first_id, second_id}.issubset({row['id'] for row in unit_rows}),
           'Reviewed group publishes both linked course modules')
 
+    interrupted = str(uuid.uuid4())
+    base = tool(bridge, 'memoquill_structure_get', {'kind': 'units'})['structuredContent']['revision']
+    course_draft({'kind': 'create', 'draftId': interrupted, 'title': 'Interrupted draft', 'baseRevision': base})
+    checkpoint = {'kind': 'append', 'draftId': interrupted, 'revision': 1,
+                  'operationId': str(uuid.uuid4()), 'operations': [
+                      organization('createSubject', id=str(uuid.uuid4()), title='Unpublished subject'),
+                  ]}
+    saved = course_draft(checkpoint)['structuredContent']
     revoke = next(node.name for node in d.nodes() if node.name and node.name.startswith('Revoke bridge '))
     activate(revoke)
     check(tool(bridge, 'memoquill_capabilities')['isError'], 'Revocation closes the ordinary draft grant')
+    check(course_draft({'kind': 'read', 'draftId': interrupted, 'offset': 0})['isError'],
+          'Interrupted bridge cannot resume without fresh approval')
     pending = tool(bridge, 'memoquill_connection')['structuredContent']
     activate('Refresh connections')
     field('Pairing challenge', pending['challenge'])
     activate('Published course structure and normalized document text')
     activate('Create and edit unpublished course and lesson drafts')
     activate('Delegate safe course additions (32 operations)')
+    activate("Delegate edits to the agent's unlinked documents")
     approval = next(node.name for node in d.nodes() if node.name and node.name.startswith('Approve for '))
     activate(approval)
     d.wait_for(lambda: tool(bridge, 'memoquill_connection')['structuredContent']['connection'] == 'approved',
                'Desktop explicitly delegates bounded additions')
-    delegated_id, delegated_revision, delegation_hash = course_group('Delegated fixture', [
-        [organization('createSubject', id=str(uuid.uuid4()), title='Synthetic linguistics')],
-    ])
+    check(course_draft(checkpoint)['structuredContent'] == saved,
+          'Re-approved owner recovers the exact acknowledged checkpoint')
+    resumed = course_draft({'kind': 'read', 'draftId': interrupted, 'offset': 0})['structuredContent']
+    check(resumed['draft']['status'] == 'editing' and resumed['draft']['revision'] == 2,
+          'Reconnection leaves the interrupted proposal unpublished')
+    isolated_resource = str(uuid.uuid4())
+    def document(resource, revision, value):
+        return {'type': 'document', 'resourceId': resource, 'expectedRevision': revision,
+                'document': {'schemaVersion': 1, 'blocks': [
+                    {'id': str(uuid.uuid4()), 'content': {'type': 'code', 'text': value}}]}}
+    delegated_id, delegated_revision, delegation_hash = course_group('Delegated fixture', [[
+        organization('createSubject', id=str(uuid.uuid4()), title='Synthetic linguistics'),
+        organization('createResource', id=isolated_resource, title='Unlinked draft material'),
+        document(isolated_resource, 0, 'Synthetic glossary'),
+    ]])
     apply = {'kind': 'apply_delegated', 'draftId': delegated_id, 'revision': delegated_revision,
              'hash': delegation_hash, 'operationId': str(uuid.uuid4())}
     added = course_draft(apply)['structuredContent']
@@ -265,8 +301,36 @@ try:
     activate('Confirm undo')
     def subjects():
         return tool(bridge, 'memoquill_structure_get', {'kind': 'subjects'})['structuredContent']['items']
-    d.wait_for(lambda: all(row['title'] != 'Synthetic linguistics' for row in subjects()),
-               'Trusted compensation archives untouched additions')
+    d.wait_for(lambda: all(row['title'] != 'Synthetic linguistics' for row in subjects())
+               and tool(bridge, 'memoquill_resource_read', {'id': isolated_resource})['isError'],
+               'Trusted compensation archives untouched additions including their document')
+
+    revised_resource = str(uuid.uuid4())
+    for title, operations in [
+        ('New synthetic glossary', [
+            organization('createResource', id=revised_resource, title='Draft glossary'),
+            document(revised_resource, 0, 'Synthetic glossary'),
+        ]),
+        ('Revised synthetic glossary', [document(revised_resource, 1, 'Revised glossary')]),
+    ]:
+        group, revision, digest = course_group(title, [operations])
+        result = course_draft({'kind': 'apply_delegated', 'draftId': group, 'revision': revision,
+                               'hash': digest, 'operationId': str(uuid.uuid4())})
+        check(result.get('structuredContent', {}).get('status') == 'applied', f'{title} applied under delegation')
+    check('Revised glossary' in tool(bridge, 'memoquill_resource_read', {'id': revised_resource})
+          ['structuredContent']['text'], 'Explicit document delegation applies later owner revisions')
+
+    revoke = next(node.name for node in d.nodes() if node.name and node.name.startswith('Revoke bridge '))
+    activate(revoke)
+    check(tool(bridge, 'memoquill_lesson_get', {'id': unit})['isError'],
+          'External host cannot read the lesson after disconnection')
+    activate('Synthetic MCP draft lesson')
+    activate('Start practice')
+    field('Your response', 'orbit')
+    activate('Save response draft')
+    activate('Submit saved response')
+    d.wait_for(lambda: any('Deterministic check: correct' in (d.text(node) + (node.name or '')) for node in d.nodes()),
+               'Learner answers the published exercise offline after disconnection')
     windows = d.command('xdotool', 'search', '--onlyvisible', '--pid', str(app.pid), '--name', 'Memoquill').splitlines()
     d.command('xdotool', 'windowactivate', '--sync', windows[-1])
     d.key('alt+F4')

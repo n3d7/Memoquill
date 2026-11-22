@@ -1,5 +1,25 @@
 # M6 qualification
 
+## Merge candidate follow-up
+
+- Focused service fixtures cover four subjects with goals, prerequisite
+  links, shared materials, and recall, choice, constructed, and procedure
+  activities. They verify inert draft previews and denial of delegated
+  revisions to shared references.
+- Delegation fixtures cover the separate document permission, expiry,
+  owner mismatch, manual edits, stale undo, and faithful compensation of
+  newly created documents without removing revision history.
+- The installed RPM passed 44 assertions in isolated Podman X11, with
+  SELinux Enforcing and screenshots disabled. The journey includes exact
+  checkpoint recovery after reapproval, a later delegated document edit,
+  compensation, and ordinary offline practice after revocation.
+- The synthetic PDF fixture verifies attachment-only extraction, preserved
+  original bytes and digest, and lesson scope through the application
+  services. The native file chooser could not open under this container's
+  GTK icon loader, so PDF evidence comes from the service fixture.
+
+## Earlier candidate (`56ac41f`)
+
 The candidate exposes published reads, owner-scoped durable lesson and course
 drafts, checkpointed authoring, reviewed publication, bounded delegation and
 compensating undo. The same course services own UI and MCP domain operations.
