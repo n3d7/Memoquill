@@ -1,4 +1,5 @@
 """Test the installed app and packaged MCP bridge inside the private X11 display."""
+import hashlib
 import importlib.util
 import json
 import os
@@ -127,7 +128,9 @@ try:
     })
     check(missing_grant['isError'] and 'permission_denied' in missing_grant['content'][0]['text'],
           'An unapproved client cannot create a lesson draft')
+    activate('Synthetic source course')
     pending = tool(bridge, 'memoquill_connection')['structuredContent']
+    activate('Connections')
     activate('Refresh connections')
     field('Pairing challenge', pending['challenge'])
     activate('Published course structure and normalized document text')
@@ -214,15 +217,18 @@ try:
     def organization(command_type, **fields):
         return {'type': 'organization', 'command': {'type': command_type, **fields}}
 
-    subject_id, resource_id, first_id, second_id, collection_id, path_id = (str(uuid.uuid4()) for _ in range(6))
+    resources = tool(bridge, 'memoquill_structure_get', {'kind': 'resources'})['structuredContent']['items']
+    resource_id = next(row['id'] for row in resources if row['title'] == 'Shared observation text')
+    subject_id, first_id, second_id, collection_id, path_id = (str(uuid.uuid4()) for _ in range(5))
     course_id, revision, digest = course_group('Reviewed course fixture', [
         [organization('createSubject', id=subject_id, title='Synthetic astronomy'),
          organization('createCollection', id=collection_id, subjectId=subject_id, title='Observation modules'),
-         organization('createResource', id=resource_id, title='Shared observation text'),
          {'type': 'document', 'resourceId': resource_id, 'expectedRevision': 0,
           'document': {'schemaVersion': 1, 'blocks': [
               {'id': str(uuid.uuid4()), 'content': {'type': 'code', 'text': 'Synthetic observing checklist'}}]}}],
-        [organization('createUnit', id=first_id, title='Observe', objective='Record observations',
+        [organization('updateUnit', id=unit, title='Synthetic MCP draft lesson', objective='',
+                      goalIds=[], resourceIds=[resource_id]),
+         organization('createUnit', id=first_id, title='Observe', objective='Record observations',
                       goalIds=[], resourceIds=[resource_id]),
          organization('createUnit', id=second_id, title='Compare', objective='Compare observations',
                       goalIds=[], resourceIds=[resource_id]),
@@ -250,6 +256,8 @@ try:
     unit_rows = tool(bridge, 'memoquill_structure_get', {'kind': 'units'})['structuredContent']['items']
     check({first_id, second_id}.issubset({row['id'] for row in unit_rows}),
           'Reviewed group publishes both linked course modules')
+    check(draft({'kind': 'sources', 'resourceId': resource_id, 'offset': 0})['isError'],
+          'Draft authoring alone cannot disclose PDF source metadata')
 
     interrupted = str(uuid.uuid4())
     base = tool(bridge, 'memoquill_structure_get', {'kind': 'units'})['structuredContent']['revision']
@@ -269,6 +277,8 @@ try:
     field('Pairing challenge', pending['challenge'])
     activate('Published course structure and normalized document text')
     activate('Create and edit unpublished course and lesson drafts')
+    activate('Extracted records from published lesson sources')
+    activate('Original bytes from published lesson sources')
     activate('Delegate safe course additions (32 operations)')
     activate("Delegate edits to the agent's unlinked documents")
     approval = next(node.name for node in d.nodes() if node.name and node.name.startswith('Approve for '))
@@ -320,8 +330,55 @@ try:
     check('Revised glossary' in tool(bridge, 'memoquill_resource_read', {'id': revised_resource})
           ['structuredContent']['text'], 'Explicit document delegation applies later owner revisions')
 
+    pdf_bytes = Path('/input/original.pdf').read_bytes()
+    def find_pdf_source():
+        result = draft({'kind': 'sources', 'resourceId': resource_id, 'offset': 0})
+        entries = result.get('structuredContent', {}).get('value', {}).get('items', [])
+        return next((entry for entry in entries if entry.get('filename') == 'original.pdf'), None)
+
+    d.wait_for(find_pdf_source, 'The scoped draft service discovers the attached PDF')
+    source_id = find_pdf_source()['sourceId']
+    head = tool(bridge, 'memoquill_lesson_get', {'id': unit})['structuredContent']['revision']
+    citation_draft = draft({'kind': 'create', 'operationId': str(uuid.uuid4()),
+                            'expectedHeadRevision': head})['structuredContent']['value']
+    citation = str(uuid.uuid4())
+    edited = draft({
+        'kind': 'edit', 'draftId': citation_draft['id'], 'revision': citation_draft['revision'],
+        'operationId': str(uuid.uuid4()), 'operations': [
+            {'kind': 'createSourceBindingRevision', 'sourceId': source_id, 'bindingId': citation,
+             'locator': 'page:1', 'declaredUsedRanges': []},
+            {'kind': 'insertNode', 'parent': citation_draft['composition']['rootNodeId'],
+             'slot': 'body', 'index': 0, 'node': {
+                 'nodeId': str(uuid.uuid4()), 'typeId': 'source', 'typeVersion': 1,
+                 'props': {'bindingId': citation}, 'slots': {}, 'on': {},
+             }},
+        ],
+    })['structuredContent']['value']
+    pin = next(binding['revisionId'] for binding in edited['composition']['bindings']
+               if binding['bindingId'] == citation)
+    activate('Refresh external drafts')
+    activate('Inspect draft ' + citation_draft['id'])
+    activate('Apply reviewed draft')
+    activate('Confirm publication')
+    d.wait_for(lambda: pin in tool(bridge, 'memoquill_lesson_get', {'id': unit})
+               .get('structuredContent', {}).get('sourceRevisions', []),
+               'Trusted review publishes the typed PDF citation')
+    source_args = {'id': unit, 'revision': pin}
+    source = tool(bridge, 'memoquill_source_get', source_args)['structuredContent']
+    check(source['extraction']['status'] == 'attachmentOnly'
+          and source['extractionCoverage'] == 'notExtracted' and source['records'] == [],
+          'PDF fallback reports no extracted coverage or records')
+    original = tool(bridge, 'memoquill_source_original', source_args)['structuredContent']
+    check(original['digest'] == hashlib.sha256(pdf_bytes).hexdigest()
+          and bytes.fromhex(original['hex']) == pdf_bytes,
+          'The separate original grant returns the exact preserved PDF')
+    check(tool(bridge, 'memoquill_source_original', {**source_args, 'id': second_id})['isError'],
+          'Sharing a resource does not disclose another lesson citation')
+
     revoke = next(node.name for node in d.nodes() if node.name and node.name.startswith('Revoke bridge '))
     activate(revoke)
+    check(tool(bridge, 'memoquill_source_original', source_args)['isError'],
+          'Revocation ends access to the preserved PDF')
     check(tool(bridge, 'memoquill_lesson_get', {'id': unit})['isError'],
           'External host cannot read the lesson after disconnection')
     activate('Synthetic MCP draft lesson')

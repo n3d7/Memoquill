@@ -1,5 +1,33 @@
 # M6 qualification
 
+## PDF fallback in Journey C
+
+Generate a fresh synthetic profile from the trusted workspace service before
+running the installed desktop journey. The seed test verifies the stored
+original and exports only when explicitly requested. Use a fresh
+checkout if `.qualification/m6-seed` already exists. These commands assume
+the local verification runner is available under `tools/verification`.
+
+```sh
+MEMOQUILL_EXPORT_M6_FIXTURE=1 python3 tools/verification/verify.py run \
+  --profile affected --rust m6_pdf_journey_seed
+mkdir -p .qualification/m6-native-input
+cp tests/fixtures/m3/original.pdf .qualification/m6-native-input/
+tar -C .qualification/m6-seed -czf .qualification/m6-native-input/m6-source-profile.tar.gz \
+  io.github.n3d7.memoquill
+python3 tools/verification/verify.py run --profile native --scenario mcp \
+  --native-image localhost/memoquill-m1-desktop:20261027 \
+  --native-input .qualification/m6-native-input
+```
+
+The installed journey publishes a typed citation with desktop review, checks
+the attachment-only MCP result, compares the disclosed original with the
+fixture digest and bytes, and checks denial for another lesson and after
+revocation. It continues into offline study. The prepared profile isolates
+these checks from the container's GTK file chooser and its icon loader.
+Run the scenario with default container security, SELinux Enforcing,
+networking disabled, and screenshots disabled.
+
 ## Merge candidate follow-up
 
 - Focused service fixtures cover four subjects with goals, prerequisite
