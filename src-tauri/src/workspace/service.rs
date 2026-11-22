@@ -21,6 +21,7 @@ enum Request {
     ReviewOverview(RequestContext, Reply<ReviewOverview>),
     Search(RequestContext, String, u64, Reply<SearchPage>),
     RebuildSearch(RequestContext, Reply<()>),
+    ChatHistory(RequestContext, ChatHistoryRequest, Reply<ChatHistoryReply>),
     Content(ContentRequest),
     Notes(NotesRequest),
     Sources(SourcesRequest),
@@ -996,6 +997,21 @@ impl ApplicationService {
             .spawn(move || worker(root, receiver))?;
         Ok(Self { sender })
     }
+    pub async fn chat_history(
+        &self,
+        context: RequestContext,
+        request: ChatHistoryRequest,
+    ) -> Result<ChatHistoryReply> {
+        context.authorize()?;
+        request.admit()?;
+        let mutates = request.mutates();
+        self.request(
+            context,
+            |reply| Request::ChatHistory(context, request, reply),
+            mutates,
+        )
+        .await
+    }
     pub async fn status(&self, context: RequestContext) -> Result<WorkspaceStatus> {
         self.request(context, Request::Status, false).await
     }
@@ -1159,6 +1175,9 @@ impl Store {
             }
             Request::RebuildSearch(context, reply) => {
                 let _ = reply.send(self.access(|db| db.reset_search_index(context)));
+            }
+            Request::ChatHistory(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.chat_history(context, request)));
             }
             Request::Content(request) => self.handle_content(request),
             Request::Notes(request) => self.handle_notes(request),

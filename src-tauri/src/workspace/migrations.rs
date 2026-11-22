@@ -52,6 +52,10 @@ pub(super) const MIGRATIONS: &[Migration] = &[
         version: 11,
         sql: include_str!("migrations/011_agent_course_drafts.sql"),
     },
+    Migration {
+        version: 12,
+        sql: include_str!("migrations/012_chat_history.sql"),
+    },
 ];
 
 pub(super) fn checksum(bytes: &[u8]) -> String {

@@ -1,19 +1,28 @@
-# KER-108 readiness and scope review
+# KER-108 course chat history
 
-2026-11-22. Continue M7 in an isolated checkout on dev. The base reviewed
-for this plan is GitHub main at `77d068e6dd4e7d5156fb80e257ceeda67a825c98`.
-The original dirty dev, separate M5 planning files and local backup are
-preserved. The user authorized publishing the documentation commit to dev.
-Implementation awaits scope agreement. PR, merge, tracker writes and a GUI
-session have separate authorization.
+2026-11-23. Continue from the current dev tip in the isolated M7 checkout.
+The user authorized implementation and publishing incremental commits to dev.
+The original dirty dev, M5 planning files and backup remain preserved. Account
+smoke, GUI, Linear changes, PR and merge retain separate authorization.
 
-Read [the readiness and vertical-slice plan](planning/m7-ker-108-readiness.md).
-KER-108 is in Backlog and its blocking issues are Done. The first candidate
-uses a native provider connection, course-local streaming chat and a single
-M6-reviewed lesson proposal. OpenAI documents the SIWC integration route.
-Account and model eligibility, secure storage and the live tool path are
-pending. Next decision: agree the provider fallback, disclosure and chat
-recovery scope before implementation. Historic handoffs follow.
+Read [the M7 plan](planning/m7-ker-108-readiness.md). Schema 12 introduces
+course-local threads and bounded run records. A replay reports whether it
+actually created a run. Restored or reopened streaming runs are interrupted.
+Private native course recovery includes chat history. Shareable packages keep
+their existing content and learning-history scope. Schema 11 migration and
+synthetic roundtrip tests cover these decisions. The affected run passed 247
+frontend tests and found five outdated downgrade fixtures. After correcting
+those Rust fixtures, the Rust gate passed 351 tests, with 14 helper skips
+and zero failures. Report audits passed. Rust doctests were discovered with
+no tests declared. The local report IDs are
+`20261123T000645-9a29b633` and `20261123T000802-248b57b2`.
+
+Next implement native provider and cancellable event handling. Bind each run
+to its account, course and approved context before sending data or invoking
+M6 operations. The first slice still needs provider sign-in, an actual stream,
+the course chat panel, and connection to M6 lesson review. Live eligibility and
+secure storage in the intended account environment remain pending. The runner
+is available locally in this checkout. Historical handoffs follow.
 
 # Current objective — M4 merge candidate and tracker/protection follow-up
 

@@ -2,6 +2,8 @@
 pub(crate) mod agent_course;
 mod assessments;
 mod assets;
+mod chat_history;
+pub use chat_history::*;
 mod content;
 mod courses;
 mod database;

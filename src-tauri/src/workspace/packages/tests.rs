@@ -980,7 +980,7 @@ fn historical_native_package(version: i64) -> (tempfile::TempDir, NativeCapture)
     }
     let path = package.staging.path().join("database.sqlite3");
     let connection = Connection::open(&path).unwrap();
-    connection.execute_batch("DROP TABLE agent_authored_documents; DROP TABLE agent_course_drafts; DELETE FROM schema_migrations WHERE version=11; DROP INDEX study_sessions_unit; DROP INDEX study_judgments_attempt; DROP INDEX study_operations_session; DELETE FROM schema_migrations WHERE version=10;").unwrap();
+    connection.execute_batch("DROP TABLE chat_runs; DROP TABLE chat_threads; DELETE FROM schema_migrations WHERE version=12; DROP TABLE agent_authored_documents; DROP TABLE agent_course_drafts; DELETE FROM schema_migrations WHERE version=11; DROP INDEX study_sessions_unit; DROP INDEX study_judgments_attempt; DROP INDEX study_operations_session; DELETE FROM schema_migrations WHERE version=10;").unwrap();
     if version < 9 {
         connection.execute_batch("DROP TABLE assessment_parts; DROP TABLE assessment_runs; DROP TABLE recall_states; DROP TABLE recall_review_events; DROP TABLE review_journal; DROP TABLE review_operations; DROP TABLE review_plan; DELETE FROM schema_migrations WHERE version=9;").unwrap();
     }
