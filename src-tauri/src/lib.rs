@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+pub mod ai;
 mod assessment_commands;
 mod attachments;
 mod authoring;

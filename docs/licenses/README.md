@@ -1,5 +1,10 @@
 # Dependency notices
 
+2026-11-23. The KER-108 Responses adapter uses the already locked
+`reqwest` 0.13.5 with the native TLS backend and no ALPN. The inventory
+and notices include the newly resolved Linux components and the updated
+Cargo lock fingerprint. The TLS backend links the OS OpenSSL libraries.
+
 2026-11-11: G1 native recovery adds pinned `zip`9.5.0 with default features
 disabled and deflate enabled, and promotes already pinned `tempfile`3.27.0 to a
 runtime dependency for private staging. Existing dependency versions were

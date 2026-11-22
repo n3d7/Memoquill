@@ -1,4 +1,4 @@
-# KER-108 course chat history
+# KER-108 course chat and OpenAI transport
 
 2026-11-23. Continue from the current dev tip in the isolated M7 checkout.
 The user authorized implementation and publishing incremental commits to dev.
@@ -17,12 +17,20 @@ and zero failures. Report audits passed. Rust doctests were discovered with
 no tests declared. The local report IDs are
 `20261123T000645-9a29b633` and `20261123T000802-248b57b2`.
 
-Next implement native provider and cancellable event handling. Bind each run
-to its account, course and approved context before sending data or invoking
-M6 operations. The first slice still needs provider sign-in, an actual stream,
-the course chat panel, and connection to M6 lesson review. Live eligibility and
-secure storage in the intended account environment remain pending. The runner
-is available locally in this checkout. Historical handoffs follow.
+The native OpenAI transport uses the preview's stateless streaming request,
+bounded text and function-call decoding, and cancellable HTTPS. Function calls
+are returned only from the completed round to the application broker. The
+transport uses the OS TLS trust store. Linux dependency notices were refreshed.
+The full run passed 603 tests with 28 skips and zero failures. The audit
+passed. Rust doctests were discovered with no tests declared. Report
+`20261123T001401-a77e9729`. Native and real-account qualification are pending.
+
+Next implement native SIWC account sessions and the scoped run controller.
+Bind each run to its account, course and approved context before sending
+data or invoking M6 operations. Then connect the course chat interface and
+M6 lesson review. Live eligibility and secure storage in the intended account
+environment remain pending. The runner is available locally in this checkout.
+Historical handoffs follow.
 
 # Current objective — M4 merge candidate and tracker/protection follow-up
 

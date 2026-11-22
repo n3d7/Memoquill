@@ -1,6 +1,6 @@
 {
   "scope": "Linux x86_64 Cargo normal/build/test dependency graph and complete npm lockfile; npm runtime notices included, development/platform-only npm packages inventoried but not shipped as UI libraries.",
-  "cargoLockSha256": "434ae747a29f0fbf68ebcbbbe4e9699e319da4781a8c16ebbe36e160d5d360a0",
+  "cargoLockSha256": "a6174f721ee776f3aa33eda0ef83de3bf9c9b0e81b4e7ac71c918d613084ea33",
   "npmLockSha256": "007edd2b4a8b8b4a44d18d5384685dd6722765304dc4a3d2595dc17e789406e4",
   "components": [
     {
@@ -7449,6 +7449,510 @@
         {
           "file": "LICENSE-UNICODE",
           "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "atomic-waker",
+      "version": "1.1.2",
+      "license": "Apache-2.0 OR MIT",
+      "authors": [
+        "Stjepan Glavina <stjepang@gmail.com>",
+        "Contributors to futures-rs"
+      ],
+      "repository": "https://github.com/smol-rs/atomic-waker",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/atomic-waker/1.1.2/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+        },
+        {
+          "file": "LICENSE-THIRD-PARTY",
+          "sha256": "6226d0632e2e1a80c23597e964da9812ae193c535fe058154afb034e94167aa5"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "foreign-types",
+      "version": "0.3.2",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/sfackler/foreign-types",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/foreign-types/0.3.2/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "333ea3aaa3cadb819f4acd9f9153f9feee060a995ca8710f32bc5bd9a4b91734"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "foreign-types-shared",
+      "version": "0.1.1",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/sfackler/foreign-types",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/foreign-types-shared/0.1.1/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "333ea3aaa3cadb819f4acd9f9153f9feee060a995ca8710f32bc5bd9a4b91734"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "http-body",
+      "version": "1.1.0",
+      "license": "MIT",
+      "authors": [
+        "Carl Lerche <me@carllerche.com>",
+        "Lucio Franco <luciofranco14@gmail.com>",
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/hyperium/http-body",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/http-body/1.1.0/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "248378d0a3383c173fb925f17141b88e71580b3ba17ddc6ac3d2a344683232ab"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "http-body-util",
+      "version": "0.1.5",
+      "license": "MIT",
+      "authors": [
+        "Carl Lerche <me@carllerche.com>",
+        "Lucio Franco <luciofranco14@gmail.com>",
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/hyperium/http-body",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/http-body-util/0.1.5/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "248378d0a3383c173fb925f17141b88e71580b3ba17ddc6ac3d2a344683232ab"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "httparse",
+      "version": "1.10.1",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/seanmonstar/httparse",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/httparse/1.10.1/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "391a5396cec6230bfabd4ef4eb2350eb895bc5efce377a2218f5702ed020d3e3"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "hyper",
+      "version": "1.12.0",
+      "license": "MIT",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/hyperium/hyper",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/hyper/1.12.0/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "2d01890414494742ba4a509fcec8efa40f6d8be22cbd72be7cff08d6fda4ec89"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "hyper-tls",
+      "version": "0.6.0",
+      "license": "MIT/Apache-2.0",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/hyperium/hyper-tls",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/hyper-tls/0.6.0/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "7b033f57f23fffca5bee9406cf453ce31e919c1b867df54bfa7487e73d8c9c1f"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "hyper-util",
+      "version": "0.1.21",
+      "license": "MIT",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/hyperium/hyper-util",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/hyper-util/0.1.21/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "9e0a97848ea543aef745c98e84fde696a9a3e0735538f6daefdd3cb1942effc1"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "ipnet",
+      "version": "2.12.2",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Kris Price <kris@krisprice.nz>"
+      ],
+      "repository": "https://github.com/krisprice/ipnet",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/ipnet/2.12.2/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "87d9feb9238c6bd8e0024fc4733b06cff036f89f36d93b7df1c8a0549bbb7a5b"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "47dc9ff29128ddfb4d6a0435383c9f89120bc374dbcc1dd00b933a0b28aa7865"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "native-tls",
+      "version": "0.2.18",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-native-tls/rust-native-tls",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/native-tls/0.2.18/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "f2ad7982ddbfa8c45eb965315718c55b70b9cc311b49afacb50d5fe84173ae2c"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "openssl",
+      "version": "0.10.81",
+      "license": "Apache-2.0",
+      "authors": [
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-openssl/rust-openssl",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/openssl/0.10.81/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "f3d4287b4a21c5176fea2f9bd4ae800696004e2fb8e05cbc818be513f188a941"
+        },
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "openssl-macros",
+      "version": "0.1.1",
+      "license": "MIT/Apache-2.0",
+      "authors": [],
+      "repository": null,
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/openssl-macros/0.1.1/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "ea5ab440900ab271811d5c2dc02a9de6e03a6956ac5727e85c11d76df5883d30"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "openssl-probe",
+      "version": "0.2.1",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Alex Crichton <alex@alexcrichton.com>"
+      ],
+      "repository": "https://github.com/rustls/openssl-probe",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/openssl-probe/0.2.1/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "openssl-sys",
+      "version": "0.9.117",
+      "license": "MIT",
+      "authors": [
+        "Alex Crichton <alex@alexcrichton.com>",
+        "Steven Fackler <sfackler@gmail.com>"
+      ],
+      "repository": "https://github.com/rust-openssl/rust-openssl",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/openssl-sys/0.9.117/download",
+      "notices": [
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "reqwest",
+      "version": "0.13.5",
+      "license": "MIT OR Apache-2.0",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/seanmonstar/reqwest",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/reqwest/0.13.5/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "751963a8b88c0e3a9f27e98933079fbcf09b9998b2c13ac49c2e4d58444520d6"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "dd87e27dfbaa888cb77ea34592648a7743636b8dce07e49543bddda0fcfc73bc"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "rustls-pki-types",
+      "version": "1.15.1",
+      "license": "MIT OR Apache-2.0",
+      "authors": [],
+      "repository": "https://github.com/rustls/pki-types",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/rustls-pki-types/1.15.1/download",
+      "notices": [
+        {
+          "file": "LICENSE-APACHE",
+          "sha256": "45fd05c4865e7c350b98ad7ac50e1b15462d49af4a91e9b0c9dd933dc9a69742"
+        },
+        {
+          "file": "LICENSE-MIT",
+          "sha256": "9117d922e667125508dde62b02c1f57ed22f5ad21eb536aa2e2d99e1c796e639"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "sync_wrapper",
+      "version": "1.0.2",
+      "license": "Apache-2.0",
+      "authors": [
+        "Actyx AG <developer@actyx.io>"
+      ],
+      "repository": "https://github.com/Actyx/sync_wrapper",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/sync_wrapper/1.0.2/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tokio-native-tls",
+      "version": "0.3.1",
+      "license": "MIT",
+      "authors": [
+        "Tokio Contributors <team@tokio.rs>"
+      ],
+      "repository": "https://github.com/tokio-rs/tls",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/tokio-native-tls/0.3.1/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "898b1ae9821e98daf8964c8d6c7f61641f5f5aa78ad500020771c0939ee0dea1"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tower",
+      "version": "0.5.3",
+      "license": "MIT",
+      "authors": [
+        "Tower Maintainers <team@tower-rs.com>"
+      ],
+      "repository": "https://github.com/tower-rs/tower",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/tower/0.5.3/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "4249c8e6c5ebb85f97c77e6457c6fafc1066406eb8f1ef61e796fbdc5ff18482"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tower-http",
+      "version": "0.6.11",
+      "license": "MIT",
+      "authors": [
+        "Tower Maintainers <team@tower-rs.com>"
+      ],
+      "repository": "https://github.com/tower-rs/tower-http",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/tower-http/0.6.11/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "5049cf464977eff4b4fcfa7988d84e74116956a3eb9d5f1d451b3f828f945233"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tower-layer",
+      "version": "0.3.3",
+      "license": "MIT",
+      "authors": [
+        "Tower Maintainers <team@tower-rs.com>"
+      ],
+      "repository": "https://github.com/tower-rs/tower",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/tower-layer/0.3.3/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "4249c8e6c5ebb85f97c77e6457c6fafc1066406eb8f1ef61e796fbdc5ff18482"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tower-service",
+      "version": "0.3.3",
+      "license": "MIT",
+      "authors": [
+        "Tower Maintainers <team@tower-rs.com>"
+      ],
+      "repository": "https://github.com/tower-rs/tower",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/tower-service/0.3.3/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "4249c8e6c5ebb85f97c77e6457c6fafc1066406eb8f1ef61e796fbdc5ff18482"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "try-lock",
+      "version": "0.2.5",
+      "license": "MIT",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/seanmonstar/try-lock",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/try-lock/0.2.5/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "c816a0749cdc6bf062a5111c159723de51b2bfac66a1dac2655abd9e6b1583eb"
+        }
+      ]
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "want",
+      "version": "0.3.2",
+      "license": "MIT",
+      "authors": [
+        "Sean McArthur <sean@seanmonstar.com>"
+      ],
+      "repository": "https://github.com/seanmonstar/want",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "sourceArchive": "https://crates.io/api/v1/crates/want/0.3.2/download",
+      "notices": [
+        {
+          "file": "LICENSE",
+          "sha256": "a65f5d0a945d267751344c95665945b90c030ea107faf5c85d518929886187da"
         }
       ]
     },
