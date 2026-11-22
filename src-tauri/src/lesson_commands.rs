@@ -182,3 +182,17 @@ pub async fn lesson_validate_draft(
         .lesson_validate(RequestContext::local_ui(), args.request)
         .await
 }
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub(crate) async fn lesson_review_external_draft(
+    manager: State<'_, CourseManager>,
+    course_id: uuid::Uuid,
+    unit_id: uuid::Uuid,
+    review: mcp_drafts::DraftReview,
+) -> Result<mcp_drafts::DraftReviewResult, AppError> {
+    manager
+        .service(course_id)?
+        .review_mcp_draft(RequestContext::local_ui(), unit_id.to_string(), review)
+        .await
+}

@@ -771,3 +771,29 @@ fn measure_startup_reads() {
         }),
     );
 }
+
+#[test]
+#[ignore = "Explicit oversized export preflight against the synthetic v10 copy"]
+fn rejects_full_scale_native_capture_before_staging() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    let evidence = repository.join(".qualification/m5-optimized-scale");
+    let root = evidence.join("data/io.github.n3d7.memoquill/workspace");
+    let temp = std::env::temp_dir();
+    assert!(temp.starts_with(evidence.join("capture-preflight-scratch")));
+    assert!(root.join("memoquill.sqlite3").metadata().unwrap().len() > 256 * 1024 * 1024);
+    let mut db = Database::open(&root).unwrap();
+    let start = Instant::now();
+    let result = db.capture_native(context(), Uuid::new_v4());
+    assert_eq!(result.err().unwrap().code, ErrorCode::BudgetExceeded);
+    assert!(temp.read_dir().unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with("memoquill-native-")
+    }));
+    write_json(
+        &evidence.join("capture-preflight.json"),
+        &json!({"status": "budget_exceeded", "milliseconds": start.elapsed().as_secs_f64() * 1000.0}),
+    );
+}

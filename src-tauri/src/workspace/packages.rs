@@ -1,6 +1,7 @@
 //! Selected-course native recovery packages. No renderer filesystem authority.
 mod archive;
 mod portable;
+mod stream;
 mod validation;
 pub use portable::{PortableCapture, PortableImportReport, PortableManifest};
 
@@ -28,7 +29,26 @@ const MAX_ASSET: u64 = 64 * 1024 * 1024;
 const MAX_ENTRIES: usize = 4098;
 const MAX_MANIFEST: u64 = 2 * 1024 * 1024;
 // Keep qualified historical versions explicit when the writer schema advances.
-const NATIVE_SCHEMA_VERSIONS: &[i64] = &[7, 8, 9, 10];
+#[derive(Clone, Copy)]
+struct NativeLimits {
+    database_bytes: u64,
+    payload_bytes: u64,
+    entries: usize,
+    manifest_bytes: u64,
+    rows_per_table: usize,
+    total_rows: usize,
+}
+
+const V1_LIMITS: NativeLimits = NativeLimits {
+    database_bytes: MAX_DATABASE,
+    payload_bytes: MAX_EXPANDED,
+    entries: MAX_ENTRIES,
+    manifest_bytes: MAX_MANIFEST,
+    rows_per_table: 1_000_000,
+    total_rows: 2_000_000,
+};
+
+const NATIVE_SCHEMA_VERSIONS: &[i64] = &[7, 8, 9, 10, 11];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -74,15 +94,60 @@ pub struct NativeRestoreReport {
 }
 
 impl NativeCapture {
+    pub(crate) const MAX_LEGACY_FILE_BYTES: u64 = MAX_ARCHIVE;
+    pub(crate) const MAX_STREAM_FILE_BYTES: u64 =
+        stream::LIMITS.payload_bytes + stream::LIMITS.manifest_bytes + 16;
+
     pub fn manifest(&self) -> &NativeManifest {
         &self.manifest
     }
     pub fn write_to<W: Write + Seek>(&self, writer: W) -> Result<()> {
-        archive::write(self, writer)
+        if self.manifest.format_version == stream::VERSION {
+            stream::write(self, writer)
+        } else {
+            archive::write(self, writer)
+        }
     }
-    pub fn read_from<R: Read + Seek>(reader: R) -> Result<Self> {
+    pub(crate) fn write_selected_file(&self, file: &mut File) -> Result<()> {
+        if self.manifest.format_version == stream::VERSION {
+            stream::preflight_output_space(file, &self.manifest)?;
+        }
+        self.write_to(file)
+    }
+
+    /// Encode a verified capture as an uncompressed sequential recovery package.
+    pub fn write_stream_to<W: Write>(&self, writer: W) -> Result<()> {
+        stream::write(self, writer)
+    }
+    pub fn read_from<R: Read + Seek>(mut reader: R) -> Result<Self> {
+        if stream::has_magic(&mut reader)? {
+            stream::read(
+                reader,
+                None,
+                V1_LIMITS,
+                V1_LIMITS.payload_bytes + V1_LIMITS.manifest_bytes + 16,
+            )
+        } else {
+            Self::read_zip_from(reader)
+        }
+    }
+
+    pub(crate) fn read_zip_from(reader: impl Read + Seek) -> Result<Self> {
         archive::read(reader)
     }
+
+    pub(crate) fn read_stream_in(
+        mut reader: impl Read + Seek,
+        staging_parent: &Path,
+        wire_limit: u64,
+    ) -> Result<Option<Self>> {
+        if !stream::has_magic(&mut reader)? {
+            return Ok(None);
+        }
+        owner::private_directory(staging_parent)?;
+        stream::read(reader, Some(staging_parent), stream::LIMITS, wire_limit).map(Some)
+    }
+
     pub(super) fn identity(&self) -> Result<String> {
         Ok(hash_bytes(&json(&self.manifest)?))
     }
@@ -98,6 +163,12 @@ impl NativeCapture {
     }
     pub(super) fn materialize(&self, root: &Path) -> Result<()> {
         owner::private_directory(root)?;
+        if self.manifest.format_version == stream::VERSION {
+            stream::preflight_staging_space(
+                root,
+                self.manifest.payloads.iter().map(|p| p.byte_length),
+            )?;
+        }
         for payload in &self.manifest.payloads {
             let destination = if payload.name == "database.sqlite3" {
                 root.join("memoquill.sqlite3")
@@ -146,22 +217,91 @@ impl Database {
         context: RequestContext,
         source_course_id: Uuid,
     ) -> Result<NativeCapture> {
+        self.capture_native_with_format(context, source_course_id, None)
+    }
+
+    pub(super) fn capture_native_stream(
+        &mut self,
+        context: RequestContext,
+        source_course_id: Uuid,
+        staging_parent: &Path,
+    ) -> Result<NativeCapture> {
+        self.capture_native_with_format(context, source_course_id, Some(staging_parent))
+    }
+
+    fn capture_native_with_format(
+        &mut self,
+        context: RequestContext,
+        source_course_id: Uuid,
+        staging_parent: Option<&Path>,
+    ) -> Result<NativeCapture> {
+        let limits = if staging_parent.is_some() {
+            stream::LIMITS
+        } else {
+            V1_LIMITS
+        };
         context.authorize()?;
         if source_course_id.get_version_num() != 4 {
             return Err(invalid());
         }
-        let staging = tempfile::Builder::new()
+        // A SQLite backup copies the database pages, including the freelist.
+        // Reject known over-budget captures before allocating the temporary copy.
+        let pages: i64 = self
+            .connection
+            .pragma_query_value(None, "page_count", |row| row.get(0))?;
+        let page_size: i64 = self
+            .connection
+            .pragma_query_value(None, "page_size", |row| row.get(0))?;
+        let estimated_size = u64::try_from(pages)
+            .ok()
+            .zip(u64::try_from(page_size).ok())
+            .and_then(|(pages, size)| pages.checked_mul(size))
+            .ok_or_else(budget)?;
+        if estimated_size > limits.database_bytes {
+            return Err(budget());
+        }
+        let registered = validation::asset_rows_with_limit(&self.connection, limits.entries - 2)?;
+        let estimated_total = registered
+            .iter()
+            .try_fold(estimated_size, |total, (_, length)| {
+                total.checked_add(*length).ok_or_else(budget)
+            })?;
+        if estimated_total > limits.payload_bytes {
+            return Err(budget());
+        }
+        let mut builder = tempfile::Builder::new();
+        builder
             .permissions(std::fs::Permissions::from_mode(0o700))
-            .prefix("memoquill-native-")
-            .tempdir()?;
+            .prefix("memoquill-native-");
+        let staging = if let Some(parent) = staging_parent {
+            owner::private_directory(parent)?;
+            stream::preflight_staging_space(
+                parent,
+                std::iter::once(estimated_size).chain(registered.iter().map(|(_, length)| *length)),
+            )?;
+            builder.tempdir_in(parent)?
+        } else {
+            builder.tempdir()?
+        };
         let path = staging.path().join("database.sqlite3");
         drop(owner::create_private_file(&path)?);
         let mut destination = database::open_connection(&path, database::Access::ReadWrite)?;
-        database::bounded_backup(&self.connection, &mut destination)?;
+        if staging_parent.is_some() {
+            database::backup_with_timeout(
+                &self.connection,
+                &mut destination,
+                std::time::Duration::from_secs(240),
+            )?;
+        } else {
+            database::bounded_backup(&self.connection, &mut destination)?;
+        }
+        if validation::asset_rows_with_limit(&destination, limits.entries - 2)? != registered {
+            return Err(invalid());
+        }
         destination.pragma_update(None, "journal_mode", "DELETE")?;
         drop(destination);
         File::open(&path)?.sync_all()?;
-        let (hash, size) = hash_file(&path, MAX_DATABASE)?;
+        let (hash, size) = hash_file(&path, limits.database_bytes)?;
         let mut payloads = vec![NativePayload {
             name: "database.sqlite3".into(),
             sha256: hash,
@@ -171,11 +311,10 @@ impl Database {
         let mut total = size;
         // The writer owns both registration/GC and this capture. Every immutable file is
         // copied before releasing it, so later unlink/GC cannot invalidate the capture.
-        let registered = validation::asset_rows(&self.connection)?;
         owner::create_private_tree(&staging.path().join("assets"))?;
         for (digest, length) in registered {
             total = total.checked_add(length).ok_or_else(budget)?;
-            if total > MAX_EXPANDED {
+            if total > limits.payload_bytes {
                 return Err(budget());
             }
             let payload = NativePayload {
@@ -204,12 +343,22 @@ impl Database {
                 Err(error) => return Err(error),
             }
         }
-        let manifest = NativeManifest { format_version:1, kind:"nativeFull".into(), scope:"selectedCourse".into(),
+        let streaming = staging_parent.is_some();
+        let manifest = NativeManifest { format_version:if streaming { stream::VERSION } else { 1 }, kind:"nativeFull".into(), scope:"selectedCourse".into(),
             schema_version:SCHEMA_VERSION, database_section_version:1, assets_section_version:1,
             source_course_id, workspace_id:self.id.clone(), complete:missing_assets.is_empty(), missing_assets,
             omissions:vec!["Other courses, catalogue, credentials and runtime files are outside selected-course scope.".into()], payloads,
-            table_counts:validation::table_counts(&self.connection)? };
-        validation::validate(&path, &manifest)?;
+            table_counts:validation::table_counts_with_limit(&self.connection, limits.rows_per_table)? };
+        if streaming {
+            validation::validate_with_limits(
+                &path,
+                &manifest,
+                limits,
+                Some(std::time::Instant::now() + stream::VALIDATION_TIME),
+            )?;
+        } else {
+            validation::validate(&path, &manifest)?;
+        }
         Ok(NativeCapture { manifest, staging })
     }
 }
@@ -270,10 +419,13 @@ fn copy_verified(source: &Path, destination: &Path, payload: &NativePayload) -> 
             output.sync_all()?;
             Ok(())
         }
-        _ => {
+        other => {
             drop(output);
             std::fs::remove_file(destination)?;
-            Err(invalid())
+            match other {
+                Err(error) if error.code != ErrorCode::BudgetExceeded => Err(error),
+                _ => Err(invalid()),
+            }
         }
     }
 }

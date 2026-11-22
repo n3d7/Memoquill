@@ -2,13 +2,20 @@
 use crate::workspace::{AppError, ErrorCode};
 use std::{fs::File, path::Path};
 type Result<T> = std::result::Result<T, AppError>;
+const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 #[cfg(test)]
 pub(crate) fn publish(
     managed: &Path,
     selected: &Path,
     write: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<()> {
-    publish_for_operation(managed, selected, uuid::Uuid::new_v4(), write)
+    publish_for_operation(
+        managed,
+        selected,
+        uuid::Uuid::new_v4(),
+        MAX_FILE_BYTES,
+        write,
+    )
 }
 pub(crate) fn publish_selection(
     managed: &Path,
@@ -16,16 +23,27 @@ pub(crate) fn publish_selection(
     operation: uuid::Uuid,
     write: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<Option<bool>> {
+    publish_selection_with_limit(managed, selected, operation, MAX_FILE_BYTES, write)
+}
+
+pub(crate) fn publish_selection_with_limit(
+    managed: &Path,
+    selected: Option<std::path::PathBuf>,
+    operation: uuid::Uuid,
+    max_bytes: u64,
+    write: impl FnOnce(&mut File) -> Result<()>,
+) -> Result<Option<bool>> {
     let Some(selected) = selected else {
         return Ok(None);
     };
-    publish_for_operation(managed, &selected, operation, write)?;
+    publish_for_operation(managed, &selected, operation, max_bytes, write)?;
     Ok(Some(true))
 }
 fn publish_for_operation(
     managed: &Path,
     selected: &Path,
     operation: uuid::Uuid,
+    max_bytes: u64,
     write: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<()> {
     use rustix::fs::{
@@ -70,7 +88,7 @@ fn publish_for_operation(
     let mut file = File::from(fd);
     let result = (|| {
         write(&mut file)?;
-        if file.metadata()?.len() > 512 * 1024 * 1024 {
+        if file.metadata()?.len() > max_bytes {
             return Err(AppError::new(ErrorCode::BudgetExceeded));
         }
         file.sync_all()?;
@@ -101,7 +119,7 @@ pub(crate) fn open_package(path: &Path) -> Result<File> {
     .map_err(|_| invalid())?;
     let file = File::from(fd);
     let m = file.metadata()?;
-    if !m.is_file() || m.len() > 512 * 1024 * 1024 {
+    if !m.is_file() || m.len() > crate::workspace::NativeCapture::MAX_STREAM_FILE_BYTES {
         return Err(invalid());
     }
     Ok(file)

@@ -17,12 +17,21 @@ fn schema(connection: &Connection) -> Result<Schema> {
 }
 
 pub(super) fn asset_rows(connection: &Connection) -> Result<Vec<(AssetDigest, u64)>> {
+    asset_rows_with_limit(connection, V1_LIMITS.entries - 2)
+}
+
+pub(super) fn asset_rows_with_limit(
+    connection: &Connection,
+    limit: usize,
+) -> Result<Vec<(AssetDigest, u64)>> {
     let mut query =
-        connection.prepare("SELECT digest,byte_length FROM assets ORDER BY digest LIMIT 4097")?;
+        connection.prepare("SELECT digest,byte_length FROM assets ORDER BY digest LIMIT ?1")?;
     let values = query
-        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+        .query_map([limit as i64 + 1], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+        })?
         .collect::<std::result::Result<Vec<_>, _>>()?;
-    if values.len() > MAX_ENTRIES - 2 {
+    if values.len() > limit {
         return Err(budget());
     }
     values
@@ -40,6 +49,13 @@ pub(super) fn asset_rows(connection: &Connection) -> Result<Vec<(AssetDigest, u6
 }
 
 pub(super) fn table_counts(connection: &Connection) -> Result<BTreeMap<String, u64>> {
+    table_counts_with_limit(connection, V1_LIMITS.rows_per_table)
+}
+
+pub(super) fn table_counts_with_limit(
+    connection: &Connection,
+    row_limit: usize,
+) -> Result<BTreeMap<String, u64>> {
     let mut result = BTreeMap::new();
     for (kind, name, _, _) in schema(connection)? {
         if kind == "table" {
@@ -48,7 +64,7 @@ pub(super) fn table_counts(connection: &Connection) -> Result<BTreeMap<String, u
                 connection.query_row(&format!("SELECT count(*) FROM \"{quoted}\""), [], |r| {
                     r.get(0)
                 })?;
-            if count > 1_000_000 {
+            if count > row_limit as i64 {
                 return Err(budget());
             }
             result.insert(name, count as u64);
@@ -58,10 +74,34 @@ pub(super) fn table_counts(connection: &Connection) -> Result<BTreeMap<String, u
 }
 
 pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
-    if std::fs::symlink_metadata(path)?.len() > MAX_DATABASE {
+    validate_with_limits(path, manifest, V1_LIMITS, None)
+}
+
+pub(super) fn validate_with_limits(
+    path: &Path,
+    manifest: &NativeManifest,
+    limits: NativeLimits,
+    deadline: Option<std::time::Instant>,
+) -> Result<()> {
+    if std::fs::symlink_metadata(path)?.len() > limits.database_bytes {
         return Err(budget());
     }
-    let connection = database::open_connection(path, database::Access::ReadOnly)?;
+    let mut connection = database::open_connection(path, database::Access::ReadOnly)?;
+    if let Some(deadline) = deadline {
+        connection.progress_handler(4096, Some(move || std::time::Instant::now() >= deadline))?;
+    }
+    let result = validate_connection(&connection, manifest, limits);
+    if deadline.is_some_and(|end| std::time::Instant::now() >= end) {
+        return Err(budget());
+    }
+    result
+}
+
+fn validate_connection(
+    connection: &Connection,
+    manifest: &NativeManifest,
+    limits: NativeLimits,
+) -> Result<()> {
     connection.set_limit(Limit::SQLITE_LIMIT_LENGTH, 8 * 1024 * 1024)?;
     connection.set_limit(Limit::SQLITE_LIMIT_SQL_LENGTH, 65536)?;
     let app: i32 = connection.pragma_query_value(None, "application_id", |r| r.get(0))?;
@@ -80,12 +120,12 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     let expected_path = trusted.path().join("expected.sqlite3");
     database::bootstrap(&expected_path, version)?;
     let expected = database::open_connection(&expected_path, database::Access::ReadOnly)?;
-    let objects = schema(&connection)?;
+    let objects = schema(connection)?;
     if objects != schema(&expected)? {
         return Err(invalid());
     }
-    super::super::migrations::validate(&connection, version)?;
-    database::integrity(&connection)?;
+    super::super::migrations::validate(connection, version)?;
+    database::integrity(connection)?;
     let mut total_rows = 0usize;
     let mut actual_counts = BTreeMap::new();
     for (kind, name, _, _) in &objects {
@@ -94,14 +134,14 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
         }
         // Names are now from the trusted exact schema, still quote identifiers.
         let quoted = name.replace('"', "\"\"");
-        let mut query = connection.prepare(&format!("SELECT * FROM \"{quoted}\" LIMIT 1000001"))?;
+        let mut query = connection.prepare(&format!("SELECT * FROM \"{quoted}\" LIMIT ?1"))?;
         let columns = query.column_count();
-        let mut rows = query.query([])?;
+        let mut rows = query.query([limits.rows_per_table as i64 + 1])?;
         let mut count = 0;
         while let Some(row) = rows.next()? {
             count += 1;
             total_rows += 1;
-            if count > 1_000_000 || total_rows > 2_000_000 {
+            if count > limits.rows_per_table || total_rows > limits.total_rows {
                 return Err(budget());
             }
             for index in 0..columns {
@@ -136,11 +176,14 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
     {
         return Err(invalid());
     }
-    super::super::content::validate_native_data(&connection, &manifest.workspace_id)?;
-    super::super::lessons::validate_native_data(&connection)?;
+    super::super::content::validate_native_data(connection, &manifest.workspace_id)?;
+    super::super::lessons::validate_native_data(connection)?;
+    if version >= 11 {
+        super::super::agent_course::validate_native_data(connection)?;
+    }
     if version >= 9 {
-        super::super::review::validate_native_data(&connection)?;
-        super::super::assessments::validate_native_data(&connection)?;
+        super::super::review::validate_native_data(connection)?;
+        super::super::assessments::validate_native_data(connection)?;
     }
     if version == 8 {
         let scheduled: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM study_attempts WHERE json_type(data,'$.recallRating') IS NOT NULL AND json_type(data,'$.recallRating')!='null')",[],|r|r.get(0))?;
@@ -150,10 +193,10 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
         }
     }
     if version >= 8 {
-        super::super::study::validate_native_data(&connection)?;
+        super::super::study::validate_native_data(connection)?;
     }
-    super::super::sources::validate_native_data(&connection)?;
-    super::super::operations::validate_native_data(&connection, &manifest.workspace_id)?;
+    super::super::sources::validate_native_data(connection)?;
+    super::super::operations::validate_native_data(connection, &manifest.workspace_id)?;
     let mut jobs = connection.prepare("SELECT id,source_id,data FROM ingestion_jobs")?;
     let mut rows = jobs.query([])?;
     while let Some(row) = rows.next()? {
@@ -161,7 +204,7 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
         let source: String = row.get(1)?;
         let data: String = row.get(2)?;
         let job: IngestionJob = serde_json::from_str(&data).map_err(|_| invalid())?;
-        super::super::sources::validate_native_job(&connection, &job)?;
+        super::super::sources::validate_native_job(connection, &job)?;
         if job.id.to_string() != id
             || job.source.id.to_string() != source
             || !matches!(job.handler_version, 1 | 2)
@@ -182,7 +225,7 @@ pub(super) fn validate(path: &Path, manifest: &NativeManifest) -> Result<()> {
             return Err(invalid());
         }
     }
-    let registered = asset_rows(&connection)?;
+    let registered = asset_rows_with_limit(connection, limits.entries - 2)?;
     let declared: BTreeMap<_, _> = manifest
         .payloads
         .iter()

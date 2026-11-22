@@ -727,18 +727,17 @@ fn read_judgments(
 }
 
 pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Result<()> {
-    let ids = connection
-        .prepare("SELECT id,unit_id,composition_id,revision FROM study_sessions")?
-        .query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, i64>(3)?,
-            ))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    for (id, unit, composition, revision) in ids {
+    let mut session_query =
+        connection.prepare("SELECT id,unit_id,composition_id,revision FROM study_sessions")?;
+    let mut operation_query = connection.prepare(
+        "SELECT id,request_hash,result,digest FROM study_operations WHERE session_id=?1 ORDER BY rowid",
+    )?;
+    let mut sessions = session_query.query([])?;
+    while let Some(row) = sessions.next()? {
+        let id: String = row.get(0)?;
+        let unit: String = row.get(1)?;
+        let composition: String = row.get(2)?;
+        let revision: i64 = row.get(3)?;
         let session = load(connection, Uuid::parse_str(&id).map_err(|_| corrupt())?)?;
         if unit != session.unit_id
             || composition != session.composition_revision_id
@@ -780,13 +779,18 @@ pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Res
         }
         let attempts = read_attempts(connection, &session)?;
         read_judgments(connection, &session, &attempts)?;
-        let operations = connection.prepare("SELECT id,request_hash,result,digest FROM study_operations WHERE session_id=?1 ORDER BY rowid")?
-            .query_map([id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
-        if operations.len() as i64 != session.revision {
-            return Err(corrupt());
-        }
+        let mut operations = operation_query.query([&id])?;
         let mut previous: Option<StudySession> = None;
-        for (index, (id, hash, data, digest)) in operations.into_iter().enumerate() {
+        let mut verified_revision = 0;
+        while let Some(row) = operations.next()? {
+            verified_revision += 1;
+            if verified_revision > session.revision {
+                return Err(corrupt());
+            }
+            let id: String = row.get(0)?;
+            let hash: String = row.get(1)?;
+            let data: String = row.get(2)?;
+            let digest: String = row.get(3)?;
             uuid(Uuid::parse_str(&id).map_err(|_| corrupt())?).map_err(|_| corrupt())?;
             if hash.len() != 64 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
                 return Err(corrupt());
@@ -803,7 +807,7 @@ pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Res
                 || receipt.phase != session.phase
                 || receipt.settings != session.settings
                 || receipt.started_at_unix_ms != session.started_at_unix_ms
-                || receipt.revision != index as i64 + 1
+                || receipt.revision != verified_revision
                 || receipt.cursor > session.cursor
             {
                 return Err(corrupt());
@@ -828,6 +832,9 @@ pub(in crate::workspace) fn validate_native_data(connection: &Connection) -> Res
                 return Err(corrupt());
             }
             previous = Some(receipt);
+        }
+        if verified_revision != session.revision {
+            return Err(corrupt());
         }
     }
     Ok(())

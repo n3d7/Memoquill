@@ -335,7 +335,7 @@ pub(super) fn validate_composition(v: &Value, allow_unknown: bool) -> Result<()>
     if nodes.len() != c.nodes.len() || !nodes.contains_key(&c.root_node_id) {
         return Err(AppError::new(ErrorCode::InvalidTree));
     }
-    let registry = discover();
+    let registry = super::catalog::registry();
     let mut parents = HashSet::new();
     for n in &c.nodes {
         if !valid_id(&n.node_id) || bytes(&n.props)?.len() > 16384 || n.on.len() > 4 {
@@ -549,26 +549,11 @@ pub(super) fn diagnose(c: &Composition, allow_unknown: bool) -> Vec<LessonDiagno
             }
             continue;
         }
-        let known = node.type_version == 1
-            && [
-                "stack", "columns", "section", "content", "source", "activity", "button", "status",
-            ]
-            .contains(&node.type_id.as_str());
-        let issue = if !known && !allow_unknown {
-            Some(diagnostic(
-                LessonDiagnosticCode::UnsupportedType,
-                "typeVersion",
-                LessonRepair::RemoveOrReplaceUnsupported,
-                Some(&node.node_id),
-                None,
-            ))
-        } else if known {
-            if let Some(field) = schema_field(
-                &super::catalog::props_schema(&node.type_id),
-                &node.props,
-                "props",
-                0,
-            ) {
+        let descriptor = super::catalog::registry().iter().find(|descriptor| {
+            descriptor.type_version == node.type_version && descriptor.type_id == node.type_id
+        });
+        let issue = if let Some(descriptor) = descriptor {
+            if let Some(field) = schema_field(&descriptor.props_schema, &node.props, "props", 0) {
                 Some(diagnostic(
                     LessonDiagnosticCode::InvalidProps,
                     &field,
@@ -613,6 +598,14 @@ pub(super) fn diagnose(c: &Composition, allow_unknown: bool) -> Vec<LessonDiagno
             } else {
                 None
             }
+        } else if !allow_unknown {
+            Some(diagnostic(
+                LessonDiagnosticCode::UnsupportedType,
+                "typeVersion",
+                LessonRepair::RemoveOrReplaceUnsupported,
+                Some(&node.node_id),
+                None,
+            ))
         } else {
             None
         };

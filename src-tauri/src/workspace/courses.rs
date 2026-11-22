@@ -5,7 +5,13 @@ use super::{
 };
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+use std::{
+    collections::HashMap,
+    fs,
+    os::unix::fs::MetadataExt,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 use uuid::Uuid;
 
 const MAX_COURSES: usize = 32;
@@ -37,10 +43,45 @@ pub struct CourseManager {
     state: Mutex<State>,
 }
 
+// TempDir handles normal completion. After interruption the next catalogue
+// owner can reclaim incomplete package copies without touching restore intents
+// or UUID-named roots that have already been published.
+fn reclaim_package_staging(parent: &Path, prefixes: &[&str]) -> Result<()> {
+    owner::private_directory(parent)?;
+    let owner_uid = fs::symlink_metadata(parent)?.uid();
+    let mut removed = false;
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if !name.to_str().is_some_and(|name| {
+            prefixes.iter().any(|prefix| {
+                name.strip_prefix(prefix).is_some_and(|suffix| {
+                    suffix.len() == 6 && suffix.bytes().all(|byte| byte.is_ascii_alphanumeric())
+                })
+            })
+        }) {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if metadata.is_dir() && metadata.uid() == owner_uid && metadata.mode() & 0o077 == 0 {
+            fs::remove_dir_all(entry.path())?;
+            removed = true;
+        }
+    }
+    if removed {
+        owner::sync_directory(parent)?;
+    }
+    Ok(())
+}
+
 impl CourseManager {
     pub(crate) fn managed_root(&self) -> &std::path::Path {
         &self.app_data
     }
+    pub(crate) fn package_staging_root(app_data: &Path) -> PathBuf {
+        app_data.join("courses/.package-staging")
+    }
+
     /// Admit only a verified package, always to a NEW isolated course. Operation UUID
     /// is its catalogue ID; durable intent survives a root-publish/admission crash.
     pub fn restore_native(
@@ -210,6 +251,11 @@ impl CourseManager {
         let data = root.join("data");
         owner::create_private_tree(&data)?;
         owner::private_directory(&data)?;
+        let staging = Self::package_staging_root(&app_data);
+        owner::create_private_tree(&staging)?;
+        reclaim_package_staging(&staging, &["memoquill-native-", "memoquill-stream-"])?;
+        reclaim_package_staging(&root, &["memoquill-native-", "memoquill-stream-"])?;
+        reclaim_package_staging(&data, &[".restore-"])?;
         let has_managed_data = std::fs::read_dir(&data)?.next().transpose()?.is_some();
         let path = root.join("catalogue.sqlite3");
         match std::fs::symlink_metadata(&path) {
@@ -313,6 +359,19 @@ impl CourseManager {
     /// Captured before awaiting: selection changes never retarget an accepted request.
     pub fn service(&self, course_id: Uuid) -> Result<ApplicationService> {
         let mut state = self.state.lock().map_err(|_| unavailable())?;
+        self.open_service(&mut state, course_id)
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn selected_service(&self, course_id: Uuid) -> Result<ApplicationService> {
+        let mut state = self.state.lock().map_err(|_| unavailable())?;
+        if catalogue(&state.connection)?.selected_course_id != course_id {
+            return Err(AppError::new(ErrorCode::RevisionConflict));
+        }
+        self.open_service(&mut state, course_id)
+    }
+
+    fn open_service(&self, state: &mut State, course_id: Uuid) -> Result<ApplicationService> {
         if state.closing {
             return Err(unavailable());
         }

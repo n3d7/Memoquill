@@ -1,4 +1,5 @@
 //! Local application services. Native adapters receive no database connection.
+pub(crate) mod agent_course;
 mod assessments;
 mod assets;
 mod content;
@@ -7,6 +8,10 @@ mod database;
 mod error;
 mod faults;
 mod lessons;
+#[cfg(target_os = "linux")]
+pub(crate) mod mcp_drafts;
+#[cfg(target_os = "linux")]
+pub(crate) mod mcp_reads;
 mod migrations;
 mod operations;
 mod owner;

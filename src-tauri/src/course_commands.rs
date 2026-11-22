@@ -41,3 +41,16 @@ pub fn save_workspace_settings(
 ) -> Result<crate::workspace::WorkspaceSettings, AppError> {
     manager.save_workspace_settings(crate::workspace::RequestContext::local_ui(), request)
 }
+
+#[cfg(target_os = "linux")]
+#[tauri::command]
+pub(crate) async fn review_course_draft(
+    manager: tauri::State<'_, CourseManager>,
+    course_id: uuid::Uuid,
+    request: crate::workspace::agent_course::CourseReviewRequest,
+) -> Result<serde_json::Value, crate::workspace::AppError> {
+    manager
+        .selected_service(course_id)?
+        .review_course_draft(crate::workspace::RequestContext::local_ui(), request)
+        .await
+}

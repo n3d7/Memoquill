@@ -2,6 +2,7 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "courses_list",
+            "review_course_draft",
             "workspace_settings",
             "save_workspace_settings",
             "course_create",
@@ -20,6 +21,7 @@ fn main() {
             "lesson_read",
             "lesson_read_source",
             "lesson_list_drafts",
+            "lesson_review_external_draft",
             "lesson_read_activity",
             "lesson_read_resource",
             "lesson_create_draft",
@@ -63,6 +65,10 @@ fn main() {
             "ingestion_undo_preview",
             "ingestion_undo",
             "rebuild_search_index",
+            "mcp_status",
+            "mcp_set_enabled",
+            "mcp_approve",
+            "mcp_revoke",
         ]),
     ))
     .expect("Tauri build configuration must be valid");

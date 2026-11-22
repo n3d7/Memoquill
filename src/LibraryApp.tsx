@@ -12,12 +12,13 @@ import { failureMessage, type Collection, type Command, type Entity, type Librar
 
 import { useContentPort, useIdentityPort, useOptionalLessonPort, useSourcePort } from './application/ApplicationProvider';
 import { LessonTabs } from './lessons/LessonTabs';
+import { CourseDraftReview } from './courses/CourseDraftReview';
 import { StatusMessage } from './application/controls';
 import type { NavigationContext } from './application/workspaceTypes';
 
 type Perform = (command: Command) => Promise<Library | null>;
 type Content = ReturnType<typeof useContentLibrary>;
-export function LibraryApp() {
+export function LibraryApp({ reviewCourseId }: { reviewCourseId?: string } = {}) {
   const mainId = useId();
   const lessonPort = useOptionalLessonPort(); const sourcePort = useSourcePort();
   const content = useContentLibrary(); const reading = useReadingPreferences();
@@ -69,6 +70,7 @@ export function LibraryApp() {
     </section>
     <main id={mainId} tabIndex={-1}>
       <OrganizationStatus content={content} />
+    {reviewCourseId && <CourseDraftReview courseId={reviewCourseId} onChanged={content.reload} />}
       {notice && <p role="alert">{notice}</p>}
       <SubjectNavigation content={content} selected={subjectId} select={id => { setSubjectId(id); setCollectionId(null); }} />
       {data && <LibraryContents data={data} content={content} subjectId={subjectId} collectionId={collectionId} selectCollection={setCollectionId} initialNavigation={initialNavigation} updateBrowserContext={updateBrowserContext} resourceId={resourceId} openResource={openResource} onDirty={setDirty} />}

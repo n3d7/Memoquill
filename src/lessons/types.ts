@@ -65,7 +65,21 @@ export interface CreateLessonDraft extends LessonScope { operationId: string; ex
 export interface EditLessonDraft extends DraftScope { operationId: string; operations: LessonOperation[] }
 export interface ApplyLessonDraft extends DraftScope { expectedHeadRevision: string | null; previewHash: string; operationId: string }
 export interface DiscardLessonDraft extends DraftScope { operationId: string }
+export type DraftReview =
+  | { kind: 'list' }
+  | { kind: 'inspect'; draftId: string; revision: number }
+  | { kind: 'apply'; draftId: string; revision: number; expectedHeadRevision: string | null; hash: string; operationId: string }
+  | { kind: 'reject'; draftId: string; revision: number; operationId: string };
+export type DraftReviewResult =
+  | { kind: 'list'; value: { id: string; revision: number }[] }
+  | { kind: 'inspection'; value: {
+    draft: LessonDraft; validation: LessonValidation; reviewHash: string | null; bindings: import('./LessonRenderer').ResolvedLesson;
+  } }
+  | { kind: 'applied'; value: LessonReceipt }
+  | { kind: 'rejected' };
+
 export interface LessonPort {
+  reviewExternalDraft?(unitId: string, review: DraftReview): Promise<DraftReviewResult>;
   discover(): Promise<RegistryDescriptor[]>;
   listDrafts(unitId: string): Promise<LessonDraft[]>;
   read(unitId: string): Promise<SavedComposition | null>;

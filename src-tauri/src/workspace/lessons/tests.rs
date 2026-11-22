@@ -599,33 +599,59 @@ fn invalid_event_action_pair_and_source_locator_do_not_gain_authority() {
 #[test]
 fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
     let (_temp, mut db, u) = setup();
-    let source = Uuid::new_v4().to_string();
-    let resource = Uuid::new_v4().to_string();
-    let operation = OperationId::generate();
-    let digest = "a".repeat(64);
-    db.connection
-        .execute(
-            "INSERT INTO operations VALUES(?1,?2,'local-ui','hash','asset','applied','{}',NULL)",
-            rusqlite::params![operation.as_str(), db.id.as_str()],
+    use crate::{
+        organization::ResourceId,
+        workspace::{NewSource, RegisterAsset, SaveSource},
+    };
+    let source = Uuid::new_v4();
+    let resource = ResourceId::generate();
+    let pdf = include_bytes!("../../../../tests/fixtures/m3/original.pdf");
+    let asset = db
+        .register_asset(
+            RequestContext::local_ui(),
+            &RegisterAsset {
+                contract_version: 1,
+                workspace_id: db.id.clone(),
+                operation_id: OperationId::generate(),
+            },
+            &mut std::io::Cursor::new(pdf),
+            4096,
         )
         .unwrap();
+    let digest = asset.digest.as_str().to_owned();
     db.connection
         .execute(
-            "INSERT INTO assets VALUES(?1,4,?2)",
-            rusqlite::params![digest, operation.as_str()],
+            "INSERT INTO resources VALUES(?1,'Original',0)",
+            [resource.to_string()],
         )
         .unwrap();
-    db.connection
-        .execute("INSERT INTO resources VALUES(?1,'Original',0)", [&resource])
-        .unwrap();
-    db.connection.execute("INSERT INTO original_sources VALUES(?1,?2,?3,'source.pdf','application/pdf','Author','CC0',NULL,1,4)",rusqlite::params![source,resource,digest]).unwrap();
+    db.save_source(
+        RequestContext::local_ui(),
+        &SaveSource {
+            contract_version: 1,
+            workspace_id: db.id.clone(),
+            operation_id: OperationId::generate(),
+            expected_revision: 0,
+            source: NewSource {
+                id: source,
+                resource_id: resource,
+                digest: asset.digest,
+                filename: "source.pdf".into(),
+                media_type: "application/pdf".into(),
+                attribution: Some("Synthetic fixture".into()),
+                license: Some("CC0".into()),
+                origin_url: None,
+            },
+        },
+    )
+    .unwrap();
     let d = create(&mut db, &u);
     let op:LessonOperation=serde_json::from_value(json!({"kind":"createSourceBindingRevision","sourceId":source,"bindingId":"source","locator":"page:2","declaredUsedRanges":["page:2"]})).unwrap();
     let d = db
         .lesson_edit(RequestContext::local_ui(), &edit(&db, &d, vec![op]))
         .unwrap();
     let revision = d.composition.bindings[0].revision_id.clone();
-    assert_ne!(revision, source);
+    assert_ne!(revision, source.to_string());
     let p = db
         .lesson_preview(RequestContext::local_ui(), &scope(&db, &d))
         .unwrap();
@@ -639,6 +665,107 @@ fn source_snapshots_are_unit_scoped_immutable_and_honest_about_coverage() {
     assert_eq!(data.read_coverage, "unknown");
     assert_eq!(data.declared_used_ranges, vec!["page:2"]);
     assert_eq!(data.asset_digest, digest);
+    #[cfg(target_os = "linux")]
+    {
+        let context = RequestContext::local_ui().restrict_to_active_records();
+        let discover = |db: &Database, include| {
+            db.mcp_lesson(context, &u, include)
+                .unwrap()
+                .unwrap()
+                .source_revisions
+        };
+        assert_eq!(discover(&db, true), vec![revision.clone()]);
+        assert!(discover(&db, false).is_empty());
+        use crate::workspace::mcp_reads::BoundSource;
+        let BoundSource::Extracted { binding, preview } =
+            db.mcp_bound_source(context, &u, &revision, None).unwrap()
+        else {
+            panic!("Expected the PDF fallback preview")
+        };
+        let extraction = preview.extraction.unwrap();
+        assert_eq!(
+            extraction.status,
+            crate::workspace::ExtractionStatus::AttachmentOnly
+        );
+        assert!(extraction.records.is_empty());
+        assert_eq!(binding.extraction_coverage, "notExtracted");
+        let BoundSource::Original {
+            binding,
+            byte_length,
+            bytes,
+        } = db
+            .mcp_bound_source(context, &u, &revision, Some(0))
+            .unwrap()
+        else {
+            panic!("Expected a verified original range")
+        };
+        assert_eq!(bytes, pdf);
+        assert_eq!(byte_length, pdf.len() as u64);
+        assert_eq!(binding.asset_digest, digest);
+        use crate::workspace::mcp_drafts::{
+            DraftRequest, DraftResult, DraftReview, DraftReviewResult,
+        };
+        let owner = Uuid::new_v4();
+        let head = db.lesson_read(context, &u, None).unwrap().unwrap().id;
+        let request = |action| {
+            serde_json::from_value::<DraftRequest>(
+                json!({"unitId": u, "ownerKey": owner, "action": action}),
+            )
+            .unwrap()
+        };
+        let action =
+            json!({"kind": "create", "operationId": Uuid::new_v4(), "expectedHeadRevision": head});
+        assert_eq!(
+            db.mcp_draft(request(action.clone()), false)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::PermissionDenied
+        );
+        let DraftResult::Draft(draft) = db.mcp_draft(request(action), true).unwrap() else {
+            panic!("Expected draft")
+        };
+        assert_eq!(draft.base_head_revision.as_deref(), Some(head.as_str()));
+        let inspect = DraftReview::Inspect {
+            draft_id: Uuid::parse_str(&draft.id).unwrap(),
+            revision: draft.revision,
+        };
+        let DraftReviewResult::Inspection(view) = db
+            .review_mcp_draft(RequestContext::local_ui(), &u, inspect)
+            .unwrap()
+        else {
+            panic!("Expected trusted inspection")
+        };
+        assert!(view.bindings.sources.contains_key(&revision));
+        assert_eq!(view.draft.composition.authoring_provenance.kind, "assisted");
+        assert_eq!(
+            db.mcp_draft(request(json!({"kind": "read", "draftId": draft.id})), false)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::PermissionDenied
+        );
+        db.connection
+            .execute(
+                "UPDATE resources SET archived=1 WHERE id=?1",
+                [resource.to_string()],
+            )
+            .unwrap();
+        assert!(discover(&db, true).is_empty());
+        assert_eq!(
+            db.mcp_bound_source(context, &u, &revision, None)
+                .err()
+                .unwrap()
+                .code,
+            ErrorCode::PermissionDenied
+        );
+        db.connection
+            .execute(
+                "UPDATE resources SET archived=0 WHERE id=?1",
+                [resource.to_string()],
+            )
+            .unwrap();
+    }
     let other = Uuid::new_v4().to_string();
     db.connection
         .execute("INSERT INTO units VALUES(?1,'Other','goal',0)", [&other])
@@ -1717,4 +1844,124 @@ fn error_repair_requires_versioned_label_correction_and_review_provenance() {
     let mut untrusted = definition;
     untrusted["instruction"]["review"]["verified"] = json!(true);
     assert!(super::validation::activity(&untrusted).is_err());
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn mcp_draft_owner_retries_and_reopens_without_publishing() {
+    use crate::workspace::mcp_drafts::{DraftRequest, DraftResult};
+
+    let (temp, mut db, unit) = setup();
+    let owner = Uuid::new_v4();
+    let other = Uuid::new_v4();
+    let request = |owner, action| {
+        serde_json::from_value::<DraftRequest>(json!({
+            "ownerKey": owner,
+            "unitId": unit,
+            "action": action,
+        }))
+        .unwrap()
+    };
+    let draft = |result| {
+        let DraftResult::Draft(draft) = result else {
+            panic!("Expected a draft result")
+        };
+        draft
+    };
+    let create = json!({"kind": "create", "operationId": Uuid::new_v4()});
+    let created = draft(db.mcp_draft(request(owner, create.clone()), false).unwrap());
+    assert_eq!(created.composition.authoring_provenance.kind, "assisted");
+    let id = created.id;
+    assert_eq!(
+        draft(db.mcp_draft(request(owner, create), false).unwrap()).id,
+        id
+    );
+    let read = json!({"kind": "read", "draftId": id});
+    let list = json!({"kind":"list"});
+    let DraftResult::List(mine) = db.mcp_draft(request(owner, list.clone()), false).unwrap() else {
+        panic!("Expected draft summaries")
+    };
+    assert_eq!(mine[0].id, id);
+    let DraftResult::List(theirs) = db.mcp_draft(request(other, list), false).unwrap() else {
+        panic!("Expected draft summaries")
+    };
+    assert!(theirs.is_empty());
+    let missing = db
+        .mcp_draft(request(other, read.clone()), false)
+        .err()
+        .unwrap();
+    assert_eq!(missing.code, ErrorCode::PermissionDenied);
+    let ui = RequestContext::local_ui();
+    assert!(db.lesson_list_drafts(ui, &unit).unwrap().is_empty());
+    assert!(db.lesson_read(ui, &unit, None).unwrap().is_none());
+    super::validate_native_data(&db.connection).unwrap();
+
+    let edit = json!({
+        "kind": "edit", "draftId": id, "revision": 1, "operationId": Uuid::new_v4(),
+        "operations": [{"kind": "setAppearance", "tokens": {
+            "spacing": "normal", "theme": "system", "typography": "default", "width": "normal", "emphasis": "normal"
+        }}]
+    });
+    let edited = draft(db.mcp_draft(request(owner, edit.clone()), false).unwrap());
+    assert_eq!(edited.revision, 2);
+    assert_eq!(
+        draft(db.mcp_draft(request(owner, edit.clone()), false).unwrap()).revision,
+        2
+    );
+    let mut stale = edit;
+    stale["operationId"] = json!(Uuid::new_v4());
+    assert_eq!(
+        db.mcp_draft(request(owner, stale), false)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::RevisionConflict
+    );
+
+    drop(db);
+    let mut db = Database::open(&temp.path().join("workspace")).unwrap();
+    assert_eq!(
+        draft(db.mcp_draft(request(owner, read.clone()), false).unwrap()).revision,
+        2
+    );
+    let validation = db
+        .mcp_draft(
+            request(
+                owner,
+                json!({"kind": "validate", "draftId": id, "revision": 2}),
+            ),
+            false,
+        )
+        .unwrap();
+    assert!(matches!(validation, DraftResult::Validation(_)));
+    let preview = db
+        .mcp_draft(
+            request(
+                owner,
+                json!({"kind": "preview", "draftId": id, "revision": 2}),
+            ),
+            false,
+        )
+        .unwrap();
+    assert!(matches!(preview, DraftResult::Preview(_)));
+    assert!(db.lesson_read(ui, &unit, None).unwrap().is_none());
+
+    let discard =
+        json!({"kind": "discard", "draftId": id, "revision": 2, "operationId": Uuid::new_v4()});
+    assert!(matches!(
+        db.mcp_draft(request(owner, discard.clone()), false)
+            .unwrap(),
+        DraftResult::Discarded { .. }
+    ));
+    assert!(matches!(
+        db.mcp_draft(request(owner, discard), false).unwrap(),
+        DraftResult::Discarded { .. }
+    ));
+    assert_eq!(
+        db.mcp_draft(request(owner, read), false)
+            .err()
+            .unwrap()
+            .code,
+        ErrorCode::PermissionDenied
+    );
 }

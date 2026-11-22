@@ -240,7 +240,16 @@ pub(super) fn actions() -> Vec<ActionDescriptor> {
     })
     .collect()
 }
+pub(super) fn registry() -> &'static [RegistryDescriptor] {
+    static REGISTRY: std::sync::OnceLock<Vec<RegistryDescriptor>> = std::sync::OnceLock::new();
+    REGISTRY.get_or_init(build_registry)
+}
+
 pub(super) fn discover() -> Vec<RegistryDescriptor> {
+    registry().to_vec()
+}
+
+fn build_registry() -> Vec<RegistryDescriptor> {
     ["stack","columns","section","content","source","activity","button","status"].into_iter().map(|t|{
  let slots:Vec<String>=match t{"stack"|"section"=>vec!["body".into()],"columns"=>vec!["primary".into(),"secondary".into()],_=>vec![]};
  let events:Vec<String>=match t{"section"=>vec!["toggle"],"source"=>vec!["openSource"],"activity"=>vec!["response","hint","reveal","submit"],"button"=>vec!["activate"],_=>vec![]}.into_iter().map(String::from).collect();

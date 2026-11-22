@@ -29,6 +29,21 @@ export class LessonController {
       this.publish({ saved, drafts, draft, registry, composition: draft?.composition ?? saved?.composition ?? null, preview: null, message: draft ? 'Resumed your saved editing draft.' : '' });
     } catch (error) { this.publish({ error: message(error) }); } finally { if (generation === this.generation) this.publish({ busy: false }); }
   }
+  async refreshPublished() {
+    if (this.state.pending || this.state.busy) return;
+    const generation = ++this.generation;
+    this.publish({ busy: true });
+    try {
+      const saved = await this.port.read(this.unitId);
+      if (generation === this.generation) {
+        this.publish({ saved, composition: this.state.draft?.composition ?? saved?.composition ?? null });
+      }
+    } catch (error) {
+      if (generation === this.generation) this.publish({ error: message(error) });
+    } finally {
+      if (generation === this.generation) this.publish({ busy: false });
+    }
+  }
   async chooseDraft(id: string) { if (this.state.pending || this.state.busy) return; const draft = this.state.drafts.find(d => d.id === id); if (!draft) return; this.undoStack = []; this.redoStack = []; this.publish({ draft, composition: draft.composition, preview: null, error: '' }); }
   private async execute(work: () => Promise<void>) {
     this.pending = work; this.publish({ pending: true, busy: true, error: '' });

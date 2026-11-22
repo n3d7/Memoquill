@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use uuid::Uuid;
 pub(super) mod documents;
 mod notes;
-mod organization_store;
+pub(super) mod organization_store;
 #[cfg(test)]
 mod persistence_tests;
 mod types;
@@ -135,7 +135,7 @@ fn version(value: u32, revision: u64) -> Result<()> {
     }
     Ok(())
 }
-fn domain_error(value: organization::DomainError) -> AppError {
+pub(super) fn domain_error(value: organization::DomainError) -> AppError {
     match value {
         organization::DomainError::PermissionDenied => AppError::new(ErrorCode::PermissionDenied),
         organization::DomainError::RevisionConflict => conflict(),

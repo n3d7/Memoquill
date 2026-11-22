@@ -41,6 +41,12 @@ enum Request {
         Reply<AssetInfo>,
     ),
     CaptureNative(RequestContext, uuid::Uuid, Reply<NativeCapture>),
+    CaptureNativeStream(
+        RequestContext,
+        uuid::Uuid,
+        std::path::PathBuf,
+        Reply<NativeCapture>,
+    ),
     CapturePortable(
         RequestContext,
         uuid::Uuid,
@@ -52,6 +58,18 @@ enum Request {
     Shutdown(Reply<()>),
 }
 enum ContentRequest {
+    #[cfg(target_os = "linux")]
+    AgentCourse(
+        super::agent_course::CourseDraftRequest,
+        Option<std::sync::Arc<super::agent_course::Delegation>>,
+        Reply<serde_json::Value>,
+    ),
+    #[cfg(target_os = "linux")]
+    ReviewAgentCourse(
+        RequestContext,
+        super::agent_course::CourseReviewRequest,
+        Reply<serde_json::Value>,
+    ),
     Library(RequestContext, Reply<crate::organization::Snapshot>),
     ApplyContent(
         RequestContext,
@@ -90,6 +108,21 @@ enum SourcesRequest {
     ),
     Save(RequestContext, Box<SaveSource>, Reply<OriginalSource>),
     Preview(RequestContext, uuid::Uuid, Reply<SourcePreview>),
+    #[cfg(target_os = "linux")]
+    PublishedLesson(
+        RequestContext,
+        String,
+        bool,
+        Reply<Option<super::mcp_reads::PublishedLesson>>,
+    ),
+    #[cfg(target_os = "linux")]
+    BoundSource(
+        RequestContext,
+        String,
+        String,
+        Option<u64>,
+        Reply<super::mcp_reads::BoundSource>,
+    ),
     CreateIngestion(RequestContext, Box<CreateIngestionJob>, Reply<IngestionJob>),
     Ingestion(RequestContext, uuid::Uuid, Reply<IngestionJob>),
     IngestionList(
@@ -114,6 +147,19 @@ enum SourcesRequest {
 }
 
 enum LessonsRequest {
+    #[cfg(target_os = "linux")]
+    AgentDraft(
+        super::mcp_drafts::DraftRequest,
+        bool,
+        Reply<super::mcp_drafts::DraftResult>,
+    ),
+    #[cfg(target_os = "linux")]
+    ReviewAgentDraft(
+        RequestContext,
+        String,
+        super::mcp_drafts::DraftReview,
+        Reply<super::mcp_drafts::DraftReviewResult>,
+    ),
     Validate(RequestContext, LessonDraftScope, Reply<LessonValidation>),
     Source(
         RequestContext,
@@ -382,6 +428,45 @@ impl ApplicationService {
         )
         .await
     }
+    #[cfg(target_os = "linux")]
+    pub(super) async fn mcp_draft(
+        &self,
+        request: super::mcp_drafts::DraftRequest,
+        sources: bool,
+    ) -> Result<super::mcp_drafts::DraftResult> {
+        let mutation = request.action.is_mutation();
+        self.request(
+            RequestContext::local_ui(),
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::AgentDraft(
+                    request, sources, reply,
+                )))
+            },
+            mutation,
+        )
+        .await
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn review_mcp_draft(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        review: super::mcp_drafts::DraftReview,
+    ) -> Result<super::mcp_drafts::DraftReviewResult> {
+        let mutation = review.is_mutation();
+        self.request(
+            context,
+            |reply| {
+                Request::Lessons(Box::new(LessonsRequest::ReviewAgentDraft(
+                    context, unit_id, review, reply,
+                )))
+            },
+            mutation,
+        )
+        .await
+    }
+
     pub async fn lesson_create(
         &self,
         context: RequestContext,
@@ -546,6 +631,52 @@ impl ApplicationService {
         self.request(
             context,
             |reply| Request::Sources(SourcesRequest::Preview(context, source_id, reply)),
+            false,
+        )
+        .await
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) async fn mcp_lesson(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        include_sources: bool,
+    ) -> Result<Option<super::mcp_reads::PublishedLesson>> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::PublishedLesson(
+                    context,
+                    unit_id,
+                    include_sources,
+                    reply,
+                ))
+            },
+            false,
+        )
+        .await
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) async fn mcp_bound_source(
+        &self,
+        context: RequestContext,
+        unit_id: String,
+        revision: String,
+        original_offset: Option<u64>,
+    ) -> Result<super::mcp_reads::BoundSource> {
+        self.request(
+            context,
+            |reply| {
+                Request::Sources(SourcesRequest::BoundSource(
+                    context,
+                    unit_id,
+                    revision,
+                    original_offset,
+                    reply,
+                ))
+            },
             false,
         )
         .await
@@ -727,6 +858,36 @@ impl ApplicationService {
         )
         .await
     }
+    #[cfg(target_os = "linux")]
+    pub(super) async fn mcp_course_draft(
+        &self,
+        request: super::agent_course::CourseDraftRequest,
+        delegation: Option<std::sync::Arc<super::agent_course::Delegation>>,
+    ) -> Result<serde_json::Value> {
+        let mutation = request.is_mutation();
+        self.request(
+            RequestContext::local_ui(),
+            |reply| Request::Content(ContentRequest::AgentCourse(request, delegation, reply)),
+            mutation,
+        )
+        .await
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn review_course_draft(
+        &self,
+        context: RequestContext,
+        request: super::agent_course::CourseReviewRequest,
+    ) -> Result<serde_json::Value> {
+        let mutation = request.is_mutation();
+        self.request(
+            context,
+            |reply| Request::Content(ContentRequest::ReviewAgentCourse(context, request, reply)),
+            mutation,
+        )
+        .await
+    }
+
     pub async fn library(&self, context: RequestContext) -> Result<crate::organization::Snapshot> {
         self.request(
             context,
@@ -886,6 +1047,19 @@ impl ApplicationService {
         )
         .await
     }
+    pub(crate) async fn capture_native_stream(
+        &self,
+        context: RequestContext,
+        source_course_id: uuid::Uuid,
+        staging_parent: std::path::PathBuf,
+    ) -> Result<NativeCapture> {
+        self.request(
+            context,
+            |reply| Request::CaptureNativeStream(context, source_course_id, staging_parent, reply),
+            false,
+        )
+        .await
+    }
     /// Course-scoped serialized capture; originals require an explicit native caller choice.
     pub async fn capture_portable(
         &self,
@@ -1037,6 +1211,10 @@ impl Store {
             Request::CaptureNative(context, course_id, reply) => {
                 let _ = reply.send(self.access(|db| db.capture_native(context, course_id)));
             }
+            Request::CaptureNativeStream(context, course_id, parent, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.capture_native_stream(context, course_id, &parent)));
+            }
             Request::CapturePortable(context, course_id, originals, history, reply) => {
                 let _ = reply.send(self.access(|db| {
                     db.capture_portable_with_history(context, course_id, originals, history)
@@ -1052,6 +1230,14 @@ impl Store {
     }
     fn handle_lessons(&mut self, request: LessonsRequest) {
         match request {
+            #[cfg(target_os = "linux")]
+            LessonsRequest::AgentDraft(request, sources, reply) => {
+                let _ = reply.send(self.access(|db| db.mcp_draft(request, sources)));
+            }
+            #[cfg(target_os = "linux")]
+            LessonsRequest::ReviewAgentDraft(context, unit, review, reply) => {
+                let _ = reply.send(self.access(|db| db.review_mcp_draft(context, &unit, review)));
+            }
             LessonsRequest::Validate(c, r, reply) => {
                 let _ = reply.send(self.access(|db| db.lesson_validate(c, &r)));
             }
@@ -1105,6 +1291,16 @@ impl Store {
             SourcesRequest::Preview(context, id, reply) => {
                 let _ = reply.send(self.access(|db| db.source_preview(context, id)));
             }
+            #[cfg(target_os = "linux")]
+            SourcesRequest::PublishedLesson(context, unit, include_sources, reply) => {
+                let _ =
+                    reply.send(self.access(|db| db.mcp_lesson(context, &unit, include_sources)));
+            }
+            #[cfg(target_os = "linux")]
+            SourcesRequest::BoundSource(context, unit, revision, offset, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.mcp_bound_source(context, &unit, &revision, offset)));
+            }
             SourcesRequest::CreateIngestion(context, request, reply) => {
                 let _ = reply.send(self.access(|db| db.create_ingestion_job(context, &request)));
             }
@@ -1143,6 +1339,15 @@ impl Store {
     }
     fn handle_content(&mut self, request: ContentRequest) {
         match request {
+            #[cfg(target_os = "linux")]
+            ContentRequest::AgentCourse(request, delegation, reply) => {
+                let _ = reply
+                    .send(self.access(|db| db.mcp_course_draft(request, delegation.as_deref())));
+            }
+            #[cfg(target_os = "linux")]
+            ContentRequest::ReviewAgentCourse(context, request, reply) => {
+                let _ = reply.send(self.access(|db| db.review_course_draft(context, request)));
+            }
             ContentRequest::Library(context, reply) => {
                 let _ = reply.send(self.access(|db| db.library(context)));
             }

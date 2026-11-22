@@ -6,6 +6,10 @@ pub mod document;
 pub mod draft;
 mod ingestion_commands;
 mod lesson_commands;
+#[cfg(target_os = "linux")]
+mod mcp;
+#[cfg(target_os = "linux")]
+pub use mcp::run_stdio;
 mod native_files;
 pub mod organization;
 mod package_commands;
@@ -71,6 +75,8 @@ pub fn run() {
         .setup(initialize_workspace)
         .invoke_handler(tauri::generate_handler![
             course_commands::courses_list,
+            #[cfg(target_os = "linux")]
+            course_commands::review_course_draft,
             course_commands::workspace_settings,
             course_commands::save_workspace_settings,
             course_commands::course_create,
@@ -79,6 +85,8 @@ pub fn run() {
             lesson_commands::lesson_read,
             lesson_commands::lesson_read_source,
             lesson_commands::lesson_list_drafts,
+            #[cfg(target_os = "linux")]
+            lesson_commands::lesson_review_external_draft,
             lesson_commands::lesson_read_activity,
             lesson_commands::lesson_read_resource,
             lesson_commands::lesson_create_draft,
@@ -131,6 +139,14 @@ pub fn run() {
             ingestion_commands::ingestion_undo_preview,
             ingestion_commands::ingestion_undo,
             authoring::search_resources,
+            #[cfg(target_os = "linux")]
+            mcp::mcp_status,
+            #[cfg(target_os = "linux")]
+            mcp::mcp_set_enabled,
+            #[cfg(target_os = "linux")]
+            mcp::mcp_approve,
+            #[cfg(target_os = "linux")]
+            mcp::mcp_revoke,
             authoring::rebuild_search_index
         ])
         .build(tauri::generate_context!())
@@ -141,6 +157,8 @@ pub fn run() {
 fn initialize_workspace(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let service = start_workspace(app)?;
     app.manage(service);
+    #[cfg(target_os = "linux")]
+    app.manage(mcp::Connections::default());
     app.manage(Shutdown(AtomicU8::new(0)));
     Ok(())
 }
@@ -172,6 +190,10 @@ fn start_draining(app: &tauri::AppHandle) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        #[cfg(target_os = "linux")]
+        if let Some(connections) = app.try_state::<mcp::Connections>() {
+            let _ = connections.shutdown().await;
+        }
         let _ = app.state::<CourseManager>().shutdown().await;
         app.state::<Shutdown>().0.store(2, Ordering::Release);
         app.exit(0);
@@ -273,6 +295,14 @@ mod tests {
                 ingestion_commands::ingestion_undo_preview,
                 ingestion_commands::ingestion_undo,
                 authoring::library,
+                #[cfg(target_os = "linux")]
+                mcp::mcp_status,
+                #[cfg(target_os = "linux")]
+                mcp::mcp_set_enabled,
+                #[cfg(target_os = "linux")]
+                mcp::mcp_approve,
+                #[cfg(target_os = "linux")]
+                mcp::mcp_revoke,
                 authoring::rebuild_search_index,
             ])
             .build(tauri::generate_context!())

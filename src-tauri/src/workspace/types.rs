@@ -187,13 +187,30 @@ pub struct RegisterAsset {
 #[derive(Clone, Copy)]
 pub struct RequestContext {
     trusted_ui: bool,
+    active_only: bool,
 }
 impl RequestContext {
     pub(crate) fn local_ui() -> Self {
-        Self { trusted_ui: true }
+        Self {
+            trusted_ui: true,
+            active_only: false,
+        }
     }
     pub fn unverified_external() -> Self {
-        Self { trusted_ui: false }
+        Self {
+            trusted_ui: false,
+            active_only: false,
+        }
+    }
+    #[cfg(target_os = "linux")]
+    pub(super) fn restrict_to_active_records(self) -> Self {
+        Self {
+            active_only: true,
+            ..self
+        }
+    }
+    pub(super) fn active_only(self) -> bool {
+        self.active_only
     }
     pub(super) fn authorize(self) -> Result<()> {
         if self.trusted_ui {

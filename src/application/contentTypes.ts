@@ -35,7 +35,7 @@ export type Command =
   | { type: 'archive'; target: { kind: 'subject' | 'goal' | 'collection' | 'resource' | 'placement' | 'unit' | 'path'; id: string }; archived: boolean };
 export interface Envelope { contractVersion: 1; workspaceId: string; operationId: string; expectedRevision: number }
 export interface ApplyContent extends Envelope { command: Command }
-export interface SavedDocument { id: string; resourceId: string; revision: number; document: Document }
+export interface SavedDocument { id: string; resourceId: string; revision: number; document: Document; authoringOrigin?: 'externalUnverified' }
 export interface SaveDocument extends Envelope { resourceId: string; document: Document }
 export interface ReadingPosition { resourceId: string; revisionId: string; blockId: string; offsetUtf16: number; revision: number }
 export interface Annotation { id: string; resourceId: string; revisionId: string; revision: number; body: string; anchor: { resourceId: string; revisionId: string; blockId: string; startUtf16: number; endUtf16: number; exactQuote: string; quoteHash: string | null } }
